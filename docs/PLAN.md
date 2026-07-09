@@ -291,6 +291,13 @@ Before implementation, confirm the exact generally available .NET 10 image tags 
 - Verify the process starts with a read-only root filesystem.
 - Record final image size, startup time, and vulnerability scan results.
 
+### Dependency automation
+
+- Add Dependabot configuration when repository automation is introduced; do not create it during the initial planning/customization phase.
+- Cover NuGet packages, Docker base images, and GitHub Actions.
+- Configure every Dependabot update ecosystem with a seven-day cooldown (`cooldown.default-days: 7`) so newly released versions are not proposed before the cooldown expires.
+- Group compatible updates where practical and validate the configuration before enabling automated pull requests.
+
 ## 14. Implementation Phases
 
 | Phase | Deliverables | Exit criteria |
@@ -299,7 +306,7 @@ Before implementation, confirm the exact generally available .NET 10 image tags 
 | 2. Runtime engine | Immutable registry, catch-all dispatcher, configured responses, concurrency-safe statistics | Runtime-created routes work immediately and concurrent mutation tests pass |
 | 3. Persistence and management | File store, revisions, CRUD API, import/export/save, health endpoints, problem details | Invalid changes are atomic; saved configuration survives restart |
 | 4. Dashboard | Endpoint management UI, payload/header editor, filters, live statistics, accessible states | End-to-end CRUD and statistics workflows pass on mobile and desktop |
-| 5. Container and hardening | Chiseled multi-stage image, non-root/read-only operation, limits, optional management key, CI scans | Container acceptance checks pass and size/startup measurements are recorded |
+| 5. Container and hardening | Chiseled multi-stage image, non-root/read-only operation, limits, optional management key, CI scans, Dependabot configuration with a seven-day cooldown | Container acceptance checks pass, dependency automation is validated, and size/startup measurements are recorded |
 | 6. Documentation and release | README, configuration reference, operating guide, sample Compose file, migration notes from references | A new user can build, run, persist, manage, export, and restore endpoints from documented steps |
 
 ## 15. Acceptance Criteria
@@ -314,6 +321,7 @@ Before implementation, confirm the exact generally available .NET 10 image tags 
 - [ ] Reserved system routes cannot be shadowed by mock endpoints.
 - [ ] The application runs as non-root in a .NET 10 Noble chiseled container on port 8080.
 - [ ] The root filesystem can be read-only with `/data` as the sole writable application mount.
+- [ ] Dependabot covers NuGet, Docker, and GitHub Actions, with a seven-day cooldown applied to every update ecosystem.
 - [ ] Unit, integration, schema, dashboard, accessibility, and container checks pass.
 - [ ] Documentation clearly distinguishes HTTP reason phrases from response bodies and explains protocol limitations.
 
