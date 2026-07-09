@@ -50,7 +50,7 @@ The new project should target .NET 10 and preserve the small, non-root, chiseled
 
 ### Deferred unless needed during implementation
 
-- Authentication and authorization beyond an optional management API key.
+- Management authentication and authorization.
 - Durable statistics across restarts.
 - Request-body/header matching, route parameters, templating, delays, dropped connections, throttling scenarios, or response sequences.
 - Multi-user editing and distributed synchronization across replicas.
@@ -160,8 +160,8 @@ JSON Schema validates document shape. A second semantic validator must detect cr
 - On startup, load and validate the configured file when it exists.
 - Make missing-file behavior explicit through `MockApi__AllowEmptyConfiguration`; default to an empty valid registry for local use.
 - Fail startup on malformed or semantically invalid configured JSON rather than serving an unintended partial configuration.
-- Runtime edits update the active in-memory snapshot immediately.
-- Save through an explicit command and optionally through configurable autosave; default autosave to enabled for a single-instance local container.
+- Runtime edits update the active in-memory snapshot immediately and mark the configuration as having unsaved changes.
+- Persist runtime edits only through an explicit save command in the initial release. Do not autosave.
 - Save atomically by writing a temporary file in the same directory, flushing it, and replacing the target.
 - Serialize deterministically for readable diffs: stable endpoint order, consistent property order, and indented JSON.
 - Import validates the entire candidate document and presents all actionable errors before replacement.
@@ -184,7 +184,7 @@ Use JSON endpoints under `/__mockapi/api`:
 - Save the active configuration to the configured path.
 - Return the active configuration revision and persistence status.
 
-Use source-generated `System.Text.Json` contexts to retain trimming compatibility. Return RFC 9457-style problem details for validation, conflict, and persistence errors. Mutating operations should require an optional configured management API key when the dashboard is exposed beyond localhost; the mock routes must remain independently accessible.
+Use source-generated `System.Text.Json` contexts to retain trimming compatibility. Return RFC 9457-style problem details for validation, conflict, and persistence errors. The initial release does not authenticate management operations, so management routes must be deployed only on localhost or a protected network. The mock routes remain independently accessible.
 
 ## 9. Dashboard
 
@@ -239,8 +239,7 @@ Before implementation, confirm the exact generally available .NET 10 image tags 
 ## 12. Security and Operational Guardrails
 
 - Bind management routes to the same listener initially, but support disabling the dashboard and management API independently.
-- Default container deployment guidance to loopback or a protected network unless management authentication is configured.
-- Add optional constant-time API-key validation for management mutations and never persist the key in endpoint configuration.
+- Do not add management authentication in the initial release. Default container deployment guidance to loopback or a protected network and clearly warn against direct exposure to untrusted networks.
 - Encode response headers through ASP.NET Core header APIs and reject CR/LF characters.
 - Encode dashboard-rendered values; never inject configured body/header text as HTML.
 - Apply request-size limits and management API rate limits.
@@ -306,7 +305,7 @@ Before implementation, confirm the exact generally available .NET 10 image tags 
 | 2. Runtime engine | Immutable registry, catch-all dispatcher, configured responses, concurrency-safe statistics | Runtime-created routes work immediately and concurrent mutation tests pass |
 | 3. Persistence and management | File store, revisions, CRUD API, import/export/save, health endpoints, problem details | Invalid changes are atomic; saved configuration survives restart |
 | 4. Dashboard | Endpoint management UI, payload/header editor, filters, live statistics, accessible states | End-to-end CRUD and statistics workflows pass on mobile and desktop |
-| 5. Container and hardening | Chiseled multi-stage image, non-root/read-only operation, limits, optional management key, CI scans, Dependabot configuration with a seven-day cooldown | Container acceptance checks pass, dependency automation is validated, and size/startup measurements are recorded |
+| 5. Container and hardening | Chiseled multi-stage image, non-root/read-only operation, limits, network-exposure guidance, CI scans, Dependabot configuration with a seven-day cooldown | Container acceptance checks pass, dependency automation is validated, and size/startup measurements are recorded |
 | 6. Documentation and release | README, configuration reference, operating guide, sample Compose file, migration notes from references | A new user can build, run, persist, manage, export, and restore endpoints from documented steps |
 
 ## 15. Acceptance Criteria
@@ -325,11 +324,14 @@ Before implementation, confirm the exact generally available .NET 10 image tags 
 - [ ] Unit, integration, schema, dashboard, accessibility, and container checks pass.
 - [ ] Documentation clearly distinguishes HTTP reason phrases from response bodies and explains protocol limitations.
 
-## 16. Decisions to Confirm Before Implementation
+## 16. Confirmed Decisions
 
-- Product/repository naming: retain `MockAPI` or choose a more specific public name.
-- Whether management authentication is required in the first release or documented as opt-in.
-- Whether autosave defaults to enabled or runtime edits remain dirty until explicitly saved.
+- Use `MockAPI` as the product, repository, solution, and primary assembly name.
+- Do not require management authentication in the initial release; management routes must remain on localhost or a protected network.
+- Persist runtime changes only when an operator explicitly saves them. Runtime changes remain active but visibly unsaved until save succeeds.
+
+## 17. Decisions to Confirm Before Implementation
+
 - Whether endpoint paths need route templates such as `/users/{id}` in the first release; the baseline assumes exact paths.
 - Whether request matching beyond method/path belongs in the first release.
 - Whether `linux-arm64` must ship alongside `linux-x64`.
