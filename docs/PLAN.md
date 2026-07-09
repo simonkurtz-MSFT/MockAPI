@@ -43,8 +43,9 @@ The new project should target .NET 10 and preserve the small, non-root, chiseled
 - Explicit save, import, and export operations.
 - Schema validation before a configuration becomes active.
 - Dynamic mock dispatch without process restart.
+- Request matching by HTTP method and exact normalized path only.
 - Per-endpoint and aggregate in-memory statistics.
-- Self-contained Linux x64 publication in a .NET 10 Ubuntu Noble chiseled runtime-deps image.
+- Self-contained `linux-x64` and `linux-arm64` publications in .NET 10 Ubuntu Noble chiseled runtime-deps images, delivered through one multi-platform image index for `linux/amd64` and `linux/arm64`.
 - Health/readiness endpoints.
 - Automated unit, integration, schema, dashboard, and container tests.
 
@@ -52,12 +53,11 @@ The new project should target .NET 10 and preserve the small, non-root, chiseled
 
 - Management authentication and authorization.
 - Durable statistics across restarts.
-- Request-body/header matching, route parameters, templating, delays, dropped connections, throttling scenarios, or response sequences.
+- Query-string, request-header, or request-body matching; route templates or alternate path matchers; response templating; delays; dropped connections; throttling scenarios; or response sequences.
 - Multi-user editing and distributed synchronization across replicas.
 - TLS termination inside the container.
-- Additional architectures such as `linux-arm64`.
 
-The configuration format should be versioned and extensible so deferred response behaviors can be added without replacing the core endpoint model.
+The configuration format should be versioned and extensible so deferred response behaviors and path-matching modes can be added without replacing existing exact-path endpoint definitions.
 
 ## 4. Proposed Architecture
 
@@ -94,9 +94,11 @@ Avoid a separate Node.js runtime or frontend server. A small static dashboard ke
 
 ## 5. Route and Matching Rules
 
+- Match literal normalized paths exactly in the initial release. Do not interpret route parameters, wildcards, or regular expressions.
 - Match the HTTP method case-insensitively and the normalized path case-sensitively by default, consistent with URL path semantics.
+- Use only the normalized HTTP method and exact normalized path as the v1 matching key. Request headers, query strings, and bodies do not affect matching.
 - Require paths to start with `/`.
-- Ignore query strings for initial route matching; query values remain visible in statistics only if explicitly added later with privacy controls.
+- Exclude query values from statistics unless a future privacy-reviewed feature explicitly adds them.
 - Reject duplicate active method/path pairs across endpoint definitions.
 - Reserve `/__mockapi`, `/health`, and their descendants for the application.
 - Support standard methods such as `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, and `OPTIONS`; permit other valid HTTP tokens unless restricted for safety.
@@ -223,16 +225,19 @@ The UI must be keyboard usable, responsive, and WCAG 2.2 AA compliant across nor
 ## 11. Container and Publication
 
 - Target `net10.0` and pin an approved .NET 10 SDK feature band in `global.json` with an intentional roll-forward policy.
-- Publish self-contained for `linux-x64`, single-file, fully trimmed, and ready-to-run only if size/startup measurements justify it.
+- Publish self-contained for `linux-x64` and `linux-arm64`, single-file, fully trimmed, and ready-to-run only if size/startup measurements justify it.
+- Publish one multi-platform OCI image index containing `linux/amd64` and `linux/arm64` images. Keep tags and application behavior identical across architectures.
 - Build in `mcr.microsoft.com/dotnet/sdk:10.0-noble`.
 - Run in `mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled`.
 - Run as the built-in non-root `app` user.
 - Listen on HTTP port `8080`; terminate TLS at the container host or ingress.
 - Disable the Kestrel `Server` response header.
 - Use a read-only root filesystem where supported and mount only `/data` writable.
+- Start deployment examples with a `0.25` CPU and `128 MiB` memory request, and a `0.5` CPU and `256 MiB` memory limit. Treat these as conservative initial defaults, not image metadata or guaranteed capacity requirements.
 - Add an OCI health check only if the chiseled image has a suitable built-in mechanism; otherwise rely on platform HTTP probes.
 - Produce an SBOM and scan the final image in CI.
-- Measure compressed image size and cold startup against the two reference images rather than assuming trimming settings are optimal.
+- Measure compressed image size and cold startup for both architectures against the two reference images rather than assuming trimming settings are optimal.
+- Measure idle and representative-load CPU and memory use under the initial limits. Increase defaults only when startup, health checks, persistence, dashboard use, or representative mock traffic cannot run reliably within them, and record the evidence for any increase.
 
 Before implementation, confirm the exact generally available .NET 10 image tags and trimming/AOT compatibility against current Microsoft container documentation. Native AOT should be evaluated as a measured optimization, not an initial requirement, because dashboard/static-file and JSON features can constrain it.
 
@@ -284,11 +289,14 @@ Before implementation, confirm the exact generally available .NET 10 image tags 
 
 ### Container checks
 
-- Build the Linux image and run it as non-root.
+- Build `linux/amd64` and `linux/arm64` images and verify that the multi-platform image index references both.
+- Run each architecture on a native runner or documented emulation and verify identical application behavior.
+- Run each image as non-root.
 - Verify `/data` persistence across container recreation.
 - Verify readiness and liveness behavior.
 - Verify the process starts with a read-only root filesystem.
-- Record final image size, startup time, and vulnerability scan results.
+- Verify startup, health checks, dashboard use, persistence, and representative mock traffic within the `0.5` CPU and `256 MiB` limits; record idle and loaded CPU and memory observations.
+- Record per-architecture image size, startup time, and vulnerability scan results.
 
 ### Dependency automation
 
@@ -319,6 +327,8 @@ Before implementation, confirm the exact generally available .NET 10 image tags 
 - [ ] Management writes detect stale revisions.
 - [ ] Reserved system routes cannot be shadowed by mock endpoints.
 - [ ] The application runs as non-root in a .NET 10 Noble chiseled container on port 8080.
+- [ ] One multi-platform image index provides functionally equivalent `linux/amd64` and `linux/arm64` images.
+- [ ] The application passes container checks with a `0.5` CPU and `256 MiB` limit; deployment examples start with a `0.25` CPU and `128 MiB` request.
 - [ ] The root filesystem can be read-only with `/data` as the sole writable application mount.
 - [ ] Dependabot covers NuGet, Docker, and GitHub Actions, with a seven-day cooldown applied to every update ecosystem.
 - [ ] Unit, integration, schema, dashboard, accessibility, and container checks pass.
@@ -329,10 +339,11 @@ Before implementation, confirm the exact generally available .NET 10 image tags 
 - Use `MockAPI` as the product, repository, solution, and primary assembly name.
 - Do not require management authentication in the initial release; management routes must remain on localhost or a protected network.
 - Persist runtime changes only when an operator explicitly saves them. Runtime changes remain active but visibly unsaved until save succeeds.
+- Match exact paths in the initial release while keeping the versioned endpoint contract open to future route templates and alternate path-matching modes.
+- Match requests by HTTP method and exact normalized path only in the initial release; query strings, request headers, and request bodies do not participate.
+- Ship both `linux/amd64` and `linux/arm64` images under one multi-platform image index.
+- Start deployment guidance at a `0.25` CPU and `128 MiB` memory request with a `0.5` CPU and `256 MiB` memory limit, then tune only from measured runtime evidence.
 
 ## 17. Decisions to Confirm Before Implementation
 
-- Whether endpoint paths need route templates such as `/users/{id}` in the first release; the baseline assumes exact paths.
-- Whether request matching beyond method/path belongs in the first release.
-- Whether `linux-arm64` must ship alongside `linux-x64`.
 - Required limits for endpoint count, payload size, and statistics retention window.
