@@ -64,23 +64,51 @@ wslc stats --format table mockapi-dev
 wslc logs mockapi-dev
 ```
 
-Exercise HTTP endpoints from Windows, then recreate the container with the same volume to verify persistence. Until the planned health routes are implemented, the developer CLI smoke-tests `/`:
+Exercise HTTP endpoints from Windows, then recreate the container with the same volume to verify persistence. Until the planned health routes are implemented, the developer CLI smoke-tests `/` and expects the runtime engine's unmatched-route response of HTTP `404`:
 
 ```powershell
-Invoke-WebRequest http://localhost:8080/
+Invoke-WebRequest http://localhost:8080/ -SkipHttpErrorCheck
 wslc stop mockapi-dev
 wslc remove mockapi-dev
 ```
 
 Repeat the `wslc run` command with `mockapi-data:/data` and confirm that explicitly saved configuration is restored.
 
+## Image Support Matrix
+
+MockAPI is distributed as a Linux container. The release tag must be a multi-platform OCI image index containing both `linux/amd64` and `linux/arm64`; a compatible container engine selects the matching image automatically.
+
+| Host operating system | Host CPU | Required image platform | Support | Validation status |
+| --- | --- | --- | --- | --- |
+| Windows | x64 | `linux/amd64` | Supported through a Linux container engine such as WSL 2 | CI runtime validation required |
+| Windows | ARM64 | `linux/arm64` | Supported through a Linux container engine such as WSLC or WSL 2 | Validated locally with WSLC `2.9.3.0` |
+| Linux | x64 | `linux/amd64` | Supported natively | CI runtime validation required |
+| Linux | ARM64 | `linux/arm64` | Supported natively | CI runtime validation required |
+| macOS | Intel x64 | `linux/amd64` | Supported through a Linux container engine | CI runtime validation required |
+| macOS | Apple silicon | `linux/arm64` | Supported through a Linux container engine | CI runtime validation required |
+
+The image is not a native Windows container and does not contain Windows or macOS binaries. Windows and macOS hosts run the matching Linux image in their container engine's Linux virtual machine. Publishing only one architecture can cause startup failures or emulation on a host with the other architecture, so release tags must not be published until both image variants have been built, run, and assembled into the shared index. Prefer a named volume for `/data` to avoid host-specific bind-mount sharing and permission behavior, especially on macOS.
+
+## Image Optimization Evaluation
+
+ARM64 measurements confirm that the current Alpine publication is already close to the practical minimum while retaining a supported, package-aware runtime:
+
+| Candidate | Image size | Evaluation |
+| --- | ---: | --- |
+| Alpine 3.24 `runtime-deps` with compressed, fully trimmed CoreCLR | 26.83 MB | Recommended; smallest supported and maintainable option tested |
+| Shell-free custom CoreCLR runtime | 24.60 MB | Works, but the 2.23 MB saving adds native-library, scanning, and multi-architecture maintenance |
+| Shell-free size-optimized Native AOT | 24.88 MB | Works, but is larger than equivalent CoreCLR and requires native per-architecture builds |
+| Alpine 3.22 `runtime-deps` | 11.50 MB base | Only 0.13 MB below the Alpine 3.24 base; not worth selecting an older distribution |
+
+Additional .NET runtime feature switches produced no meaningful size reduction after full trimming and single-file compression. Retain musl, `libgcc`, `libstdc++`, OpenSSL, zlib, and the CA trust store; removing dynamically loaded cryptography or certificate assets risks behavior that a startup-only smoke test cannot prove safe. Keep Alpine 3.24 `runtime-deps` unless future measurements show that a small size reduction is worth owning a custom runtime filesystem.
+
 ## Multi-Architecture Release Boundary
 
-The .NET SDK on this ARM64 laptop can cross-publish application artifacts for both target runtime identifiers:
+The .NET SDK on this ARM64 laptop can cross-publish Alpine-compatible application artifacts for both target runtime identifiers:
 
 ```powershell
-dotnet publish src/MockAPI/MockAPI.csproj --configuration Release --runtime linux-arm64
-dotnet publish src/MockAPI/MockAPI.csproj --configuration Release --runtime linux-x64
+dotnet publish src/MockAPI/MockAPI.csproj --configuration Release --runtime linux-musl-arm64
+dotnet publish src/MockAPI/MockAPI.csproj --configuration Release --runtime linux-musl-x64
 ```
 
 WSLC `2.9.3.0` has no `--platform` option on `build`, `pull`, or `run`, and no image-index command. Therefore:

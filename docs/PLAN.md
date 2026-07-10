@@ -31,7 +31,7 @@ The implementation should source proven patterns from these sibling repositories
   - Per-endpoint request state.
   - Source-generated `System.Text.Json` metadata.
 
-The new project should target .NET 10 and preserve the small, non-root, chiseled-container approach while replacing hard-coded routes and counters with a general runtime endpoint registry.
+The new project should target .NET 10 and preserve the small, non-root, minimal-container approach while replacing hard-coded routes and counters with a general runtime endpoint registry.
 
 ## 3. Scope
 
@@ -45,7 +45,7 @@ The new project should target .NET 10 and preserve the small, non-root, chiseled
 - Dynamic mock dispatch without process restart.
 - Request matching by HTTP method and exact normalized path only.
 - Per-endpoint and aggregate in-memory statistics.
-- Self-contained `linux-x64` and `linux-arm64` publications in .NET 10 Ubuntu Noble chiseled runtime-deps images, delivered through one multi-platform image index for `linux/amd64` and `linux/arm64`.
+- Self-contained `linux-musl-x64` and `linux-musl-arm64` publications in .NET 10 Alpine runtime-deps images, delivered through one multi-platform image index for `linux/amd64` and `linux/arm64`.
 - Health/readiness endpoints.
 - Automated unit, integration, schema, dashboard, and container tests.
 
@@ -229,10 +229,10 @@ The UI must be keyboard usable, responsive, and WCAG 2.2 AA compliant across nor
 ## 11. Container and Publication
 
 - Target `net10.0` and pin an approved .NET 10 SDK feature band in `global.json` with an intentional roll-forward policy.
-- Publish self-contained for `linux-x64` and `linux-arm64`, single-file, fully trimmed, and ready-to-run only if size/startup measurements justify it.
+- Publish self-contained for `linux-musl-x64` and `linux-musl-arm64`, compressed single-file, fully trimmed, and ready-to-run only if size/startup measurements justify it.
 - Publish one multi-platform OCI image index containing `linux/amd64` and `linux/arm64` images. Keep tags and application behavior identical across architectures.
-- Build in `mcr.microsoft.com/dotnet/sdk:10.0-noble`.
-- Run in `mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled`.
+- Build in `mcr.microsoft.com/dotnet/sdk:10.0-alpine3.24`.
+- Run in `mcr.microsoft.com/dotnet/runtime-deps:10.0-alpine3.24`.
 - Run as the built-in non-root `app` user.
 - Listen on HTTP port `8080`; terminate TLS at the container host or ingress.
 - Disable the Kestrel `Server` response header.
@@ -240,12 +240,12 @@ The UI must be keyboard usable, responsive, and WCAG 2.2 AA compliant across nor
 - Use WSLC for native local image builds, container execution, resource limits, volume persistence, logs, inspection, and statistics. Keep the verified command set and limitations in `docs/WSLC.md`.
 - Because WSLC `2.9.3.0` cannot select a target platform or manage multi-platform image indexes, build and test both architecture images and assemble the OCI index in CI using suitable native runners and registry tooling.
 - Start deployment examples with a `0.25` CPU and `128 MiB` memory request, and a `0.5` CPU and `256 MiB` memory limit. Treat these as conservative initial defaults, not image metadata or guaranteed capacity requirements.
-- Add an OCI health check only if the chiseled image has a suitable built-in mechanism; otherwise rely on platform HTTP probes.
+- Rely on platform HTTP probes rather than adding a shell-based OCI health check.
 - Produce an SBOM and scan the final image in CI.
 - Measure compressed image size and cold startup for both architectures against the two reference images rather than assuming trimming settings are optimal.
 - Measure idle and representative-load CPU and memory use under the initial limits. Increase defaults only when startup, health checks, persistence, dashboard use, or representative mock traffic cannot run reliably within them, and record the evidence for any increase.
 
-Before implementation, confirm the exact generally available .NET 10 image tags and trimming/AOT compatibility against current Microsoft container documentation. Native AOT should be evaluated as a measured optimization, not an initial requirement, because dashboard/static-file and JSON features can constrain it.
+The ARM64 measurements selected Alpine CoreCLR: compressed publication reduced the payload from 20.33 MiB to 14.46 MiB, and the image from 33.89 MB on Noble chiseled to 26.83 MB on Alpine 3.24. The current Alpine 3.24 `runtime-deps` base is the recommended supported base. A shell-free custom runtime worked and reduced the image to 24.60 MB, but the 2.23 MB saving does not currently justify manually maintaining native libraries, certificate assets, SBOM attribution, and architecture parity. Size-optimized Native AOT was compatible but did not produce a smaller equivalent image. Re-evaluate scratch packaging only if image size becomes more important than maintenance and scanning simplicity, or AOT if memory or startup becomes the priority.
 
 ## 12. Security and Operational Guardrails
 
@@ -320,7 +320,7 @@ Before implementation, confirm the exact generally available .NET 10 image tags 
 | 2. Runtime engine | Immutable registry, catch-all dispatcher, configured responses, concurrency-safe statistics | Runtime-created routes work immediately and concurrent mutation tests pass |
 | 3. Persistence and management | File store, revisions, CRUD API, import/export/save, health endpoints, problem details, management OpenAPI document, Swagger UI | Invalid changes are atomic; saved configuration survives restart; management operations are accurately described by OpenAPI |
 | 4. Dashboard | Endpoint management UI, payload/header editor, filters, live statistics, accessible states | End-to-end CRUD and statistics workflows pass on mobile and desktop |
-| 5. Container and hardening | Chiseled multi-stage image, non-root/read-only operation, limits, network-exposure guidance, CI scans, Dependabot configuration with a seven-day cooldown | Container acceptance checks pass, dependency automation is validated, and size/startup measurements are recorded |
+| 5. Container and hardening | Minimal multi-stage image, non-root/read-only operation, limits, network-exposure guidance, CI scans, Dependabot configuration with a seven-day cooldown | Container acceptance checks pass, dependency automation is validated, and size/startup measurements are recorded |
 | 6. Documentation and release | README, configuration reference, operating guide, sample Compose file, migration notes from references | A new user can build, run, persist, manage, export, and restore endpoints from documented steps |
 
 ## 15. Acceptance Criteria
@@ -336,7 +336,7 @@ Before implementation, confirm the exact generally available .NET 10 image tags 
 - [ ] Reserved system routes cannot be shadowed by mock endpoints.
 - [ ] Startup loading, management writes, validation, and import consistently enforce the approved document, endpoint, method, path, body, and header limits.
 - [ ] Recent-rate statistics retain exactly 60 one-minute buckets without unbounded growth.
-- [ ] The application runs as non-root in a .NET 10 Noble chiseled container on port 8080.
+- [ ] The application runs as non-root in a .NET 10 Alpine container on port 8080.
 - [ ] One multi-platform image index provides functionally equivalent `linux/amd64` and `linux/arm64` images.
 - [ ] The application passes container checks with a `0.5` CPU and `256 MiB` limit; deployment examples start with a `0.25` CPU and `128 MiB` request.
 - [ ] The root filesystem can be read-only with `/data` as the sole writable application mount.

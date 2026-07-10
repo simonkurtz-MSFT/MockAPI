@@ -1,4 +1,5 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
+# Build image
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine3.24 AS build
 
 WORKDIR /src
 COPY global.json MockAPI.slnx ./
@@ -12,7 +13,10 @@ RUN dotnet publish src/MockAPI/MockAPI.csproj \
     --output /app/publish \
     -p:TreatWarningsAsErrors=true
 
-FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled AS final
+
+
+# Runtime image
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-alpine3.24 AS final
 
 WORKDIR /app
 COPY --from=build --chown=app:app /app/publish ./
