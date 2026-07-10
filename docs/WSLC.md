@@ -1,0 +1,93 @@
+# WSLC Development Workflow
+
+MockAPI uses the Windows Subsystem for Linux Container CLI (`wslc`) for local container builds and tests. The commands in this document were verified with WSLC `2.9.3.0` on a Windows ARM64 host.
+
+Run `wslc version` and review command help before relying on these constraints with a newer release.
+
+## Supported Local Work
+
+| Capability | WSLC 2.9.3.0 | MockAPI use |
+| --- | --- | --- |
+| Build from a Dockerfile | Yes | Build the native ARM64 development image |
+| Run and manage containers | Yes | Exercise health, management, dashboard, and mock routes |
+| Limit CPU and memory | Yes | Test with the `0.5` CPU and `256 MiB` release limits |
+| Named and bind-mounted volumes | Yes | Verify `/data` persistence across container recreation |
+| Networks and published ports | Yes | Expose port `8080` for host-side HTTP checks |
+| Image inspection, tagging, push, and pull | Yes | Inspect metadata and publish architecture-specific images |
+| Resource statistics | Yes | Record CPU, memory, I/O, and process observations |
+| Select a build, pull, or run platform | No | Cannot request `linux/amd64` on this ARM64 host |
+| Create or inspect a multi-platform image index | No | Assemble and verify the release index in CI |
+| Enforce a read-only root filesystem at run time | No exposed option | Verify on a CI runner with suitable container tooling |
+| Generate an SBOM or scan vulnerabilities | No built-in command | Perform both release checks in CI |
+
+WSLC uses Dockerfiles as its image build format; using `wslc` does not require Docker Desktop or the Docker CLI.
+
+## Local ARM64 Workflow
+
+Use the developer CLI from the repository root for the normal workflow:
+
+```powershell
+.\start.ps1 -Action container-build
+.\start.ps1 -Action container-run
+.\start.ps1 -Action container-test
+```
+
+The equivalent direct WSLC build command is:
+
+```powershell
+wslc build --pull --tag mockapi:dev .
+```
+
+Create a persistent data volume once:
+
+```powershell
+wslc volume create mockapi-data
+```
+
+Run the image with the initial resource limits:
+
+```powershell
+wslc run --detach `
+  --name mockapi-dev `
+  --cpus 0.5 `
+  --memory 256M `
+  --publish 8080:8080 `
+  --volume mockapi-data:/data `
+  mockapi:dev
+```
+
+Inspect the running container and capture resource use:
+
+```powershell
+wslc inspect mockapi-dev
+wslc stats --format table mockapi-dev
+wslc logs mockapi-dev
+```
+
+Exercise HTTP endpoints from Windows, then recreate the container with the same volume to verify persistence. Until the planned health routes are implemented, the developer CLI smoke-tests `/`:
+
+```powershell
+Invoke-WebRequest http://localhost:8080/
+wslc stop mockapi-dev
+wslc remove mockapi-dev
+```
+
+Repeat the `wslc run` command with `mockapi-data:/data` and confirm that explicitly saved configuration is restored.
+
+## Multi-Architecture Release Boundary
+
+The .NET SDK on this ARM64 laptop can cross-publish application artifacts for both target runtime identifiers:
+
+```powershell
+dotnet publish src/MockAPI/MockAPI.csproj --configuration Release --runtime linux-arm64
+dotnet publish src/MockAPI/MockAPI.csproj --configuration Release --runtime linux-x64
+```
+
+WSLC `2.9.3.0` has no `--platform` option on `build`, `pull`, or `run`, and no image-index command. Therefore:
+
+- Local WSLC builds and runtime tests cover the native `linux/arm64` image.
+- Native or otherwise qualified CI runners build and test both `linux/amd64` and `linux/arm64` images.
+- CI assembles and verifies the multi-platform OCI image index.
+- CI performs read-only-root, SBOM, vulnerability, and architecture-parity checks that local WSLC cannot complete.
+
+Do not treat a successful cross-publish as runtime validation of the `linux/amd64` image. Record any skipped local check and require its corresponding CI result before declaring a release ready.

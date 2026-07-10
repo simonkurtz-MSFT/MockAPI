@@ -143,16 +143,18 @@ The future configuration asset should be `config/mockapi.json`, with its JSON Sc
 - `schemaVersion` and `endpoints` are required.
 - Unknown properties are rejected initially to catch misspellings.
 - `id` is a UUID and remains stable across edits/import/export.
-- `name` is non-empty and length-limited.
-- `methods` is a non-empty unique array of valid HTTP method tokens.
-- `path` is length-limited, starts with `/`, and cannot target a reserved route.
+- `name` is non-empty and limited to 200 characters.
+- `methods` is a non-empty unique array of at most 8 valid HTTP method tokens.
+- `path` is limited to 2,048 characters, starts with `/`, and cannot target a reserved route.
 - `statusCode` is an integer from 100 through 599.
 - `reasonPhrase` is optional and disallows control characters. HTTP/2 and HTTP/3 do not transmit reason phrases, so the dashboard and documentation must not imply otherwise.
 - `headers` maps a header name to an array of string values so repeated headers round-trip correctly.
 - Reject controlled or hop-by-hop headers, including `Connection`, `Content-Length`, `Date`, `Host`, `Server`, `Transfer-Encoding`, and `Upgrade`. The server owns protocol framing and default headers.
 - `contentType` is optional but required by validation when a non-empty body is present unless a documented default is applied.
-- `body` is a raw string. JSON payloads are stored as JSON text so exact response bytes and invalid-JSON test cases remain possible.
-- Define practical limits for document size, endpoint count, methods per endpoint, header count/value size, and body size.
+- `body` is a raw string limited to 1 MiB when UTF-8 encoded. JSON payloads are stored as JSON text so exact response bytes and invalid-JSON test cases remain possible.
+- Limit a configuration document to 4 MiB when UTF-8 encoded and 25 endpoint definitions.
+- Limit each endpoint to 64 configured response headers, each individual header value to 8 KiB when UTF-8 encoded, and all configured header names and values for an endpoint to 32 KiB when UTF-8 encoded.
+- Reject oversized management requests before parsing where possible, and enforce the same limits during startup loading, validation, import, runtime editing, export, and save so no path can activate an invalid document.
 
 JSON Schema validates document shape. A second semantic validator must detect cross-record conflicts such as duplicate method/path pairs and reserved paths.
 
@@ -188,6 +190,8 @@ Use JSON endpoints under `/__mockapi/api`:
 
 Use source-generated `System.Text.Json` contexts to retain trimming compatibility. Return RFC 9457-style problem details for validation, conflict, and persistence errors. The initial release does not authenticate management operations, so management routes must be deployed only on localhost or a protected network. The mock routes remain independently accessible.
 
+Generate an OpenAPI document for the management API and provide Swagger UI under the reserved `/__mockapi` route space. Do not include runtime-defined mock endpoints in the management API document. Allow OpenAPI document and Swagger UI exposure to be disabled independently from the management API, and preserve trimming compatibility when selecting and configuring the implementation.
+
 ## 9. Dashboard
 
 The first screen should be the operational dashboard, not a marketing page.
@@ -217,7 +221,7 @@ The UI must be keyboard usable, responsive, and WCAG 2.2 AA compliant across nor
 - Count every request seen by the mock dispatcher.
 - Distinguish matched, disabled/unmatched, and failed-to-write requests.
 - Attribute requests by stable endpoint ID, not path, so edits do not corrupt identity.
-- Use atomic counters for totals and a bounded ring buffer of time buckets for recent rates.
+- Use atomic counters for totals and a bounded ring buffer of 60 one-minute buckets, retaining 60 minutes of recent rate data.
 - Do not retain request or response bodies, authorization headers, cookies, or query values.
 - Treat statistics as process-local and reset them on restart in the initial release.
 - Document that multiple replicas have independent configuration and statistics; run one replica unless a shared store is added later.
@@ -233,6 +237,8 @@ The UI must be keyboard usable, responsive, and WCAG 2.2 AA compliant across nor
 - Listen on HTTP port `8080`; terminate TLS at the container host or ingress.
 - Disable the Kestrel `Server` response header.
 - Use a read-only root filesystem where supported and mount only `/data` writable.
+- Use WSLC for native local image builds, container execution, resource limits, volume persistence, logs, inspection, and statistics. Keep the verified command set and limitations in `docs/WSLC.md`.
+- Because WSLC `2.9.3.0` cannot select a target platform or manage multi-platform image indexes, build and test both architecture images and assemble the OCI index in CI using suitable native runners and registry tooling.
 - Start deployment examples with a `0.25` CPU and `128 MiB` memory request, and a `0.5` CPU and `256 MiB` memory limit. Treat these as conservative initial defaults, not image metadata or guaranteed capacity requirements.
 - Add an OCI health check only if the chiseled image has a suitable built-in mechanism; otherwise rely on platform HTTP probes.
 - Produce an SBOM and scan the final image in CI.
@@ -278,7 +284,7 @@ Before implementation, confirm the exact generally available .NET 10 image tags 
 ### Schema contract tests
 
 - Validate checked-in examples against the schema.
-- Ensure malformed documents, unknown properties, invalid headers, oversized values, and incompatible versions fail with useful errors.
+- Ensure malformed documents, unknown properties, invalid headers, every limit boundary, oversized values, and incompatible versions fail with useful errors.
 - Verify application serialization output validates against the checked-in schema.
 
 ### Dashboard tests
@@ -289,6 +295,7 @@ Before implementation, confirm the exact generally available .NET 10 image tags 
 
 ### Container checks
 
+- Use WSLC for local native ARM64 image builds and runtime checks as documented in `docs/WSLC.md`.
 - Build `linux/amd64` and `linux/arm64` images and verify that the multi-platform image index references both.
 - Run each architecture on a native runner or documented emulation and verify identical application behavior.
 - Run each image as non-root.
@@ -311,7 +318,7 @@ Before implementation, confirm the exact generally available .NET 10 image tags 
 | --- | --- | --- |
 | 1. Foundation | Solution/project structure, .NET 10 pin, domain model, source-generated JSON, validation, initial schema and examples | Configuration round-trips and all schema/domain validation tests pass |
 | 2. Runtime engine | Immutable registry, catch-all dispatcher, configured responses, concurrency-safe statistics | Runtime-created routes work immediately and concurrent mutation tests pass |
-| 3. Persistence and management | File store, revisions, CRUD API, import/export/save, health endpoints, problem details | Invalid changes are atomic; saved configuration survives restart |
+| 3. Persistence and management | File store, revisions, CRUD API, import/export/save, health endpoints, problem details, management OpenAPI document, Swagger UI | Invalid changes are atomic; saved configuration survives restart; management operations are accurately described by OpenAPI |
 | 4. Dashboard | Endpoint management UI, payload/header editor, filters, live statistics, accessible states | End-to-end CRUD and statistics workflows pass on mobile and desktop |
 | 5. Container and hardening | Chiseled multi-stage image, non-root/read-only operation, limits, network-exposure guidance, CI scans, Dependabot configuration with a seven-day cooldown | Container acceptance checks pass, dependency automation is validated, and size/startup measurements are recorded |
 | 6. Documentation and release | README, configuration reference, operating guide, sample Compose file, migration notes from references | A new user can build, run, persist, manage, export, and restore endpoints from documented steps |
@@ -325,7 +332,10 @@ Before implementation, confirm the exact generally available .NET 10 image tags 
 - [ ] Configuration can be validated, imported, exported, saved atomically, and reloaded after container recreation with a mounted volume.
 - [ ] The dashboard exposes aggregate and per-endpoint statistics without retaining sensitive request content.
 - [ ] Management writes detect stale revisions.
+- [ ] OpenAPI accurately describes the management API, excludes runtime-defined mock endpoints, and Swagger UI can be disabled independently.
 - [ ] Reserved system routes cannot be shadowed by mock endpoints.
+- [ ] Startup loading, management writes, validation, and import consistently enforce the approved document, endpoint, method, path, body, and header limits.
+- [ ] Recent-rate statistics retain exactly 60 one-minute buckets without unbounded growth.
 - [ ] The application runs as non-root in a .NET 10 Noble chiseled container on port 8080.
 - [ ] One multi-platform image index provides functionally equivalent `linux/amd64` and `linux/arm64` images.
 - [ ] The application passes container checks with a `0.5` CPU and `256 MiB` limit; deployment examples start with a `0.25` CPU and `128 MiB` request.
@@ -342,8 +352,11 @@ Before implementation, confirm the exact generally available .NET 10 image tags 
 - Match exact paths in the initial release while keeping the versioned endpoint contract open to future route templates and alternate path-matching modes.
 - Match requests by HTTP method and exact normalized path only in the initial release; query strings, request headers, and request bodies do not participate.
 - Ship both `linux/amd64` and `linux/arm64` images under one multi-platform image index.
+- Use WSLC as the local container CLI; perform unsupported cross-platform, image-index, read-only-root, SBOM, and vulnerability checks in CI.
 - Start deployment guidance at a `0.25` CPU and `128 MiB` memory request with a `0.5` CPU and `256 MiB` memory limit, then tune only from measured runtime evidence.
+- Limit configuration documents to 4 MiB and 25 endpoints; each endpoint permits a 200-character name, at most 8 methods, a 2,048-character path, a 1 MiB UTF-8 response body, 64 response headers, 8 KiB per UTF-8 header value, and 32 KiB of combined UTF-8 header names and values.
+- Retain recent-rate statistics in 60 one-minute buckets for a 60-minute rolling window.
 
-## 17. Decisions to Confirm Before Implementation
+## 17. Implementation Readiness
 
-- Required limits for endpoint count, payload size, and statistics retention window.
+All initial architectural and product decisions required for Phase 1 are confirmed. Begin with solution scaffolding, the .NET 10 SDK pin, configuration models, source-generated JSON metadata, the Draft 2020-12 schema, checked-in examples, and boundary-focused validation tests.

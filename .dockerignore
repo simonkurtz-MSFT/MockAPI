@@ -1,0 +1,10 @@
+.git
+.github
+.vs
+**/bin
+**/obj
+artifacts
+TestResults
+tests
+docs
+README.md
