@@ -13,7 +13,18 @@ public sealed class ConfigurationState
 
     public ConfigurationUpdateResult TryReplace(
         MockApiConfigurationDocument candidate,
-        long expectedRevision)
+        long expectedRevision) =>
+        TryReplace(candidate, expectedRevision, hasUnsavedChanges: true);
+
+    internal ConfigurationUpdateResult TryLoadPersisted(
+        MockApiConfigurationDocument candidate,
+        long expectedRevision) =>
+        TryReplace(candidate, expectedRevision, hasUnsavedChanges: false);
+
+    private ConfigurationUpdateResult TryReplace(
+        MockApiConfigurationDocument candidate,
+        long expectedRevision,
+        bool hasUnsavedChanges)
     {
         ArgumentNullException.ThrowIfNull(candidate);
         ArgumentOutOfRangeException.ThrowIfNegative(expectedRevision);
@@ -44,7 +55,7 @@ public sealed class ConfigurationState
                 canonicalDocument,
                 endpoints,
                 revision,
-                hasUnsavedChanges: true);
+                hasUnsavedChanges);
             Volatile.Write(ref _current, replacement);
             return ConfigurationUpdateResult.Applied(replacement);
         }

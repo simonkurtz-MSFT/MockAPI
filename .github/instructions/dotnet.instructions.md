@@ -10,6 +10,8 @@ applyTo: "**/*.{cs,csproj,sln,props,targets}"
 - Use ASP.NET Core minimal APIs for transport wiring; keep domain validation and state transitions out of route handlers.
 - Represent the active document, revision, persistence status, and endpoint registry as one immutable configuration snapshot and publish replacements atomically.
 - Route every runtime or management configuration mutation through `ConfigurationState`; do not publish routes independently of the active document and revision.
+- Load persisted configuration before serving requests, fail startup for required malformed or invalid files, and save by replacing a flushed same-directory temporary file.
+- Capture one configuration snapshot per save and clear its dirty state only when that revision is still current.
 - Keep request dispatch free of persistence and management concerns.
 - Use cancellation tokens for asynchronous I/O and propagate them through application boundaries.
 - Use UTC timestamps through `TimeProvider` where behavior depends on time.

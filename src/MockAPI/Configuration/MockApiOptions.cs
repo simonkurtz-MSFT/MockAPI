@@ -1,0 +1,10 @@
+namespace MockAPI.Configuration;
+
+public sealed class MockApiOptions
+{
+    public const string SectionName = "MockApi";
+
+    public required string ConfigurationPath { get; init; }
+
+    public bool AllowEmptyConfiguration { get; init; } = true;
+}
