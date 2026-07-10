@@ -2,6 +2,10 @@
 
 Project planning is tracked in [docs/PLAN.md](docs/PLAN.md). Local container development uses WSLC; see [docs/WSLC.md](docs/WSLC.md) for verified commands, supported checks, and the CI boundary for multi-architecture releases.
 
+## Small Container Footprint
+
+The current native `linux/arm64` development image is only **26.84 MB** as reported by WSLC, with an estimated **13.85 MB gzip-compressed layer payload**. The self-contained, fully trimmed application runs in the minimal .NET runtime-deps image without carrying the SDK or shared .NET framework runtime. See the [measured image footprint](docs/WSLC.md#measured-image-footprint) for the exact baseline and methodology.
+
 ## Developer CLI
 
 Run the root developer CLI interactively:

@@ -74,6 +74,23 @@ wslc remove mockapi-dev
 
 Repeat the `wslc run` command with `mockapi-data:/data` and confirm that explicitly saved configuration is restored.
 
+## Measured Image Footprint
+
+The native `linux/arm64` development image is deliberately small because the application is self-contained, published as a compressed single file, fully trimmed, and based on the minimal .NET runtime-deps image. The final stage carries neither the build SDK nor a shared .NET framework runtime.
+
+The following baseline was measured on 2026-07-10 from image `mockapi:dev` (`536b01cc2e7b`) using WSLC `2.9.3.0`:
+
+| Measurement | Bytes | Decimal MB | Binary MiB |
+| --- | ---: | ---: | ---: |
+| WSLC-reported image size | 26,844,770 | 26.84 MB | 25.60 MiB |
+| Uncompressed layer tar streams | 27,152,896 | 27.15 MB | 25.90 MiB |
+| Estimated gzip-compressed layer payload | 13,853,123 | 13.85 MB | 13.21 MiB |
+| Uncompressed OCI archive with metadata | 27,174,912 | 27.17 MB | 25.92 MiB |
+
+`wslc image inspect mockapi:dev` provides the WSLC-reported size. WSLC exports this local image with uncompressed OCI layer tar streams, so the compressed estimate was calculated by gzip-compressing each exported layer independently with .NET's optimal compression level and summing the results. The resulting payload is approximately 51% of the uncompressed layer tar size.
+
+Treat the compressed value as a reproducible local estimate, not an exact registry transfer size. Registry compression settings can produce a slightly different result. Release validation must record the exact compressed descriptor sizes for both `linux/amd64` and `linux/arm64` from the published multi-platform image manifest.
+
 ## Image Support Matrix
 
 MockAPI is distributed as a Linux container. The release tag must be a multi-platform OCI image index containing both `linux/amd64` and `linux/arm64`; a compatible container engine selects the matching image automatically.
