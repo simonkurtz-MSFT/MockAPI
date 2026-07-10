@@ -7,15 +7,10 @@ namespace MockAPI.Tests.Configuration;
 
 public sealed class ConfigurationSchemaTests
 {
-    private static readonly string RepositoryRoot = FindRepositoryRoot();
-    private static readonly string SchemaPath = Path.Combine(RepositoryRoot, "schemas", "mockapi.schema.json");
-    private static readonly string ExamplePath = Path.Combine(RepositoryRoot, "config", "mockapi.json");
-    private static readonly Lazy<JsonSchema> Schema = new(() => JsonSchema.FromText(File.ReadAllText(SchemaPath)));
-
     [Fact]
     public void CheckedInExample_ValidatesAgainstSchemaAndSemanticRules()
     {
-        var json = File.ReadAllText(ExamplePath);
+        var json = File.ReadAllText(ConfigurationSchemaFixture.ExamplePath);
 
         AssertSchemaValid(json);
 
@@ -78,7 +73,7 @@ public sealed class ConfigurationSchemaTests
     [InlineData("non-array-header-value")]
     public void Schema_RejectsRepresentativeStructuralViolations(string mutation)
     {
-        var instance = JsonNode.Parse(File.ReadAllText(ExamplePath))!.AsObject();
+        var instance = JsonNode.Parse(File.ReadAllText(ConfigurationSchemaFixture.ExamplePath))!.AsObject();
         var endpoint = instance["endpoints"]![0]!.AsObject();
         var response = endpoint["response"]!.AsObject();
 
@@ -130,7 +125,7 @@ public sealed class ConfigurationSchemaTests
     [Fact]
     public void SchemaLimits_MatchRuntimeLimits()
     {
-        var schema = JsonNode.Parse(File.ReadAllText(SchemaPath))!.AsObject();
+        var schema = JsonNode.Parse(File.ReadAllText(ConfigurationSchemaFixture.SchemaPath))!.AsObject();
         var endpoint = schema["$defs"]!["endpoint"]!.AsObject();
         var response = schema["$defs"]!["response"]!.AsObject();
 
@@ -161,23 +156,6 @@ public sealed class ConfigurationSchemaTests
     private static EvaluationResults Evaluate(string json)
     {
         using var instance = JsonDocument.Parse(json);
-        return Schema.Value.Evaluate(
-            instance.RootElement,
-            new EvaluationOptions
-            {
-                OutputFormat = OutputFormat.List,
-                RequireFormatValidation = true
-            });
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "MockAPI.slnx")))
-        {
-            directory = directory.Parent;
-        }
-
-        return directory?.FullName ?? throw new DirectoryNotFoundException("Unable to locate the MockAPI repository root.");
+        return ConfigurationSchemaFixture.Evaluate(instance.RootElement);
     }
 }

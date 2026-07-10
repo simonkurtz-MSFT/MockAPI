@@ -14,7 +14,7 @@ public sealed class MockDispatcherTests
     public async Task Root_ReturnsServiceResponseUnlessExplicitlyConfigured()
     {
         await using var factory = new WebApplicationFactory<Program>();
-        var registry = factory.Services.GetRequiredService<EndpointRegistry>();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
         var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
         using var client = factory.CreateClient();
 
@@ -30,7 +30,7 @@ public sealed class MockDispatcherTests
         Assert.Empty(await headResponse.Content.ReadAsByteArrayAsync(CancellationToken.None));
         Assert.Equal(HttpStatusCode.NotFound, postResponse.StatusCode);
 
-        Assert.True(registry.TryReplace(CreateDocument(CreateEndpoint(["GET"], "/", "configured"))).IsValid);
+        Apply(configuration, CreateDocument(CreateEndpoint(["GET"], "/", "configured")));
 
         Assert.Equal("configured", await client.GetStringAsync("/", CancellationToken.None));
         var snapshot = statistics.GetSnapshot();
@@ -43,7 +43,7 @@ public sealed class MockDispatcherTests
     public async Task ConfiguredEndpoint_WritesExactResponseAndHeadOmitsBody()
     {
         await using var factory = new WebApplicationFactory<Program>();
-        var registry = factory.Services.GetRequiredService<EndpointRegistry>();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
         var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
         var endpoint = CreateEndpoint(
             methods: ["GET", "HEAD"],
@@ -63,7 +63,7 @@ public sealed class MockDispatcherTests
                 Body = "{not-valid-json}\r\n"
             }
         };
-        Assert.True(registry.TryReplace(CreateDocument(endpoint)).IsValid);
+        Apply(configuration, CreateDocument(endpoint));
         using var client = factory.CreateClient();
 
         using var response = await client.GetAsync("/api/raw?ignored=secret", CancellationToken.None);
@@ -94,9 +94,9 @@ public sealed class MockDispatcherTests
     public async Task Dispatcher_UsesExactPathAndReturnsNotFoundWhenUnmatched()
     {
         await using var factory = new WebApplicationFactory<Program>();
-        var registry = factory.Services.GetRequiredService<EndpointRegistry>();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
         var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
-        Assert.True(registry.TryReplace(CreateDocument(CreateEndpoint(["GET"], "/case-sensitive", "matched"))).IsValid);
+        Apply(configuration, CreateDocument(CreateEndpoint(["GET"], "/case-sensitive", "matched")));
         using var client = factory.CreateClient();
 
         using var wrongCase = await client.GetAsync("/Case-Sensitive", CancellationToken.None);
@@ -111,13 +111,13 @@ public sealed class MockDispatcherTests
     public async Task ReplacingRegistry_ChangesRunningRouteWithoutRestart()
     {
         await using var factory = new WebApplicationFactory<Program>();
-        var registry = factory.Services.GetRequiredService<EndpointRegistry>();
-        Assert.True(registry.TryReplace(CreateDocument(CreateEndpoint(["GET"], "/dynamic", "before"))).IsValid);
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        Apply(configuration, CreateDocument(CreateEndpoint(["GET"], "/dynamic", "before")));
         using var client = factory.CreateClient();
 
         Assert.Equal("before", await client.GetStringAsync("/dynamic", CancellationToken.None));
 
-        Assert.True(registry.TryReplace(CreateDocument(CreateEndpoint(["GET"], "/dynamic", "after"))).IsValid);
+        Apply(configuration, CreateDocument(CreateEndpoint(["GET"], "/dynamic", "after")));
 
         Assert.Equal("after", await client.GetStringAsync("/dynamic", CancellationToken.None));
     }
@@ -125,16 +125,16 @@ public sealed class MockDispatcherTests
     [Fact]
     public async Task Dispatcher_RecordsFailedWriteAndRethrows()
     {
-        var registry = new EndpointRegistry();
+        var configuration = new ConfigurationState();
         var statistics = new RequestStatisticsCollector();
-        Assert.True(registry.TryReplace(CreateDocument(CreateEndpoint(["GET"], "/fails", "body"))).IsValid);
+        Apply(configuration, CreateDocument(CreateEndpoint(["GET"], "/fails", "body")));
         var context = new DefaultHttpContext();
         context.Request.Method = "GET";
         context.Request.Path = "/fails";
         context.Response.Body = new ThrowingWriteStream();
 
         await Assert.ThrowsAsync<IOException>(() =>
-            MockRequestDispatcher.DispatchAsync(context, registry, statistics));
+            MockRequestDispatcher.DispatchAsync(context, configuration, statistics));
 
         var snapshot = statistics.GetSnapshot();
         Assert.Equal(1, snapshot.TotalRequests);
@@ -147,17 +147,17 @@ public sealed class MockDispatcherTests
     public async Task ConcurrentRequestsAndReplacements_ReturnOnlyCompleteResponses()
     {
         await using var factory = new WebApplicationFactory<Program>();
-        var registry = factory.Services.GetRequiredService<EndpointRegistry>();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
         var first = CreateDocument(CreateEndpoint(["GET"], "/race", "first-response"));
         var second = CreateDocument(CreateEndpoint(["GET"], "/race", "second-response"));
-        Assert.True(registry.TryReplace(first).IsValid);
+        Apply(configuration, first);
         using var client = factory.CreateClient();
 
         var writer = Task.Run(() =>
         {
             for (var index = 0; index < 500; index++)
             {
-                Assert.True(registry.TryReplace(index % 2 == 0 ? first : second).IsValid);
+                Apply(configuration, index % 2 == 0 ? first : second);
             }
         });
         var readers = Enumerable.Range(0, 8).Select(async _ =>
@@ -181,6 +181,12 @@ public sealed class MockDispatcherTests
         SchemaVersion = "1.0",
         Endpoints = endpoints
     };
+
+    private static void Apply(ConfigurationState state, MockApiConfigurationDocument document)
+    {
+        var result = state.TryReplace(document, state.Current.Revision);
+        Assert.Equal(ConfigurationUpdateStatus.Applied, result.Status);
+    }
 
     private static MockEndpointDefinition CreateEndpoint(
         IReadOnlyList<string> methods,

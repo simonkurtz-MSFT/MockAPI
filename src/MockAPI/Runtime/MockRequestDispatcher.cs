@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http.Features;
+using MockAPI.Configuration;
 
 namespace MockAPI.Runtime;
 
@@ -8,11 +9,11 @@ public static class MockRequestDispatcher
 
     public static async Task DispatchAsync(
         HttpContext context,
-        EndpointRegistry registry,
+        ConfigurationState configuration,
         RequestStatisticsCollector statistics)
     {
         var path = context.Request.Path.Value ?? string.Empty;
-        if (!registry.Current.TryGet(context.Request.Method, path, out var endpoint))
+        if (!configuration.Current.Endpoints.TryGet(context.Request.Method, path, out var endpoint))
         {
             if (path == "/" &&
                 (HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method)))

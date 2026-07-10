@@ -328,8 +328,11 @@ function Invoke-ContainerTest {
   if ($null -eq $response) {
     throw "Container smoke test failed for '$uri' after $attemptCount attempts. Review '.\start.ps1 -Action container-logs'. $lastFailure"
   }
-  if ($response.StatusCode -ne 404) {
-    throw "Container smoke test expected the unmatched root route to return HTTP 404 but received $($response.StatusCode)."
+  if ($response.StatusCode -ne 200) {
+    throw "Container smoke test expected the root service route to return HTTP 200 but received $($response.StatusCode)."
+  }
+  if ($response.Content -ne "MockAPI is running.`n") {
+    throw "Container smoke test received an unexpected response body from the root service route."
   }
   Write-Field 'Smoke test' "$uri -> HTTP $($response.StatusCode)" Green
 }

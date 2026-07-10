@@ -22,7 +22,7 @@ Use this skill when a change affects what an endpoint definition means or how it
    - Documentation and tests.
 3. State one falsifiable behavioral hypothesis and choose the narrowest test that can disprove it.
 4. Add or update that test before or with the smallest implementation change.
-5. Keep candidate validation complete and atomic. Never expose a partially valid registry.
+5. Keep candidate validation complete and atomic. Publish the document, revision, persistence status, and registry as one state snapshot; never expose a partial replacement.
 6. Preserve stable endpoint IDs, deterministic serialization, raw body text, repeated header values, and reserved system routes.
 7. Update every affected contract surface in the same change. Do not leave the schema, runtime, and dashboard describing different formats.
 8. Run focused checks, then the broader affected test suites.

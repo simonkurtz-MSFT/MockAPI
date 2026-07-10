@@ -64,7 +64,7 @@ wslc stats --format table mockapi-dev
 wslc logs mockapi-dev
 ```
 
-Exercise HTTP endpoints from Windows, then recreate the container with the same volume to verify persistence. Until the planned health routes are implemented, the developer CLI smoke-tests `/` and expects the runtime engine's unmatched-route response of HTTP `404`:
+Exercise HTTP endpoints from Windows, then recreate the container with the same volume to verify persistence. Until the planned health routes are implemented, the developer CLI smoke-tests `/` and expects the root service response `MockAPI is running.` with HTTP `200`:
 
 ```powershell
 Invoke-WebRequest http://localhost:8080/ -SkipHttpErrorCheck
