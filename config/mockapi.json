@@ -1,0 +1,30 @@
+{
+  "$schema": "../schemas/mockapi.schema.json",
+  "schemaVersion": "1.0",
+  "endpoints": [
+    {
+      "id": "7b2d425d-75f1-4ded-a74e-503374a7e99e",
+      "name": "Rate limited response",
+      "enabled": true,
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/rate-limited",
+      "response": {
+        "statusCode": 429,
+        "reasonPhrase": "Too Many Requests",
+        "headers": {
+          "Retry-After": [
+            "30"
+          ],
+          "X-Mock-Source": [
+            "MockAPI",
+            "checked-in-example"
+          ]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":\"try again later\"}"
+      }
+    }
+  ]
+}
