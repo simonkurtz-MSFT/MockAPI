@@ -39,6 +39,13 @@ Set these environment variables to override that behavior:
 ```text
 MockApi__ConfigurationPath=/data/mockapi.json
 MockApi__AllowEmptyConfiguration=false
+MockApi__EnableManagementApi=true
 ```
 
 Malformed, oversized, or semantically invalid configured files fail startup without activating a partial configuration. Runtime edits remain in memory until an explicit save operation atomically replaces the configured file; the management operation that invokes save is part of the next implementation slice.
+
+## Management API
+
+Endpoint management is available under `/__mockapi/api/endpoints`, with configuration revision and unsaved status at `/__mockapi/api/configuration`. Create, replace, enable/disable, and delete requests require the latest quoted ETag in `If-Match`; stale writes return HTTP `412` without changing the active configuration. Successful changes are immediately visible to the mock dispatcher and remain unsaved until an explicit save operation is invoked.
+
+The initial management API has no authentication. Keep it on localhost or a protected network, or set `MockApi__EnableManagementApi=false` while leaving configured mock routes available.

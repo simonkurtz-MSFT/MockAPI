@@ -7,4 +7,6 @@ public sealed class MockApiOptions
     public required string ConfigurationPath { get; init; }
 
     public bool AllowEmptyConfiguration { get; init; } = true;
+
+    public bool EnableManagementApi { get; init; } = true;
 }

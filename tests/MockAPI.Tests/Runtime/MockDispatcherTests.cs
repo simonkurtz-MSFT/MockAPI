@@ -108,6 +108,20 @@ public sealed class MockDispatcherTests
     }
 
     [Fact]
+    public async Task Dispatcher_FallbackMatchesPathsWithFileExtensions()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        Apply(configuration, CreateDocument(CreateEndpoint(["GET"], "/response.json", "json path")));
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/response.json", CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("json path", await response.Content.ReadAsStringAsync(CancellationToken.None));
+    }
+
+    [Fact]
     public async Task ReplacingRegistry_ChangesRunningRouteWithoutRestart()
     {
         await using var factory = new WebApplicationFactory<Program>();
