@@ -89,19 +89,6 @@ MockAPI is distributed as a Linux container. The release tag must be a multi-pla
 
 The image is not a native Windows container and does not contain Windows or macOS binaries. Windows and macOS hosts run the matching Linux image in their container engine's Linux virtual machine. Publishing only one architecture can cause startup failures or emulation on a host with the other architecture, so release tags must not be published until both image variants have been built, run, and assembled into the shared index. Prefer a named volume for `/data` to avoid host-specific bind-mount sharing and permission behavior, especially on macOS.
 
-## Image Optimization Evaluation
-
-ARM64 measurements confirm that the current Alpine publication is already close to the practical minimum while retaining a supported, package-aware runtime:
-
-| Candidate | Image size | Evaluation |
-| --- | ---: | --- |
-| Alpine 3.24 `runtime-deps` with compressed, fully trimmed CoreCLR | 26.83 MB | Recommended; smallest supported and maintainable option tested |
-| Shell-free custom CoreCLR runtime | 24.60 MB | Works, but the 2.23 MB saving adds native-library, scanning, and multi-architecture maintenance |
-| Shell-free size-optimized Native AOT | 24.88 MB | Works, but is larger than equivalent CoreCLR and requires native per-architecture builds |
-| Alpine 3.22 `runtime-deps` | 11.50 MB base | Only 0.13 MB below the Alpine 3.24 base; not worth selecting an older distribution |
-
-Additional .NET runtime feature switches produced no meaningful size reduction after full trimming and single-file compression. Retain musl, `libgcc`, `libstdc++`, OpenSSL, zlib, and the CA trust store; removing dynamically loaded cryptography or certificate assets risks behavior that a startup-only smoke test cannot prove safe. Keep Alpine 3.24 `runtime-deps` unless future measurements show that a small size reduction is worth owning a custom runtime filesystem.
-
 ## Multi-Architecture Release Boundary
 
 The .NET SDK on this ARM64 laptop can cross-publish Alpine-compatible application artifacts for both target runtime identifiers:

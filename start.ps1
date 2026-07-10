@@ -221,7 +221,7 @@ function Invoke-Coverage {
 
 function Invoke-Publish {
   Assert-DotNet
-  foreach ($runtime in @('linux-x64', 'linux-arm64')) {
+  foreach ($runtime in @('linux-musl-x64', 'linux-musl-arm64')) {
     $outputDirectory = Join-Path $publishDirectory $runtime
     Invoke-Tool -Executable 'dotnet' -Operation "Publishing $runtime ($Configuration)" -Arguments @(
       'publish', $projectFile, '--configuration', $Configuration, '--runtime', $runtime,
@@ -310,7 +310,7 @@ function Invoke-ContainerTest {
   $lastFailure = $null
   for ($attempt = 1; $attempt -le $attemptCount; $attempt++) {
     try {
-      $response = Invoke-WebRequest -Uri $uri -TimeoutSec 2
+      $response = Invoke-WebRequest -Uri $uri -TimeoutSec 2 -SkipHttpErrorCheck
       break
     }
     catch {
@@ -328,8 +328,8 @@ function Invoke-ContainerTest {
   if ($null -eq $response) {
     throw "Container smoke test failed for '$uri' after $attemptCount attempts. Review '.\start.ps1 -Action container-logs'. $lastFailure"
   }
-  if ($response.StatusCode -ne 200) {
-    throw "Container smoke test expected HTTP 200 but received $($response.StatusCode)."
+  if ($response.StatusCode -ne 404) {
+    throw "Container smoke test expected the unmatched root route to return HTTP 404 but received $($response.StatusCode)."
   }
   Write-Field 'Smoke test' "$uri -> HTTP $($response.StatusCode)" Green
 }
@@ -403,7 +403,7 @@ Setup and managed code:
   run                Run MockAPI directly with dotnet.
   test               Run all tests.
   coverage           Run tests and write Cobertura output under artifacts/coverage.
-  publish            Publish trimmed linux-x64 and linux-arm64 artifacts.
+  publish            Publish trimmed linux-musl-x64 and linux-musl-arm64 artifacts.
   validate           Restore, build, test, collect coverage, and publish.
 
 Native container workflow (WSLC):
