@@ -173,6 +173,16 @@ JSON Schema validates document shape. A second semantic validator must detect cr
 - Require a writable `/data` volume for persistence; document that ephemeral container storage loses changes.
 - Use an optimistic configuration revision/ETag on management writes so stale dashboard tabs cannot overwrite newer edits silently.
 
+### Built-in template and example loading
+
+- Loading a built-in template or example is a merge operation, not a full-configuration import. It must never remove unrelated active endpoints or reset the current configuration.
+- Compare built-in endpoints to the active snapshot by stable endpoint ID. Classify each as **missing**, **identical**, or **different**; also detect method/path collisions with active endpoints that have a different ID.
+- When every built-in endpoint is missing or identical, atomically add only the missing endpoints and skip identical endpoints. Repeated loads are idempotent and never create duplicates.
+- If any endpoint is different or has a method/path collision, return a conflict preview describing the affected endpoints and make no changes at all. Do not add otherwise-missing endpoints from that built-in document in the same attempt.
+- Offer a separate explicit **Force update** confirmation from the conflict preview. A forced update applies the built-in version for every reported conflict, adds missing built-in endpoints, skips identical endpoints, and preserves all unrelated endpoints.
+- Validate the complete merged candidate and require the current configuration revision/ETag before either normal or forced activation. Apply the result as one immutable snapshot so validation errors, stale revisions, or failed conflict resolution leave the prior snapshot unchanged.
+- Keep the empty checked-in template valid: loading a built-in document with no endpoints is an idempotent no-op and does not clear the active configuration.
+
 ## 8. Management API
 
 Use JSON endpoints under `/__mockapi/api`:
@@ -184,6 +194,7 @@ Use JSON endpoints under `/__mockapi/api`:
 - Reset statistics globally or for one endpoint.
 - Validate a candidate configuration without applying it.
 - Import and atomically apply a configuration.
+- Preview and atomically apply a built-in template/example merge, with explicit forced conflict resolution.
 - Export the active configuration.
 - Save the active configuration to the configured path.
 - Return the active configuration revision and persistence status.
@@ -204,7 +215,18 @@ The first screen should be the operational dashboard, not a marketing page.
 - Filters for name, method, path, status, and enabled state.
 - Immediate validation with server-authoritative errors.
 - Import, export, validate, save, and unsaved/persistence status controls.
+- Load built-in template/example controls that report added and skipped endpoints, show a no-change result when everything is already present, and require a conflict preview plus explicit **Force update** confirmation before changing divergent entries.
 - Copyable endpoint URL and a compact request preview.
+
+### Endpoint test blade
+
+- Add a **Test** action for every endpoint that opens a right-side blade without navigating away from the endpoint table or changing the active configuration.
+- Initialize the request from the selected endpoint: choose among its configured methods, use its exact path, and target the current MockAPI origin. Allow query parameters, request headers, and an optional raw request body to be edited before sending.
+- Keep test-request state local to the blade. Never persist request headers or bodies, and never copy authorization, cookie, or other sensitive values into configuration, statistics, logs, or browser storage.
+- Send requests through the browser to the selected mock endpoint and show the effective method and URL, elapsed time, HTTP status, response headers including repeated values, content type, and raw response body. Treat configured non-2xx responses as completed requests rather than blade failures.
+- Provide clear sending, completed, empty-body, network-error, and cancellation states. Prevent duplicate submissions while a request is active and allow the active request to be cancelled when supported.
+- Keep the endpoint context visible in the blade, provide copy controls for the request URL and response details, and make repeated test runs possible without reopening it.
+- On desktop, anchor the blade to the right edge with the endpoint table remaining visible. On narrow viewports, use the full available width. Trap focus while open, restore focus to the originating **Test** action when closed, support `Escape`, and expose status changes to assistive technology.
 
 ### Statistics
 
@@ -214,7 +236,20 @@ The first screen should be the operational dashboard, not a marketing page.
 - Server-Sent Events for low-overhead live updates, with polling fallback.
 - Reset controls with confirmation.
 
-The UI must be keyboard usable, responsive, and WCAG 2.2 AA compliant across normal, hover, focus, selected, disabled, and error states. Use the existing application’s visual direction once established; avoid introducing a separate design system solely for this tool.
+The UI must be keyboard usable, responsive, and WCAG 2.2 AA compliant across normal, hover, focus, selected, disabled, and error states. WCAG 2.2 AA is the release target because it incorporates and supersedes WCAG 2.0 AA; do not reduce the target to 2.0. Use the existing application’s visual direction once established; avoid introducing a separate design system solely for this tool.
+
+### Comprehensive accessibility support
+
+- Treat every WCAG 2.2 Level A and AA success criterion applicable to the dashboard as a release requirement, including the criteria inherited from WCAG 2.0 and 2.1.
+- Provide complete keyboard operation with logical focus order, visible focus indicators, no keyboard traps, skip navigation, focus restoration, and predictable focus movement after create, edit, delete, merge, filter, dialog, toast, and test-blade operations.
+- Use semantic landmarks, headings, tables, forms, labels, fieldsets, names, descriptions, relationships, and live regions so controls and state changes are understandable without visual context.
+- Preserve programmatic names and state for icon buttons, toggles, validation summaries, loading states, statistics updates, confirmations, conflicts, network errors, and request results.
+- Meet AA text and non-text contrast in light, dark, Windows high-contrast/forced-colors, hover, focus, selected, disabled, success, warning, and error states. Do not convey information through color alone.
+- Support text resize to 200%, browser zoom to 400%, text spacing overrides, reflow at 320 CSS pixels, portrait/landscape orientation, reduced motion, and system font substitution without loss of content or operation.
+- Ensure pointer targets, drag-independent operation, dismissal behavior, error identification, correction guidance, status messages, timeout behavior, and repeated-entry workflows meet applicable WCAG 2.2 requirements.
+- Keep page title, language, link purpose, instructions, labels, and help text accurate and consistent. Avoid unexpected context changes on focus or input.
+- Test with representative screen-reader/browser combinations and document manual results because automated scanners cannot establish full WCAG conformance.
+- Publish an accessibility statement before release that records the WCAG version/level, tested environments, known limitations, contact path, and remediation policy. Do not claim conformance while known A/AA failures remain.
 
 ## 10. Statistics Semantics
 
@@ -260,7 +295,7 @@ The initial ARM64 measurements selected Alpine CoreCLR: compressed publication r
 
 ## 13. Testing and Validation
 
-### Unit tests
+### Backend unit tests
 
 - Path and method normalization.
 - Header and status validation.
@@ -268,6 +303,10 @@ The initial ARM64 measurements selected Alpine CoreCLR: compressed publication r
 - Atomic registry replacement.
 - Deterministic serialization and configuration revision behavior.
 - Statistics concurrency and bucket rollover.
+- Maintain a test inventory for every production backend type and every deterministic decision branch in configuration, validation, canonicalization, registry, dispatch, statistics, persistence, merge, management, rate-limit, and error-mapping behavior.
+- Cover success, boundary, invalid-input, cancellation, stale-revision, exception, overflow, concurrency, and recovery paths at the lowest practical layer. Every backend defect fix must add a focused regression test.
+- Require 100% line and branch coverage for deterministic backend domain and service code, subject only to explicit reviewed exclusions defined in the coverage-gate policy. Do not use broad file or namespace exclusions to manufacture coverage.
+- Keep transport integration tests separate from unit tests so failures identify whether domain logic or HTTP wiring regressed.
 
 ### Integration tests
 
@@ -280,6 +319,9 @@ The initial ARM64 measurements selected Alpine CoreCLR: compressed publication r
 - Import, export, save, restart, and reload the same configuration.
 - Verify ETag/revision conflict handling.
 - Exercise concurrent reads and configuration writes.
+- Merge built-in configurations into non-empty active snapshots; verify missing endpoints are added, identical endpoints are skipped, repeated loads are idempotent, and unrelated endpoints are preserved.
+- Verify a changed stable ID or method/path collision returns a complete conflict preview and leaves the entire prior snapshot active. Verify explicit forced update applies the built-in versions without removing unrelated endpoints.
+- Verify empty built-in documents are no-ops and normal and forced merges reject stale revisions and invalid merged candidates atomically.
 
 ### Schema contract tests
 
@@ -290,8 +332,63 @@ The initial ARM64 measurements selected Alpine CoreCLR: compressed publication r
 ### Dashboard tests
 
 - CRUD, enable/disable, import/export/save, filtering, live statistics, and failure states.
+- Load built-in template/example documents into empty and populated configurations; verify added, skipped, no-change, conflict-preview, cancel, and explicit **Force update** states without duplicate or unrelated endpoint loss.
+- Open the test blade from each endpoint action, verify request initialization, send bodyless and body-bearing methods, and assert successful, configured non-2xx, empty-body, network-error, cancellation, and repeated-run states.
+- Verify query parameters and request headers are sent as entered; repeated response headers, content type, raw body, status, effective URL, and elapsed time are rendered without persisting sensitive request data.
+- Verify desktop right-side and narrow-viewport full-width layouts, focus trapping and restoration, `Escape` handling, keyboard operation, and accessible status announcements.
 - Keyboard navigation, focus order, labels, dialogs, and automated accessibility checks.
 - Responsive visual checks at mobile and desktop sizes after the UI change set is complete.
+
+### Frontend unit tests
+
+- Introduce a pinned, development-only JavaScript test toolchain such as Vitest with a DOM environment. Node.js tooling may run in development and CI but must not enter the published application or runtime container.
+- Refactor dashboard behavior into testable modules without adding a frontend runtime framework solely for testing.
+- Unit test filtering, formatting, request-header parsing, merge-result messages, problem formatting, form serialization, response rendering, focus restoration, cancellation, stale-state protection, and all success/error state transitions.
+- Use deterministic fake timers, fetch stubs, and DOM fixtures. Do not rely on network access, wall-clock delays, test ordering, or shared browser state in unit tests.
+- Require tests for every fixed frontend defect and every new branch in dashboard behavior.
+
+### Accessibility validation
+
+- Run an automated accessibility engine such as `@axe-core/playwright` on every principal dashboard state, in addition to semantic DOM assertions and keyboard-only Playwright flows.
+- Cover empty, populated, filtered-empty, validation-error, merge-conflict, confirmation, endpoint editor, test-blade request/response/error, statistics, offline, light, dark, forced-colors, reduced-motion, mobile, and desktop states.
+- Fail CI on any serious or critical automated violation and on any unreviewed moderate violation. Document narrowly justified rules that cannot be evaluated automatically; do not blanket-disable rules.
+- Add automated contrast checks for application-owned color tokens and state combinations, including hover, focus, selected, disabled, warning, error, and high-contrast behavior.
+- Complete a manual WCAG checklist using keyboard-only navigation, 200% text size, 400% zoom/reflow, text-spacing overrides, and representative screen readers before each release candidate.
+- Store the accessibility report and manual checklist as release evidence, with owner and remediation issue for every accepted limitation.
+
+### Coverage gates
+
+- Collect backend line and branch coverage from the .NET test suite and frontend line, branch, function, and statement coverage from the JavaScript unit suite on every pull request and release build.
+- Target 100% line and branch coverage for deterministic backend domain/services and extracted frontend behavior modules. Require explicit, reviewed exclusions for generated code, framework bootstrap, platform interop, or unreachable defensive guards.
+- Establish repository-wide initial floors only after measuring the expanded suites; the floor must not be lower than 90% line coverage and 85% branch coverage for either backend or frontend. Raise thresholds toward 100% and never lower them merely to make a build pass.
+- Enforce per-file or per-module thresholds on security-, validation-, persistence-, concurrency-, merge-, routing-, and request-execution code so aggregate coverage cannot hide critical gaps.
+- Fail the build when coverage falls below a threshold, when a changed critical module loses coverage, when expected coverage files are absent, or when tests are skipped unexpectedly.
+- Merge .NET and frontend reports into a human-readable summary while preserving native Cobertura/LCOV artifacts. Publish test results and coverage artifacts for every CI run and add a concise pull-request summary.
+- Keep coverage deterministic by excluding generated build output and using stable source paths. Coverage is a risk signal, not a substitute for behavioral assertions, boundary tests, concurrency tests, accessibility validation, or browser automation.
+
+### Playwright browser automation
+
+- Add a pinned Playwright test project that starts an isolated MockAPI process with a temporary configuration and never changes a developer's persisted configuration or container.
+- Run end-to-end tests in Chromium, Firefox, and WebKit at representative desktop and mobile viewports. Include light, dark, forced-colors where supported, reduced-motion, touch, and keyboard-only projects.
+- Cover first use, built-in merge/no-op/conflict/force, import/export/save, endpoint CRUD and duplication, enable/disable, all filters, statistics and SSE fallback, stale ETags, validation and network failures, test-blade requests/cancellation/non-2xx/empty bodies, copy actions, dialogs, responsive layout, and persistence after restart.
+- Assert visible behavior, accessible names/roles, focus order/restoration, live announcements, URL and download behavior, and absence of unexpected console errors, page errors, failed application requests, overflow, clipping, or overlapping controls.
+- Use isolated test data, deterministic clocks where needed, resilient role/label locators, and explicit readiness signals. Prohibit arbitrary sleeps and order-dependent tests.
+- Capture trace, screenshot, video, console, and network artifacts on failure. Keep successful runs headless in CI and shard only after proving isolation.
+- Add a small smoke subset for rapid pull-request feedback and run the complete cross-browser/accessibility suite before merge and on release builds.
+- Quarantine is temporary and issue-linked: a quarantined browser test must retain ownership, reason, expiry, and a failing release gate when the expiry is exceeded.
+
+### Developer CLI example showcase
+
+- Add a dedicated developer CLI action and interactive-menu entry that exercises the running built-in example at `/ex/rate-limited`; keep the existing container smoke test fast and separate.
+- Do not silently import or replace the active configuration. Detect when the example endpoint is unavailable and explain how to load the built-in example from the dashboard before rerunning the showcase.
+- Treat the expected HTTP `429` response as a successful assertion rather than a native-command failure.
+- Verify the HTTP/1.1 reason phrase, `Retry-After: 30`, both `X-Mock-Source` values, JSON content type, and exact `{"error":"try again later"}` response body.
+- Send the same request with a query string and verify that query values do not affect exact method/path matching.
+- Send representative negative requests, including an unsupported method and an unmatched path, and verify the documented `404` behavior.
+- Capture statistics before and after the request set and verify the aggregate and stable endpoint-ID counters increase by the expected amounts without depending on prior totals.
+- Print a concise pass/fail table for each behavior and return a nonzero exit code when any assertion fails so the action is useful for demonstrations and troubleshooting.
+- Respect the configured CLI port and container name rather than hard-coding the default endpoint.
+- Add focused automated tests for response/header assertion helpers and a container integration test that loads the checked-in example, runs the showcase, and verifies its exit code and output.
 
 ### Container checks
 
@@ -307,10 +404,36 @@ The initial ARM64 measurements selected Alpine CoreCLR: compressed publication r
 
 ### Dependency automation
 
-- Add Dependabot configuration when repository automation is introduced; do not create it during the initial planning/customization phase.
+- Add GitHub Dependabot configuration when repository automation is introduced; do not create it during the initial planning/customization phase.
 - Cover NuGet packages, Docker base images, and GitHub Actions.
 - Configure every Dependabot update ecosystem with a seven-day cooldown (`cooldown.default-days: 7`) so newly released versions are not proposed before the cooldown expires.
 - Group compatible updates where practical and validate the configuration before enabling automated pull requests.
+
+### GitHub container automation
+
+- Add a pull-request workflow that builds and tests the container without publishing it.
+- Add a release/manual workflow that builds native `linux/amd64` and `linux/arm64` images, verifies both variants, and assembles one multi-platform OCI image index.
+- Design publishing for Docker Hub, but do not configure pushes, repository coordinates, credentials, or production tags until the Docker Hub namespace and release policy are approved.
+- Keep build and publish responsibilities separable so pull requests never require registry credentials and publishing can remain disabled until explicitly enabled.
+- Generate an SBOM, run vulnerability scanning, and retain per-architecture image metadata as release evidence before any image is published.
+
+### GitHub quality automation
+
+- Add separate required jobs for backend unit/integration tests, frontend unit tests, backend/frontend coverage gates, Playwright smoke tests, full cross-browser tests, and automated accessibility checks.
+- Assign every issue created or reused by repository automation to the professional GitHub account `simonkurtz-MSFT`. Keep the assignee in one clearly named workflow-level environment variable and reapply it when a deduplicated open issue already exists.
+- Cache packages and Playwright browsers by lockfile and tool version without caching test results or mutable configuration.
+- Cancel superseded pull-request runs while keeping release runs immutable. Use least-privilege permissions and no production credentials for test jobs.
+- Upload TRX/JUnit, Cobertura/LCOV, merged coverage, accessibility, Playwright HTML, trace, screenshot, video, console, and network artifacts with documented retention periods.
+- Make the fast smoke and coverage jobs required for pull requests. Make the complete browser/accessibility matrix and all coverage thresholds required before merge and on release workflows.
+- Run scheduled full-browser and accessibility checks to detect browser-engine changes even when application source has not changed.
+
+### README usability
+
+- Provide a short, copy-pasteable quick start for both local .NET execution and the supported WSLC container workflow.
+- State prerequisites and expected outputs, including the dashboard URL, example endpoint, persistence volume, health endpoints, and stop/restart commands.
+- Explain the first-use workflow: load the built-in example or template, invoke an endpoint, edit it, save it, and verify persistence after restart.
+- Link to detailed configuration, management API, Swagger UI, security, and troubleshooting documentation without requiring those documents for the basic path.
+- Validate the README instructions from a clean checkout on a supported environment before release.
 
 ## 14. Implementation Phases
 
@@ -318,37 +441,50 @@ The initial ARM64 measurements selected Alpine CoreCLR: compressed publication r
 | --- | --- | --- |
 | 1. Foundation | Solution/project structure, .NET 10 pin, domain model, source-generated JSON, validation, initial schema and examples | Configuration round-trips and all schema/domain validation tests pass |
 | 2. Runtime engine | Immutable registry, catch-all dispatcher, configured responses, concurrency-safe statistics | Runtime-created routes work immediately and concurrent mutation tests pass |
-| 3. Persistence and management | File store, revisions, CRUD API, import/export/save, health endpoints, problem details, management OpenAPI document, Swagger UI | Invalid changes are atomic; saved configuration survives restart; management operations are accurately described by OpenAPI |
-| 4. Dashboard | Endpoint management UI, payload/header editor, filters, live statistics, accessible states | End-to-end CRUD and statistics workflows pass on mobile and desktop |
-| 5. Container and hardening | Minimal multi-stage image, non-root/read-only operation, limits, network-exposure guidance, CI scans, Dependabot configuration with a seven-day cooldown | Container acceptance checks pass, dependency automation is validated, and size/startup measurements are recorded |
-| 6. Documentation and release | README, configuration reference, operating guide, sample Compose file, migration notes from references | A new user can build, run, persist, manage, export, and restore endpoints from documented steps |
+| 3. Persistence and management | File store, revisions, CRUD API, import/export/save, non-destructive built-in merge and conflict preview, health endpoints, problem details, management OpenAPI document, Swagger UI | Invalid changes are atomic; built-ins merge idempotently without unrelated endpoint loss; saved configuration survives restart; management operations are accurately described by OpenAPI |
+| 4. Dashboard | Endpoint management UI, built-in merge/conflict confirmation, payload/header editor, per-endpoint right-side test blade, filters, live statistics, and complete WCAG 2.2 AA support | End-to-end workflows pass on mobile and desktop; automated and manual accessibility evidence has no unresolved A/AA failures |
+| 5. Container and hardening | Minimal multi-stage image, non-root/read-only operation, limits, network-exposure guidance, developer CLI example showcase, CI scans, Dependabot configuration with a seven-day cooldown, and GitHub container build/release workflows prepared for future Docker Hub publishing | Container acceptance checks and the CLI example showcase pass, dependency automation is validated, build workflows verify both architectures, publishing remains disabled until Docker Hub details are approved, and size/startup measurements are recorded |
+| 6. Documentation and release | Easy-to-follow README quick starts, configuration reference, operating guide, sample Compose file, troubleshooting, and migration notes from references | From a clean checkout, a new user can follow the README to build, run, load an example, persist, manage, export, stop, and restore endpoints |
+| 7. Quality engineering | Frontend unit harness, expanded backend unit suite, enforced coverage thresholds, Playwright smoke/full-browser matrices, accessibility automation, manual WCAG evidence, and test-result reporting | Backend and frontend thresholds pass without unexplained exclusions; Chromium, Firefox, WebKit, mobile, keyboard, and accessibility projects pass; required CI checks block regressions |
 
 ## 15. Acceptance Criteria
 
-- [ ] A valid JSON file creates all configured endpoints at startup.
-- [ ] An operator can create, edit, delete, enable, and disable endpoints without restarting the process.
-- [ ] Every endpoint can return its configured status code, supported reason phrase, custom headers, content type, and exact payload.
-- [ ] Invalid or conflicting configuration never partially replaces the active registry.
-- [ ] Configuration can be validated, imported, exported, saved atomically, and reloaded after container recreation with a mounted volume.
-- [ ] The dashboard exposes aggregate and per-endpoint statistics without retaining sensitive request content.
-- [ ] Management writes detect stale revisions.
-- [ ] OpenAPI accurately describes the management API, excludes runtime-defined mock endpoints, and Swagger UI can be disabled independently.
-- [ ] Reserved system routes cannot be shadowed by mock endpoints.
-- [ ] Startup loading, management writes, validation, and import consistently enforce the approved document, endpoint, method, path, body, and header limits.
-- [ ] Recent-rate statistics retain exactly 60 one-minute buckets without unbounded growth.
-- [ ] The application runs as non-root in a .NET 10 Alpine container on port 8080.
+- [x] A valid JSON file creates all configured endpoints at startup.
+- [x] An operator can create, edit, delete, enable, and disable endpoints without restarting the process.
+- [x] Every endpoint can return its configured status code, supported reason phrase, custom headers, content type, and exact payload.
+- [x] Invalid or conflicting configuration never partially replaces the active registry.
+- [x] Configuration can be validated, imported, exported, saved atomically, and reloaded after container recreation with a mounted volume.
+- [x] Loading a built-in template or example atomically adds only missing endpoints, skips identical endpoints, never duplicates or removes unrelated endpoints, and makes no changes on conflicts unless the operator explicitly forces the reviewed update.
+- [x] The dashboard exposes aggregate and per-endpoint statistics without retaining sensitive request content.
+- [x] Every dashboard endpoint has an accessible test blade that can send an editable request to that endpoint and display status, repeated response header values, content type, raw body, effective URL, and elapsed time without persisting sensitive request data.
+- [x] Management writes detect stale revisions.
+- [x] OpenAPI accurately describes the management API, excludes runtime-defined mock endpoints, and Swagger UI can be disabled independently.
+- [x] Reserved system routes cannot be shadowed by mock endpoints.
+- [x] Startup loading, management writes, validation, and import consistently enforce the approved document, endpoint, method, path, body, and header limits.
+- [x] Recent-rate statistics retain exactly 60 one-minute buckets without unbounded growth.
+- [x] The application runs as non-root in a .NET 10 Alpine container on port 8080.
 - [ ] One multi-platform image index provides functionally equivalent `linux/amd64` and `linux/arm64` images.
-- [ ] The application passes container checks with a `0.5` CPU and `256 MiB` limit; deployment examples start with a `0.25` CPU and `128 MiB` request.
+- [x] The application passes local native container checks with a `0.5` CPU and `256 MiB` limit; deployment examples start with a `0.25` CPU and `128 MiB` request.
 - [ ] The root filesystem can be read-only with `/data` as the sole writable application mount.
-- [ ] Dependabot covers NuGet, Docker, and GitHub Actions, with a seven-day cooldown applied to every update ecosystem.
-- [ ] Unit, integration, schema, dashboard, accessibility, and container checks pass.
-- [ ] Documentation clearly distinguishes HTTP reason phrases from response bodies and explains protocol limitations.
+- [x] The developer CLI can non-destructively showcase the loaded `/ex/rate-limited` example by verifying its status, reason phrase, repeated headers, content type, exact body, query-insensitive matching, negative `404` cases, and statistics deltas with clear pass/fail output.
+- [x] Dependabot covers NuGet, Docker, and GitHub Actions, with a seven-day cooldown applied to every update ecosystem.
+- [ ] GitHub pull-request automation builds and tests containers without registry credentials.
+- [ ] GitHub release/manual automation builds and verifies `linux/amd64` and `linux/arm64`, assembles the multi-platform image index, and is ready for Docker Hub publishing without enabling pushes before registry details are approved.
+- [ ] Unit, integration, schema, dashboard, accessibility, and local container checks pass; CI-only architecture, read-only-root, SBOM, and vulnerability checks remain pending.
+- [ ] A new user can follow the README from a clean checkout to run MockAPI locally or in a container, load an example, invoke it, save changes, and verify persistence.
+- [x] Documentation clearly distinguishes HTTP reason phrases from response bodies and explains protocol limitations.
+- [ ] The dashboard has documented WCAG 2.2 AA conformance, including WCAG 2.0/2.1 requirements, with no unresolved applicable A or AA failures in automated and manual testing.
+- [ ] Backend and frontend unit suites cover every deterministic behavior and critical branch, with 100% coverage for designated critical modules and enforced repository floors of at least 90% lines and 85% branches.
+- [ ] Pull-request and release builds fail on missing coverage output, threshold regression, unexpected skipped tests, serious/critical accessibility violations, or expired browser-test quarantine.
+- [ ] Playwright smoke and complete suites pass headlessly in Chromium, Firefox, and WebKit across desktop/mobile, light/dark, keyboard, reduced-motion, and supported forced-colors projects.
+- [ ] CI retains backend/frontend test results, native and merged coverage reports, accessibility evidence, and Playwright traces/screenshots/videos/console/network diagnostics according to documented retention periods.
 
 ## 16. Confirmed Decisions
 
 - Use `MockAPI` as the product, repository, solution, and primary assembly name.
 - Do not require management authentication in the initial release; management routes must remain on localhost or a protected network.
 - Persist runtime changes only when an operator explicitly saves them. Runtime changes remain active but visibly unsaved until save succeeds.
+- Treat built-in template/example loading as an idempotent merge by stable endpoint ID, distinct from replacement import; require a conflict preview and explicit forced update before divergent built-in entries can replace active entries.
 - Match exact paths in the initial release while keeping the versioned endpoint contract open to future route templates and alternate path-matching modes.
 - Match requests by HTTP method and exact normalized path only in the initial release; query strings, request headers, and request bodies do not participate.
 - Ship both `linux/amd64` and `linux/arm64` images under one multi-platform image index.
@@ -356,7 +492,8 @@ The initial ARM64 measurements selected Alpine CoreCLR: compressed publication r
 - Start deployment guidance at a `0.25` CPU and `128 MiB` memory request with a `0.5` CPU and `256 MiB` memory limit, then tune only from measured runtime evidence.
 - Limit configuration documents to 4 MiB and 25 endpoints; each endpoint permits a 200-character name, at most 8 methods, a 2,048-character path, a 1 MiB UTF-8 response body, 64 response headers, 8 KiB per UTF-8 header value, and 32 KiB of combined UTF-8 header names and values.
 - Retain recent-rate statistics in 60 one-minute buckets for a 60-minute rolling window.
+- Assign workflow-created or workflow-reused issues to `simonkurtz-MSFT`; do not use the personal `simonua` handle for this repository.
 
 ## 17. Implementation Readiness
 
-All initial architectural and product decisions required for Phase 1 are confirmed. Begin with solution scaffolding, the .NET 10 SDK pin, configuration models, source-generated JSON metadata, the Draft 2020-12 schema, checked-in examples, and boundary-focused validation tests.
+The first six implementation phases are represented in the repository. Phase 7 is planned but intentionally not implemented yet. Managed validation, targeted headless dashboard checks, and native ARM64 WSLC validation pass locally, but they do not constitute full WCAG conformance, complete frontend/backend coverage, or cross-browser Playwright evidence. Remaining release gates include Phase 7 quality engineering plus the checked-in GitHub workflows for native AMD64 parity, multi-platform OCI index inspection, read-only-root execution, SBOM generation, vulnerability scanning, and clean-runner README verification. Docker Hub publishing remains intentionally disabled pending namespace, credential, and tag-policy approval.
