@@ -32,7 +32,7 @@ jobs:
           load: true
           push: false
           tags: mockapi:release-${{ matrix.suffix }}
-      name: Verify native image
+      - name: Verify native image
         shell: bash
         run: |
           set -euo pipefail
@@ -49,13 +49,13 @@ jobs:
           docker inspect mockapi > container-${{ matrix.suffix }}.json
           docker image inspect mockapi:release-${{ matrix.suffix }} > image-${{ matrix.suffix }}.json
           docker stats --no-stream mockapi > stats-${{ matrix.suffix }}.txt
-      name: Generate SBOM
+      - name: Generate SBOM
         uses: anchore/sbom-action@v0
         with:
           image: mockapi:release-${{ matrix.suffix }}
           format: spdx-json
           output-file: sbom-${{ matrix.suffix }}.spdx.json
-      name: Scan image
+      - name: Scan image
         uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: mockapi:release-${{ matrix.suffix }}
@@ -64,7 +64,7 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "1"
-      uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: native-${{ matrix.suffix }}-evidence
           path: |
