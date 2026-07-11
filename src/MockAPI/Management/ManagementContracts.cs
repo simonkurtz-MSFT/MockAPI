@@ -1,14 +1,25 @@
 using System.Text.Json.Serialization;
 using MockAPI.Configuration;
+using MockAPI.Runtime;
 
 namespace MockAPI.Management;
 
 public sealed record ConfigurationStatusResponse(
     long Revision,
-    string ETag,
+    [property: JsonPropertyName("etag")] string ETag,
     bool HasUnsavedChanges);
 
 public sealed record EndpointEnabledRequest(bool Enabled);
+
+public sealed record ConfigurationValidationResponse(
+    bool IsValid,
+    IReadOnlyList<ConfigurationValidationError> Errors);
+
+public sealed record ConfigurationSaveResponse(
+    long Revision,
+    bool IsCurrentRevision);
+
+public sealed record HealthStatusResponse(string Status);
 
 public sealed record ManagementProblemDetails(
     string Type,
@@ -24,7 +35,11 @@ public sealed record ManagementProblemDetails(
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)]
 [JsonSerializable(typeof(ConfigurationStatusResponse))]
 [JsonSerializable(typeof(EndpointEnabledRequest))]
+[JsonSerializable(typeof(ConfigurationValidationResponse))]
+[JsonSerializable(typeof(ConfigurationSaveResponse))]
+[JsonSerializable(typeof(HealthStatusResponse))]
 [JsonSerializable(typeof(ManagementProblemDetails))]
+[JsonSerializable(typeof(RequestStatisticsSnapshot))]
 [JsonSerializable(typeof(MockEndpointDefinition))]
 [JsonSerializable(typeof(MockEndpointDefinition[]))]
 public sealed partial class ManagementJsonContext : JsonSerializerContext;

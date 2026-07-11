@@ -36,5 +36,6 @@ Use this skill when a change affects what an endpoint definition means or how it
 - A runtime-created or edited endpoint is invocable immediately without process restart.
 - HTTP tests verify exact status, permitted multi-value headers, content type, body bytes, and `HEAD` behavior where relevant.
 - Dashboard tests cover the changed field or operation when it is user-facing.
+- Management route changes update and test the generated OpenAPI document while keeping runtime-defined mock routes excluded.
 
 If the change alters a project invariant or validation practice, update the nearest `.github` instruction or this skill in the same change.

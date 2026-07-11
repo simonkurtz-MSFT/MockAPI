@@ -3,27 +3,221 @@ using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.Net.Http.Headers;
 using MockAPI.Configuration;
+using MockAPI.Runtime;
 
 namespace MockAPI.Management;
 
 public static class ManagementApiEndpoints
 {
     private const string BasePath = "/__mockapi/api";
-    private const string EndpointsPath = BasePath + "/endpoints";
     private const string ProblemBase = "https://mockapi.local/problems/";
+    private static readonly ManagementJsonContext CompactJsonContext = new(
+        new JsonSerializerOptions(ManagementJsonContext.Default.Options) { WriteIndented = false });
 
-    public static void Map(WebApplication app, EndpointManagementService service)
+    public static void Map(
+        WebApplication app,
+        EndpointManagementService service,
+        ConfigurationManagementService configuration,
+        RequestStatisticsCollector statistics)
     {
         ArgumentNullException.ThrowIfNull(app);
         ArgumentNullException.ThrowIfNull(service);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(statistics);
 
-        app.MapGet(BasePath + "/configuration", context => WriteConfigurationStatusAsync(context, service));
-        app.MapGet(EndpointsPath, context => WriteEndpointsAsync(context, service));
-        app.MapGet(EndpointsPath + "/{id:guid}", context => WriteEndpointAsync(context, service));
-        app.MapPost(EndpointsPath, context => CreateEndpointAsync(context, service));
-        app.MapPut(EndpointsPath + "/{id:guid}", context => ReplaceEndpointAsync(context, service));
-        app.MapPut(EndpointsPath + "/{id:guid}/enabled", context => SetEnabledAsync(context, service));
-        app.MapDelete(EndpointsPath + "/{id:guid}", context => DeleteEndpointAsync(context, service));
+        var group = app.MapGroup(BasePath).WithTags("Management");
+        group.MapGet("/configuration", (HttpContext context, CancellationToken _) => WriteConfigurationStatusAsync(context, service));
+        group.MapPost("/configuration/validate", (HttpContext context, CancellationToken _) => ValidateConfigurationAsync(context, configuration));
+        group.MapPut("/configuration/import", (HttpContext context, CancellationToken _) => ImportConfigurationAsync(context, configuration));
+        group.MapGet("/configuration/export", (HttpContext context, CancellationToken _) => ExportConfigurationAsync(context, configuration));
+        group.MapPost("/configuration/save", (HttpContext context, CancellationToken _) => SaveConfigurationAsync(context, configuration));
+        group.MapGet("/endpoints", (HttpContext context, CancellationToken _) => WriteEndpointsAsync(context, service));
+        group.MapGet("/endpoints/{id:guid}", (HttpContext context, CancellationToken _) => WriteEndpointAsync(context, service));
+        group.MapPost("/endpoints", (HttpContext context, CancellationToken _) => CreateEndpointAsync(context, service));
+        group.MapPut("/endpoints/{id:guid}", (HttpContext context, CancellationToken _) => ReplaceEndpointAsync(context, service));
+        group.MapPut("/endpoints/{id:guid}/enabled", (HttpContext context, CancellationToken _) => SetEnabledAsync(context, service));
+        group.MapDelete("/endpoints/{id:guid}", (HttpContext context, CancellationToken _) => DeleteEndpointAsync(context, service));
+        group.MapGet("/statistics", (HttpContext context, CancellationToken _) => WriteStatisticsAsync(context, statistics));
+        group.MapGet("/statistics/events", (HttpContext context, CancellationToken _) => StreamStatisticsAsync(context, statistics));
+        group.MapPost("/statistics/reset", (HttpContext context, CancellationToken _) => ResetStatisticsAsync(context, statistics));
+        group.MapPost("/statistics/endpoints/{id:guid}/reset", (HttpContext context, CancellationToken _) => ResetEndpointStatisticsAsync(context, statistics));
+    }
+
+    private static async Task ValidateConfigurationAsync(
+        HttpContext context,
+        ConfigurationManagementService service)
+    {
+        var candidate = await ReadJsonAsync(
+            context,
+            MockApiJsonContext.Default.MockApiConfigurationDocument);
+        if (candidate is null)
+        {
+            return;
+        }
+
+        var validation = service.Validate(candidate);
+        await WriteJsonAsync(
+            context,
+            StatusCodes.Status200OK,
+            new ConfigurationValidationResponse(validation.IsValid, validation.Errors),
+            ManagementJsonContext.Default.ConfigurationValidationResponse);
+    }
+
+    private static async Task ImportConfigurationAsync(
+        HttpContext context,
+        ConfigurationManagementService service)
+    {
+        var expectedRevision = await ReadExpectedRevisionAsync(context, service.Current);
+        if (expectedRevision is null)
+        {
+            return;
+        }
+
+        var candidate = await ReadJsonAsync(
+            context,
+            MockApiJsonContext.Default.MockApiConfigurationDocument);
+        if (candidate is null)
+        {
+            return;
+        }
+
+        var result = service.Import(candidate, expectedRevision.Value);
+        if (result.Status == ConfigurationUpdateStatus.ValidationFailed)
+        {
+            await WriteProblemAsync(
+                context,
+                StatusCodes.Status422UnprocessableEntity,
+                "validation-failed",
+                "Configuration validation failed",
+                "The imported configuration was rejected and the active configuration was not modified.",
+                service.Current,
+                result.Validation.Errors);
+            return;
+        }
+
+        if (result.Status == ConfigurationUpdateStatus.RevisionConflict)
+        {
+            await WriteRevisionConflictAsync(context, service.Current);
+            return;
+        }
+
+        SetETag(context, result.Snapshot!);
+        await WriteJsonAsync(
+            context,
+            StatusCodes.Status200OK,
+            new ConfigurationStatusResponse(
+                result.Snapshot!.Revision,
+                result.Snapshot.ETag,
+                result.Snapshot.HasUnsavedChanges),
+            ManagementJsonContext.Default.ConfigurationStatusResponse);
+    }
+
+    private static async Task ExportConfigurationAsync(
+        HttpContext context,
+        ConfigurationManagementService service)
+    {
+        var snapshot = service.Current;
+        SetETag(context, snapshot);
+        context.Response.StatusCode = StatusCodes.Status200OK;
+        context.Response.ContentType = "application/json; charset=utf-8";
+        context.Response.Headers.ContentDisposition = "attachment; filename=mockapi.json";
+        await context.Response.Body.WriteAsync(snapshot.ExportUtf8(), context.RequestAborted);
+    }
+
+    private static async Task SaveConfigurationAsync(
+        HttpContext context,
+        ConfigurationManagementService service)
+    {
+        var expectedRevision = await ReadExpectedRevisionAsync(context, service.Current);
+        if (expectedRevision is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await service.SaveAsync(expectedRevision.Value, context.RequestAborted);
+            var snapshot = service.Current;
+            SetETag(context, snapshot);
+            await WriteJsonAsync(
+                context,
+                StatusCodes.Status200OK,
+                new ConfigurationSaveResponse(result.Revision, result.IsCurrentRevision),
+                ManagementJsonContext.Default.ConfigurationSaveResponse);
+        }
+        catch (ConfigurationPersistenceException exception)
+            when (exception.Error == ConfigurationPersistenceError.RevisionConflict)
+        {
+            await WriteRevisionConflictAsync(context, service.Current);
+        }
+        catch (ConfigurationPersistenceException)
+        {
+            await WriteProblemAsync(
+                context,
+                StatusCodes.Status500InternalServerError,
+                "persistence-failed",
+                "Configuration save failed",
+                "The active configuration could not be saved to the configured persistence location.",
+                service.Current);
+        }
+    }
+
+    private static Task WriteStatisticsAsync(HttpContext context, RequestStatisticsCollector statistics) =>
+        WriteJsonAsync(
+            context,
+            StatusCodes.Status200OK,
+            statistics.GetSnapshot(),
+            ManagementJsonContext.Default.RequestStatisticsSnapshot);
+
+    private static async Task StreamStatisticsAsync(
+        HttpContext context,
+        RequestStatisticsCollector statistics)
+    {
+        context.Response.StatusCode = StatusCodes.Status200OK;
+        context.Response.ContentType = "text/event-stream";
+        context.Response.Headers.CacheControl = "no-cache";
+        context.Response.Headers.Connection = "keep-alive";
+
+        try
+        {
+            while (!context.RequestAborted.IsCancellationRequested)
+            {
+                var json = JsonSerializer.Serialize(
+                    statistics.GetSnapshot(),
+                    CompactJsonContext.RequestStatisticsSnapshot);
+                await context.Response.WriteAsync("event: statistics\ndata: ", context.RequestAborted);
+                await context.Response.WriteAsync(json, context.RequestAborted);
+                await context.Response.WriteAsync("\n\n", context.RequestAborted);
+                await context.Response.Body.FlushAsync(context.RequestAborted);
+                await Task.Delay(TimeSpan.FromSeconds(2), context.RequestAborted);
+            }
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+        }
+    }
+
+    private static Task ResetStatisticsAsync(HttpContext context, RequestStatisticsCollector statistics)
+    {
+        statistics.Reset();
+        context.Response.StatusCode = StatusCodes.Status204NoContent;
+        return Task.CompletedTask;
+    }
+
+    private static Task ResetEndpointStatisticsAsync(HttpContext context, RequestStatisticsCollector statistics)
+    {
+        if (!statistics.Reset(GetEndpointId(context)))
+        {
+            return WriteProblemAsync(
+                context,
+                StatusCodes.Status404NotFound,
+                "endpoint-statistics-not-found",
+                "Endpoint statistics not found",
+                "No statistics exist for the requested endpoint ID.");
+        }
+
+        context.Response.StatusCode = StatusCodes.Status204NoContent;
+        return Task.CompletedTask;
     }
 
     private static Task WriteConfigurationStatusAsync(HttpContext context, EndpointManagementService service)
@@ -96,7 +290,7 @@ public static class ManagementApiEndpoints
         }
 
         SetETag(context, result.Snapshot!);
-        context.Response.Headers.Location = $"{EndpointsPath}/{endpoint.Id}";
+        context.Response.Headers.Location = $"{BasePath}/endpoints/{endpoint.Id}";
         await WriteJsonAsync(
             context,
             StatusCodes.Status201Created,
@@ -188,6 +382,11 @@ public static class ManagementApiEndpoints
     private static async Task<long?> ReadExpectedRevisionAsync(
         HttpContext context,
         EndpointManagementService service)
+        => await ReadExpectedRevisionAsync(context, service.Current);
+
+    private static async Task<long?> ReadExpectedRevisionAsync(
+        HttpContext context,
+        ConfigurationStateSnapshot snapshot)
     {
         var value = context.Request.Headers.IfMatch.ToString();
         if (string.IsNullOrEmpty(value))
@@ -198,7 +397,7 @@ public static class ManagementApiEndpoints
                 "precondition-required",
                 "Precondition required",
                 "Management writes require a quoted configuration revision in the If-Match header.",
-                service.Current);
+                snapshot);
             return null;
         }
 
@@ -212,12 +411,23 @@ public static class ManagementApiEndpoints
                 "invalid-etag",
                 "Invalid ETag",
                 "If-Match must contain one strong ETag with a non-negative numeric revision.",
-                service.Current);
+                snapshot);
             return null;
         }
 
         return revision;
     }
+
+    private static Task WriteRevisionConflictAsync(
+        HttpContext context,
+        ConfigurationStateSnapshot snapshot) =>
+        WriteProblemAsync(
+            context,
+            StatusCodes.Status412PreconditionFailed,
+            "revision-conflict",
+            "Configuration revision conflict",
+            "The active configuration changed after the supplied revision was read.",
+            snapshot);
 
     private static async Task<T?> ReadJsonAsync<T>(HttpContext context, JsonTypeInfo<T> typeInfo)
         where T : class

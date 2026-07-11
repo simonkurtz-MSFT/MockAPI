@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("scoutTheme");
+      const theme =
+        param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <title>MockAPI Console</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to endpoint configuration</a>
+  <header class="app-header">
+    <div class="brand-lockup">
+      <span class="brand-mark" aria-hidden="true">M</span>
+      <div>
+        <strong>MockAPI</strong>
+        <span>Operations console</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span id="connection-status" class="connection-status"><span aria-hidden="true"></span>Connecting</span>
+      <button id="theme-toggle" class="icon-button" type="button" title="Toggle color theme" aria-label="Toggle color theme">◐</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="command-bar" aria-label="Configuration commands">
+      <div>
+        <h1>Endpoint configuration</h1>
+        <p id="persistence-label">Loading active configuration…</p>
+      </div>
+      <div class="command-actions">
+        <input id="import-file" type="file" accept="application/json,.json" hidden>
+        <button id="import-button" class="button secondary" type="button">Import</button>
+        <a id="export-button" class="button secondary" href="/__mockapi/api/configuration/export" download="mockapi.json">Export</a>
+        <button id="save-button" class="button secondary" type="button" disabled>Save</button>
+        <button id="create-button" class="button primary" type="button">New endpoint</button>
+      </div>
+    </section>
+
+    <section class="metric-strip" aria-label="Request statistics">
+      <div class="metric"><span>Total requests</span><strong id="metric-total">0</strong></div>
+      <div class="metric"><span>Matched</span><strong id="metric-matched">0</strong></div>
+      <div class="metric"><span>Unmatched</span><strong id="metric-unmatched">0</strong></div>
+      <div class="metric"><span>Response bytes</span><strong id="metric-bytes">0 B</strong></div>
+      <div class="metric rate-metric">
+        <span>Last 60 minutes</span>
+        <strong id="metric-rate">0 req/min</strong>
+        <div id="rate-bars" class="rate-bars" aria-hidden="true"></div>
+      </div>
+      <button id="reset-statistics" class="button quiet" type="button">Reset statistics</button>
+    </section>
+
+    <section class="workspace" aria-labelledby="endpoints-heading">
+      <div class="workspace-toolbar">
+        <div>
+          <h2 id="endpoints-heading">Endpoints <span id="endpoint-count" class="count">0</span></h2>
+        </div>
+        <div class="filters" role="search">
+          <label class="search-field">
+            <span class="visually-hidden">Filter endpoints</span>
+            <span aria-hidden="true">⌕</span>
+            <input id="filter-text" type="search" placeholder="Filter name or path">
+          </label>
+          <label>
+            <span class="visually-hidden">Filter by method</span>
+            <select id="filter-method">
+              <option value="">All methods</option>
+              <option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option>
+              <option>DELETE</option><option>HEAD</option><option>OPTIONS</option>
+            </select>
+          </label>
+          <label>
+            <span class="visually-hidden">Filter by enabled state</span>
+            <select id="filter-enabled">
+              <option value="">Any state</option>
+              <option value="true">Enabled</option>
+              <option value="false">Disabled</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Endpoint</th>
+              <th scope="col">Methods</th>
+              <th scope="col">Path</th>
+              <th scope="col">Response</th>
+              <th scope="col">Requests</th>
+              <th scope="col">Last request</th>
+              <th scope="col">Enabled</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody id="endpoint-rows"></tbody>
+        </table>
+        <div id="empty-state" class="empty-state" hidden>
+          <strong>No endpoints found</strong>
+          <p>Create an endpoint or adjust the active filters.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="endpoint-dialog" aria-labelledby="dialog-title">
+    <form id="endpoint-form" method="dialog">
+      <header class="dialog-header">
+        <div>
+          <span class="eyebrow">Endpoint definition</span>
+          <h2 id="dialog-title">New endpoint</h2>
+        </div>
+        <button class="icon-button" type="button" data-close title="Close" aria-label="Close">×</button>
+      </header>
+      <div id="form-error" class="error-summary" role="alert" hidden></div>
+      <div class="form-grid">
+        <label class="wide">Name<input id="field-name" name="name" maxlength="200" required></label>
+        <fieldset class="wide method-fieldset">
+          <legend>Methods</legend>
+          <div id="method-options" class="method-options"></div>
+        </fieldset>
+        <label class="wide">Path<div class="input-with-action"><input id="field-path" name="path" maxlength="2048" placeholder="/api/example" required><button id="copy-url" class="icon-button" type="button" title="Copy endpoint URL" aria-label="Copy endpoint URL">⧉</button></div></label>
+        <label>Status code<input id="field-status" name="status" type="number" min="100" max="599" required></label>
+        <label>Reason phrase <span class="hint">HTTP/1.1 only</span><input id="field-reason" name="reason" maxlength="128"></label>
+        <label class="wide">Content type<input id="field-content-type" name="contentType" placeholder="application/json; charset=utf-8"></label>
+        <fieldset class="wide headers-fieldset">
+          <div class="fieldset-heading"><legend>Response headers</legend><button id="add-header" class="button quiet" type="button">Add header</button></div>
+          <div id="header-rows" class="header-rows"></div>
+        </fieldset>
+        <label class="wide">Response body<textarea id="field-body" name="body" rows="10" spellcheck="false"></textarea></label>
+      </div>
+      <footer class="dialog-footer">
+        <label class="toggle-label"><input id="field-enabled" name="enabled" type="checkbox" checked><span>Enabled</span></label>
+        <div>
+          <button class="button secondary" type="button" data-close>Cancel</button>
+          <button class="button primary" type="submit">Apply endpoint</button>
+        </div>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title">
+    <div class="confirm-content">
+      <h2 id="confirm-title">Confirm action</h2>
+      <p id="confirm-message"></p>
+      <div class="confirm-actions">
+        <button id="confirm-cancel" class="button secondary" type="button">Cancel</button>
+        <button id="confirm-accept" class="button danger" type="button">Confirm</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+</body>
+</html>

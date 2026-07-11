@@ -26,6 +26,7 @@ public sealed class ManagementApiTests
         Assert.Equal("\"0\"", status.Headers.ETag!.Tag);
         using var statusJson = await ReadJsonAsync(status);
         Assert.Equal(0, statusJson.RootElement.GetProperty("revision").GetInt64());
+        Assert.Equal("\"0\"", statusJson.RootElement.GetProperty("etag").GetString());
         Assert.False(statusJson.RootElement.GetProperty("hasUnsavedChanges").GetBoolean());
         Assert.Equal(HttpStatusCode.OK, endpoints.StatusCode);
         Assert.Equal("\"0\"", endpoints.Headers.ETag!.Tag);

@@ -9,7 +9,7 @@ applyTo: "**/*.{cs,csproj,sln,props,targets}"
 - Target .NET 10 and keep nullable reference types and implicit usings enabled.
 - Use ASP.NET Core minimal APIs for transport wiring; keep domain validation and state transitions out of route handlers.
 - Map reserved management routes before the dispatcher fallback, keep management edits in a domain service, and require strong revision ETags on every management write.
-- Keep management API exposure independently configurable and return RFC 9457 problem details without filesystem or exception details.
+- Keep management API, dashboard, OpenAPI document, and Swagger UI exposure independently configurable. OpenAPI must describe only reserved management operations, never runtime-defined mock routes.
 - Represent the active document, revision, persistence status, and endpoint registry as one immutable configuration snapshot and publish replacements atomically.
 - Route every runtime or management configuration mutation through `ConfigurationState`; do not publish routes independently of the active document and revision.
 - Load persisted configuration before serving requests, fail startup for required malformed or invalid files, and save by replacing a flushed same-directory temporary file.

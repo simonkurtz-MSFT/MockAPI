@@ -11,10 +11,9 @@ namespace MockAPI.Tests.Runtime;
 public sealed class MockDispatcherTests
 {
     [Fact]
-    public async Task Root_ReturnsServiceResponseUnlessExplicitlyConfigured()
+    public async Task Root_ReturnsDashboardInsteadOfDispatcherResponse()
     {
         await using var factory = new WebApplicationFactory<Program>();
-        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
         var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
         using var client = factory.CreateClient();
 
@@ -24,18 +23,14 @@ public sealed class MockDispatcherTests
         using var postResponse = await client.PostAsync("/", null, CancellationToken.None);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("text/plain; charset=utf-8", response.Content.Headers.ContentType!.ToString());
-        Assert.Equal("MockAPI is running.\n", await response.Content.ReadAsStringAsync(CancellationToken.None));
+        Assert.Equal("text/html", response.Content.Headers.ContentType!.MediaType);
+        Assert.Contains("MockAPI", await response.Content.ReadAsStringAsync(CancellationToken.None));
         Assert.Equal(HttpStatusCode.OK, headResponse.StatusCode);
         Assert.Empty(await headResponse.Content.ReadAsByteArrayAsync(CancellationToken.None));
         Assert.Equal(HttpStatusCode.NotFound, postResponse.StatusCode);
-
-        Apply(configuration, CreateDocument(CreateEndpoint(["GET"], "/", "configured")));
-
-        Assert.Equal("configured", await client.GetStringAsync("/", CancellationToken.None));
         var snapshot = statistics.GetSnapshot();
-        Assert.Equal(2, snapshot.TotalRequests);
-        Assert.Equal(1, snapshot.MatchedRequests);
+        Assert.Equal(1, snapshot.TotalRequests);
+        Assert.Equal(0, snapshot.MatchedRequests);
         Assert.Equal(1, snapshot.UnmatchedRequests);
     }
 

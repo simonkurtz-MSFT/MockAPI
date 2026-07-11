@@ -9,4 +9,10 @@ public sealed class MockApiOptions
     public bool AllowEmptyConfiguration { get; init; } = true;
 
     public bool EnableManagementApi { get; init; } = true;
+
+    public bool EnableDashboard { get; init; } = true;
+
+    public bool EnableOpenApi { get; init; } = true;
+
+    public bool EnableSwaggerUi { get; init; } = true;
 }

@@ -1,0 +1,376 @@
+using System.Net;
+using System.Text;
+using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using MockAPI.Configuration;
+using MockAPI.Management;
+
+namespace MockAPI.Tests.Management;
+
+public sealed class RemainingManagementApiTests : IDisposable
+{
+    private const string BasePath = "/__mockapi/api";
+    private readonly string _directory = Path.Combine(
+        Path.GetTempPath(),
+        "MockAPI.Tests",
+        Guid.NewGuid().ToString("N"));
+
+    [Fact]
+    public async Task Validate_ReportsErrorsWithoutApplyingCandidate()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var candidate = CreateDocument(CreateEndpoint("/health", "invalid"));
+
+        using var response = await SendDocumentAsync(client, HttpMethod.Post, $"{BasePath}/configuration/validate", candidate);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = await ReadJsonAsync(response);
+        Assert.False(json.RootElement.GetProperty("isValid").GetBoolean());
+        Assert.Contains(json.RootElement.GetProperty("errors").EnumerateArray(), error =>
+            error.GetProperty("code").GetString() == "reserved");
+        using var status = await client.GetAsync($"{BasePath}/configuration");
+        Assert.Equal("\"0\"", status.Headers.ETag!.Tag);
+    }
+
+    [Fact]
+    public async Task Import_AtomicallyAppliesCandidateAndExportRoundTripsIt()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var endpoint = CreateEndpoint("/imported", "imported body");
+        var candidate = CreateDocument(endpoint);
+
+        using var imported = await SendDocumentAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/configuration/import",
+            candidate,
+            "\"0\"");
+        using var exported = await client.GetAsync($"{BasePath}/configuration/export");
+
+        Assert.Equal(HttpStatusCode.OK, imported.StatusCode);
+        Assert.Equal("\"1\"", imported.Headers.ETag!.Tag);
+        Assert.Equal("imported body", await client.GetStringAsync("/imported"));
+        Assert.Equal(HttpStatusCode.OK, exported.StatusCode);
+        Assert.Equal("application/json", exported.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("attachment", exported.Content.Headers.ContentDisposition!.DispositionType);
+        var roundTrip = JsonSerializer.Deserialize(
+            await exported.Content.ReadAsByteArrayAsync(),
+            MockApiJsonContext.Default.MockApiConfigurationDocument)!;
+        Assert.Equal(endpoint.Id, Assert.Single(roundTrip.Endpoints).Id);
+    }
+
+    [Fact]
+    public async Task Import_InvalidCandidateLeavesPriorRouteActive()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var valid = CreateDocument(CreateEndpoint("/current", "current"));
+        using var first = await SendDocumentAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/configuration/import",
+            valid,
+            "\"0\"");
+        var invalid = CreateDocument(CreateEndpoint("/health", "invalid"));
+
+        using var response = await SendDocumentAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/configuration/import",
+            invalid,
+            "\"1\"");
+
+        Assert.Equal((HttpStatusCode)422, response.StatusCode);
+        Assert.Equal("current", await client.GetStringAsync("/current"));
+        Assert.Equal("\"1\"", response.Headers.ETag!.Tag);
+    }
+
+    [Fact]
+    public async Task Save_PersistsCurrentRevisionAndClearsUnsavedState()
+    {
+        var path = Path.Combine(_directory, "nested", "mockapi.json");
+        await using var factory = CreateFactory(path);
+        using var client = factory.CreateClient();
+        var candidate = CreateDocument(CreateEndpoint("/saved", "saved"));
+        using var imported = await SendDocumentAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/configuration/import",
+            candidate,
+            "\"0\"");
+
+        using var saved = await SendAsync(client, HttpMethod.Post, $"{BasePath}/configuration/save", "\"1\"");
+
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        Assert.True(File.Exists(path));
+        using var status = await client.GetAsync($"{BasePath}/configuration");
+        using var statusJson = await ReadJsonAsync(status);
+        Assert.False(statusJson.RootElement.GetProperty("hasUnsavedChanges").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Statistics_QueryAndResetExposeAggregateAndEndpointState()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var endpoint = CreateEndpoint("/counted", "counted");
+        using var imported = await SendDocumentAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/configuration/import",
+            CreateDocument(endpoint),
+            "\"0\"");
+        using var matched = await client.GetAsync("/counted");
+        using var unmatched = await client.GetAsync("/missing");
+
+        using var response = await client.GetAsync($"{BasePath}/statistics");
+        using var json = await ReadJsonAsync(response);
+        Assert.Equal(2, json.RootElement.GetProperty("totalRequests").GetInt64());
+        Assert.Equal(1, json.RootElement.GetProperty("matchedRequests").GetInt64());
+        Assert.Equal(1, json.RootElement.GetProperty("unmatchedRequests").GetInt64());
+        Assert.Equal(endpoint.Id, json.RootElement.GetProperty("endpoints")[0].GetProperty("endpointId").GetGuid());
+
+        using var reset = await SendAsync(client, HttpMethod.Post, $"{BasePath}/statistics/reset");
+        using var afterReset = await client.GetAsync($"{BasePath}/statistics");
+        using var resetJson = await ReadJsonAsync(afterReset);
+        Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
+        Assert.Equal(0, resetJson.RootElement.GetProperty("totalRequests").GetInt64());
+    }
+
+    [Fact]
+    public async Task Statistics_EndpointResetDoesNotChangeAggregateCounts()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var endpoint = CreateEndpoint("/endpoint-reset", "body");
+        using var imported = await SendDocumentAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/configuration/import",
+            CreateDocument(endpoint),
+            "\"0\"");
+        using var matched = await client.GetAsync(endpoint.Path);
+
+        using var reset = await SendAsync(
+            client,
+            HttpMethod.Post,
+            $"{BasePath}/statistics/endpoints/{endpoint.Id}/reset");
+        using var response = await client.GetAsync($"{BasePath}/statistics");
+        using var json = await ReadJsonAsync(response);
+
+        Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
+        Assert.Equal(1, json.RootElement.GetProperty("totalRequests").GetInt64());
+        Assert.Empty(json.RootElement.GetProperty("endpoints").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task StatisticsEvents_StreamServerSentStatistics()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{BasePath}/statistics/events");
+        using var response = await client.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellation.Token);
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellation.Token);
+        using var reader = new StreamReader(stream);
+
+        var eventLine = await reader.ReadLineAsync(cancellation.Token);
+        var dataLine = await reader.ReadLineAsync(cancellation.Token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/event-stream", response.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("event: statistics", eventLine);
+        var data = Assert.IsType<string>(dataLine);
+        Assert.StartsWith("data: ", data, StringComparison.Ordinal);
+        using var payload = JsonDocument.Parse(data[6..]);
+        Assert.Equal(0, payload.RootElement.GetProperty("totalRequests").GetInt64());
+    }
+
+    [Fact]
+    public async Task HealthAndRootDashboardAreApplicationRoutes()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        using var live = await client.GetAsync("/health/live");
+        using var ready = await client.GetAsync("/health/ready");
+        using var dashboard = await client.GetAsync("/");
+        using var stylesheet = await client.GetAsync("/app.css");
+        using var script = await client.GetAsync("/app.js");
+
+        Assert.Equal(HttpStatusCode.OK, live.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
+        using var liveJson = JsonDocument.Parse(await live.Content.ReadAsStringAsync());
+        using var readyJson = JsonDocument.Parse(await ready.Content.ReadAsStringAsync());
+        Assert.Equal("healthy", liveJson.RootElement.GetProperty("status").GetString());
+        Assert.Equal("ready", readyJson.RootElement.GetProperty("status").GetString());
+        Assert.Equal(HttpStatusCode.OK, dashboard.StatusCode);
+        Assert.Equal("text/html", dashboard.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("no-store", dashboard.Headers.CacheControl!.ToString());
+        Assert.Equal(HttpStatusCode.OK, stylesheet.StatusCode);
+        Assert.Equal("text/css", stylesheet.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("no-store", stylesheet.Headers.CacheControl!.ToString());
+        Assert.Equal(HttpStatusCode.OK, script.StatusCode);
+        Assert.Equal("text/javascript", script.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("no-store", script.Headers.CacheControl!.ToString());
+        var html = await dashboard.Content.ReadAsStringAsync();
+        Assert.Contains("MockAPI", html, StringComparison.Ordinal);
+        Assert.Contains("Endpoint configuration", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void HealthStatusResponse_HasSourceGeneratedJsonMetadata()
+    {
+        var json = JsonSerializer.SerializeToElement(
+            new HealthStatusResponse("ready"),
+            ManagementJsonContext.Default.HealthStatusResponse);
+
+        Assert.Equal("ready", json.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task Dashboard_CanBeDisabledIndependently()
+    {
+        await using var factory = CreateFactory().WithWebHostBuilder(builder =>
+            builder.UseSetting("MockApi:EnableDashboard", "false"));
+        using var client = factory.CreateClient();
+
+        using var dashboard = await client.GetAsync("/");
+        using var management = await client.GetAsync($"{BasePath}/configuration");
+
+        Assert.Equal(HttpStatusCode.NotFound, dashboard.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, management.StatusCode);
+    }
+
+    [Fact]
+    public async Task OpenApi_DescribesManagementRoutesAndExcludesRuntimeRoutes()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var endpoint = CreateEndpoint("/dynamic-openapi-test", "body");
+        using var imported = await SendDocumentAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/configuration/import",
+            CreateDocument(endpoint),
+            "\"0\"");
+
+        using var response = await client.GetAsync("/__mockapi/openapi/v1.json");
+        using var json = await ReadJsonAsync(response);
+        var paths = json.RootElement.GetProperty("paths");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(paths.TryGetProperty($"{BasePath}/configuration", out var configurationPath));
+        Assert.True(configurationPath.TryGetProperty("get", out _));
+        var endpointPath = paths.EnumerateObject().Single(path =>
+            path.Name.StartsWith($"{BasePath}/endpoints/{{", StringComparison.Ordinal)
+            && !path.Name.EndsWith("/enabled", StringComparison.Ordinal));
+        Assert.True(endpointPath.Value.TryGetProperty("delete", out _));
+        Assert.False(paths.TryGetProperty(endpoint.Path, out _));
+        Assert.False(paths.TryGetProperty("/health/live", out _));
+        Assert.False(paths.TryGetProperty("/", out _));
+    }
+
+    [Fact]
+    public async Task OpenApiAndSwaggerUi_CanBeDisabledIndependently()
+    {
+        await using var openApiDisabledFactory = CreateFactory().WithWebHostBuilder(builder =>
+            builder.UseSetting("MockApi:EnableOpenApi", "false"));
+        using var openApiDisabledClient = openApiDisabledFactory.CreateClient(
+            new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        using var missingDocument = await openApiDisabledClient.GetAsync("/__mockapi/openapi/v1.json");
+        using var availableUi = await openApiDisabledClient.GetAsync("/__mockapi/swagger/index.html");
+
+        await using var uiDisabledFactory = CreateFactory().WithWebHostBuilder(builder =>
+            builder.UseSetting("MockApi:EnableSwaggerUi", "false"));
+        using var uiDisabledClient = uiDisabledFactory.CreateClient();
+        using var availableDocument = await uiDisabledClient.GetAsync("/__mockapi/openapi/v1.json");
+        using var missingUi = await uiDisabledClient.GetAsync("/__mockapi/swagger/index.html");
+
+        Assert.Equal(HttpStatusCode.NotFound, missingDocument.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, availableUi.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, availableDocument.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, missingUi.StatusCode);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_directory))
+        {
+            Directory.Delete(_directory, recursive: true);
+        }
+    }
+
+    private WebApplicationFactory<Program> CreateFactory(string? path = null) =>
+        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("MockApi:ConfigurationPath", path ?? Path.Combine(_directory, "mockapi.json"));
+            builder.UseSetting("MockApi:AllowEmptyConfiguration", "true");
+        });
+
+    private static Task<HttpResponseMessage> SendDocumentAsync(
+        HttpClient client,
+        HttpMethod method,
+        string path,
+        MockApiConfigurationDocument document,
+        string? etag = null) =>
+        SendAsync(
+            client,
+            method,
+            path,
+            etag,
+            JsonSerializer.Serialize(document, MockApiJsonContext.Default.MockApiConfigurationDocument));
+
+    private static Task<HttpResponseMessage> SendAsync(
+        HttpClient client,
+        HttpMethod method,
+        string path,
+        string? etag = null,
+        string? json = null)
+    {
+        var request = new HttpRequestMessage(method, path);
+        if (json is not null)
+        {
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+        }
+
+        if (etag is not null)
+        {
+            request.Headers.TryAddWithoutValidation("If-Match", etag);
+        }
+
+        return client.SendAsync(request);
+    }
+
+    private static MockApiConfigurationDocument CreateDocument(params MockEndpointDefinition[] endpoints) => new()
+    {
+        Schema = "../schemas/mockapi.schema.json",
+        SchemaVersion = "1.0",
+        Endpoints = endpoints
+    };
+
+    private static MockEndpointDefinition CreateEndpoint(string path, string body) => new()
+    {
+        Id = Guid.NewGuid(),
+        Name = path.Trim('/'),
+        Enabled = true,
+        Methods = ["GET"],
+        Path = path,
+        Response = new MockResponseDefinition
+        {
+            StatusCode = 200,
+            Headers = [],
+            ContentType = "text/plain; charset=utf-8",
+            Body = body
+        }
+    };
+
+    private static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response) =>
+        JsonDocument.Parse(await response.Content.ReadAsByteArrayAsync());
+}

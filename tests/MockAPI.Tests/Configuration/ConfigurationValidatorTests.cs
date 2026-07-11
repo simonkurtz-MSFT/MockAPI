@@ -4,6 +4,19 @@ namespace MockAPI.Tests.Configuration;
 
 public sealed class ConfigurationValidatorTests
 {
+    [Fact]
+    public void Validate_RejectsDashboardRootPath()
+    {
+        var document = CreateDocument() with
+        {
+            Endpoints = [CreateEndpoint(1) with { Path = "/" }]
+        };
+
+        var result = ConfigurationValidator.Validate(document);
+
+        Assert.Contains(result.Errors, error => error.Path == "endpoints[0].path" && error.Code == "reserved");
+    }
+
     [Theory]
     [InlineData(ConfigurationLimits.MaximumEndpoints, true)]
     [InlineData(ConfigurationLimits.MaximumEndpoints + 1, false)]

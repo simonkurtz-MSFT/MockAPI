@@ -110,11 +110,28 @@ public sealed class ConfigurationFileStore
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(state);
+        return await SaveAsync(state, state.Current.Revision, cancellationToken);
+    }
+
+    public async Task<ConfigurationSaveResult> SaveAsync(
+        ConfigurationState state,
+        long expectedRevision,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedRevision);
 
         await _saveGate.WaitAsync(cancellationToken);
         try
         {
             var snapshot = state.Current;
+            if (snapshot.Revision != expectedRevision)
+            {
+                throw new ConfigurationPersistenceException(
+                    ConfigurationPersistenceError.RevisionConflict,
+                    "The active configuration changed before it could be saved.");
+            }
+
             await _onSnapshotCaptured(cancellationToken);
             var targetPath = Path.GetFullPath(_options.ConfigurationPath);
             var directory = Path.GetDirectoryName(targetPath) ??

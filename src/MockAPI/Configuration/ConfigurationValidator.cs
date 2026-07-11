@@ -267,7 +267,9 @@ public static class ConfigurationValidator
     }
 
     private static bool IsReservedPath(string path) =>
-        IsPathOrDescendant(path, "/__mockapi") || IsPathOrDescendant(path, "/health");
+        path == "/" ||
+        IsPathOrDescendant(path, "/__mockapi") ||
+        IsPathOrDescendant(path, "/health");
 
     private static bool IsPathOrDescendant(string path, string reservedPath) =>
         path.Equals(reservedPath, StringComparison.OrdinalIgnoreCase) ||

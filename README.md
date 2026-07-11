@@ -40,12 +40,35 @@ Set these environment variables to override that behavior:
 MockApi__ConfigurationPath=/data/mockapi.json
 MockApi__AllowEmptyConfiguration=false
 MockApi__EnableManagementApi=true
+MockApi__EnableDashboard=true
+MockApi__EnableOpenApi=true
+MockApi__EnableSwaggerUi=true
 ```
 
-Malformed, oversized, or semantically invalid configured files fail startup without activating a partial configuration. Runtime edits remain in memory until an explicit save operation atomically replaces the configured file; the management operation that invokes save is part of the next implementation slice.
+Malformed, oversized, or semantically invalid configured files fail startup without activating a partial configuration. Runtime edits remain in memory until an explicit save operation atomically replaces the configured file.
+
+Each exposure switch is independent. `EnableManagementApi=false` disables management operations, the OpenAPI document, and Swagger UI while configured mock routes, health checks, and an independently enabled dashboard remain available. The dashboard requires the management API for editing and live data.
+
+## Administrative Dashboard
+
+The administrative dashboard is served at `/`. It provides endpoint creation, editing, duplication, enablement, deletion, filtering, configuration import/export/save, aggregate statistics, per-endpoint statistics, and reset operations. Statistics update through server-sent events with periodic HTTP polling as a fallback.
+
+The root path is reserved and cannot be configured as a mock endpoint. Set `MockApi__EnableDashboard=false` to disable static dashboard assets and the root application route.
 
 ## Management API
 
-Endpoint management is available under `/__mockapi/api/endpoints`, with configuration revision and unsaved status at `/__mockapi/api/configuration`. Create, replace, enable/disable, and delete requests require the latest quoted ETag in `If-Match`; stale writes return HTTP `412` without changing the active configuration. Successful changes are immediately visible to the mock dispatcher and remain unsaved until an explicit save operation is invoked.
+Management operations are available under `/__mockapi/api`:
 
-The initial management API has no authentication. Keep it on localhost or a protected network, or set `MockApi__EnableManagementApi=false` while leaving configured mock routes available.
+| Area | Routes |
+| --- | --- |
+| Endpoint CRUD | `/endpoints`, `/endpoints/{id}`, `/endpoints/{id}/enabled` |
+| Configuration | `/configuration`, `/configuration/validate`, `/configuration/import`, `/configuration/export`, `/configuration/save` |
+| Statistics | `/statistics`, `/statistics/events`, `/statistics/reset`, `/statistics/endpoints/{id}/reset` |
+
+Create, replace, enable/disable, delete, import, and save requests require the latest quoted ETag in `If-Match`; stale writes return HTTP `412` without changing the active configuration. Successful changes are immediately visible to the mock dispatcher and remain unsaved until save is explicitly invoked.
+
+The management OpenAPI document is available at `/__mockapi/openapi/v1.json`, and Swagger UI is at `/__mockapi/swagger`. Runtime-defined mock endpoints are intentionally excluded. Set `MockApi__EnableOpenApi=false` or `MockApi__EnableSwaggerUi=false` to disable either exposure independently.
+
+Liveness and readiness probes are available at `/health/live` and `/health/ready`.
+
+The management API and dashboard have no authentication. Keep them on localhost or a protected network, or disable their exposure while leaving configured mock routes available.

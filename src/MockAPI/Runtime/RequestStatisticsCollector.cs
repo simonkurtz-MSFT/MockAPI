@@ -64,6 +64,24 @@ public sealed class RequestStatisticsCollector
             endpoints);
     }
 
+    public void Reset()
+    {
+        Interlocked.Exchange(ref _totalRequests, 0);
+        Interlocked.Exchange(ref _matchedRequests, 0);
+        Interlocked.Exchange(ref _unmatchedRequests, 0);
+        Interlocked.Exchange(ref _failedWrites, 0);
+        Interlocked.Exchange(ref _informationalResponses, 0);
+        Interlocked.Exchange(ref _successResponses, 0);
+        Interlocked.Exchange(ref _redirectionResponses, 0);
+        Interlocked.Exchange(ref _clientErrorResponses, 0);
+        Interlocked.Exchange(ref _serverErrorResponses, 0);
+        Interlocked.Exchange(ref _responseBytes, 0);
+        _recentMinutes.Reset();
+        _endpoints.Clear();
+    }
+
+    public bool Reset(Guid endpointId) => _endpoints.TryRemove(endpointId, out _);
+
     private void RecordMatchedCore(
         Guid endpointId,
         int statusCode,
@@ -192,6 +210,14 @@ public sealed class RequestStatisticsCollector
             return builder.MoveToImmutable();
         }
 
+        public void Reset()
+        {
+            foreach (var bucket in _buckets)
+            {
+                bucket.Reset();
+            }
+        }
+
         private static int GetUnixMinute(DateTimeOffset timestamp) =>
             checked((int)(timestamp.ToUnixTimeSeconds() / 60));
     }
@@ -223,6 +249,8 @@ public sealed class RequestStatisticsCollector
             var state = Volatile.Read(ref _state);
             return (int)(state >> 32) == minute ? (uint)state : 0;
         }
+
+        public void Reset() => Interlocked.Exchange(ref _state, 0);
     }
 }
 
