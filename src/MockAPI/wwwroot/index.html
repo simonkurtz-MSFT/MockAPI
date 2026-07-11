@@ -39,8 +39,8 @@
       </div>
       <div class="command-actions">
         <input id="import-file" type="file" accept="application/json,.json" hidden>
-        <button id="load-template-button" class="button secondary" type="button">Load template</button>
-        <button id="load-example-button" class="button secondary" type="button">Load example</button>
+        <button id="load-template-button" class="button secondary" type="button">Start blank</button>
+        <button id="load-example-button" class="button secondary" type="button">Load examples</button>
         <button id="import-button" class="button secondary" type="button">Import</button>
         <a id="export-button" class="button secondary" href="/__mockapi/api/configuration/export" download="mockapi.json">Export</a>
         <button id="save-button" class="button secondary" type="button" disabled>Save</button>
@@ -108,8 +108,12 @@
           <tbody id="endpoint-rows"></tbody>
         </table>
         <div id="empty-state" class="empty-state" hidden>
-          <strong>No endpoints found</strong>
-          <p>Create an endpoint or adjust the active filters.</p>
+          <strong id="empty-state-title">No endpoints yet</strong>
+          <p id="empty-state-description">Load working examples or begin with a blank configuration.</p>
+          <div id="starter-actions" class="starter-actions">
+            <button id="empty-load-example-button" class="button primary" type="button">Load examples</button>
+            <button id="empty-load-template-button" class="button secondary" type="button">Start blank</button>
+          </div>
         </div>
       </div>
     </section>

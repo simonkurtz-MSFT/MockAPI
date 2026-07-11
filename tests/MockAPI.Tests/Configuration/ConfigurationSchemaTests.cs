@@ -20,10 +20,25 @@ public sealed class ConfigurationSchemaTests
         Assert.NotNull(document);
         Assert.True(ConfigurationValidator.Validate(document).IsValid);
 
-        var endpoint = Assert.Single(document.Endpoints);
-        Assert.StartsWith("/ex/", endpoint.Path, StringComparison.Ordinal);
-        Assert.Equal(["30"], endpoint.Response.Headers["Retry-After"]);
-        Assert.Equal("{\"error\":\"try again later\"}", endpoint.Response.Body);
+        Assert.Equal(4, document.Endpoints.Count);
+        Assert.All(document.Endpoints, endpoint =>
+            Assert.StartsWith("/ex/", endpoint.Path, StringComparison.Ordinal));
+
+        var hello = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ex/hello");
+        Assert.Equal(["GET"], hello.Methods);
+        Assert.Equal(200, hello.Response.StatusCode);
+
+        var created = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ex/orders");
+        Assert.Equal(["POST"], created.Methods);
+        Assert.Equal(201, created.Response.StatusCode);
+
+        var rateLimited = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ex/rate-limited");
+        Assert.Equal(["30"], rateLimited.Response.Headers["Retry-After"]);
+        Assert.Equal("{\"error\":\"try again later\"}", rateLimited.Response.Body);
+
+        var noContent = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ex/orders/42");
+        Assert.Equal(["DELETE"], noContent.Methods);
+        Assert.Equal(204, noContent.Response.StatusCode);
     }
 
     [Fact]

@@ -14,9 +14,11 @@ const state = {
 
 const elements = Object.fromEntries([
   "connection-status", "persistence-label", "save-button", "create-button", "import-button",
-  "load-template-button", "load-example-button", "import-file", "reset-statistics",
+  "load-template-button", "load-example-button", "empty-load-template-button", "empty-load-example-button",
+  "import-file", "reset-statistics",
   "metric-total", "metric-matched", "metric-unmatched",
   "metric-bytes", "metric-rate", "rate-bars", "endpoint-count", "endpoint-rows", "empty-state",
+  "empty-state-title", "empty-state-description", "starter-actions",
   "filter-text", "filter-method", "filter-enabled", "endpoint-dialog", "endpoint-form", "dialog-title",
   "form-error", "field-name", "field-path", "field-status", "field-reason", "field-content-type",
   "field-body", "field-enabled", "method-options", "header-rows", "add-header", "copy-url",
@@ -126,6 +128,12 @@ function renderEndpoints() {
   elements["endpoint-count"].textContent = visible.length;
   elements["endpoint-rows"].replaceChildren();
   elements["empty-state"].hidden = visible.length !== 0;
+  const hasEndpoints = state.endpoints.length !== 0;
+  elements["empty-state-title"].textContent = hasEndpoints ? "No endpoints match" : "No endpoints yet";
+  elements["empty-state-description"].textContent = hasEndpoints
+    ? "Adjust the active filters to see configured endpoints."
+    : "Load working examples or begin with a blank configuration.";
+  elements["starter-actions"].hidden = hasEndpoints;
   for (const endpoint of visible) elements["endpoint-rows"].append(createEndpointRow(endpoint));
 }
 
@@ -349,8 +357,9 @@ async function loadBuiltInConfiguration(name) {
     const response = await fetch(`${API}/configuration/${name}`, { cache: "no-store" });
     if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
     const document = await response.json();
-    const label = name === "template" ? "template" : "example";
-    await loadConfiguration(document, `Load ${label}`, `${label[0].toUpperCase()}${label.slice(1)} loaded`);
+    const title = name === "template" ? "Start blank" : "Load examples";
+    const successMessage = name === "template" ? "Blank configuration loaded" : "Examples loaded";
+    await loadConfiguration(document, title, successMessage);
   } catch (error) { showToast(formatProblem(error), true); }
 }
 
@@ -404,6 +413,8 @@ function bindEvents() {
   }
   elements["load-template-button"].addEventListener("click", () => loadBuiltInConfiguration("template"));
   elements["load-example-button"].addEventListener("click", () => loadBuiltInConfiguration("example"));
+  elements["empty-load-template-button"].addEventListener("click", () => loadBuiltInConfiguration("template"));
+  elements["empty-load-example-button"].addEventListener("click", () => loadBuiltInConfiguration("example"));
   elements["import-button"].addEventListener("click", () => elements["import-file"].click());
   elements["import-file"].addEventListener("change", () => {
     const file = elements["import-file"].files[0];

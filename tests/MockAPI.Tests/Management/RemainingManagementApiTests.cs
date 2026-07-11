@@ -82,8 +82,10 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Equal("no-store", templateResponse.Headers.CacheControl!.ToString());
         Assert.Empty(template.Endpoints);
         Assert.Equal(HttpStatusCode.OK, exampleResponse.StatusCode);
-        var exampleEndpoint = Assert.Single(example.Endpoints);
-        Assert.Equal("/ex/rate-limited", exampleEndpoint.Path);
+        Assert.Equal(4, example.Endpoints.Count);
+        var exampleEndpoint = Assert.Single(
+            example.Endpoints,
+            endpoint => endpoint.Path == "/ex/rate-limited");
 
         using var imported = await SendDocumentAsync(
             client,
@@ -92,10 +94,25 @@ public sealed class RemainingManagementApiTests : IDisposable
             example,
             "\"0\"");
         using var mocked = await client.GetAsync(exampleEndpoint.Path);
+        using var hello = await client.GetAsync("/ex/hello");
+        using var created = await client.PostAsync("/ex/orders", content: null);
+        using var deleted = await client.DeleteAsync("/ex/orders/42");
+        using var activeEndpoints = await client.GetAsync($"{BasePath}/endpoints");
+        using var activated = await ReadJsonAsync(activeEndpoints);
 
         Assert.Equal(HttpStatusCode.OK, imported.StatusCode);
+        Assert.Equal(4, activated.RootElement.GetArrayLength());
+        Assert.Equal(HttpStatusCode.OK, hello.StatusCode);
+        Assert.Equal("{\"message\":\"Hello from MockAPI\"}", await hello.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        Assert.Equal("/ex/orders/42", created.Headers.Location!.OriginalString);
+        Assert.Equal("{\"id\":42,\"status\":\"created\"}", await created.Content.ReadAsStringAsync());
         Assert.Equal((HttpStatusCode)429, mocked.StatusCode);
+        Assert.Equal(["30"], mocked.Headers.GetValues("Retry-After"));
+        Assert.Equal(["MockAPI", "checked-in-example"], mocked.Headers.GetValues("X-Mock-Source"));
         Assert.Equal("{\"error\":\"try again later\"}", await mocked.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        Assert.Empty(await deleted.Content.ReadAsByteArrayAsync());
     }
 
     [Fact]
@@ -288,6 +305,10 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Contains("Endpoint configuration", html, StringComparison.Ordinal);
         Assert.Contains("id=\"load-template-button\"", html, StringComparison.Ordinal);
         Assert.Contains("id=\"load-example-button\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"empty-load-template-button\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"empty-load-example-button\"", html, StringComparison.Ordinal);
+        Assert.Contains("Start blank", html, StringComparison.Ordinal);
+        Assert.Contains("Load examples", html, StringComparison.Ordinal);
         Assert.Contains("href=\"https://github.com/simonkurtz-MSFT/MockAPI\"", html, StringComparison.Ordinal);
         Assert.Contains("Version 1.0.0-alpha.1", html, StringComparison.Ordinal);
         Assert.DoesNotContain("{{VERSION}}", html, StringComparison.Ordinal);
