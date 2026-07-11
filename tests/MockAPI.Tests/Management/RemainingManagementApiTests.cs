@@ -1,4 +1,5 @@
 using System.Net;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
@@ -60,6 +61,68 @@ public sealed class RemainingManagementApiTests : IDisposable
             await exported.Content.ReadAsByteArrayAsync(),
             MockApiJsonContext.Default.MockApiConfigurationDocument)!;
         Assert.Equal(endpoint.Id, Assert.Single(roundTrip.Endpoints).Id);
+    }
+
+    [Fact]
+    public async Task BuiltInConfigurations_AreAvailableAndExampleCanBeImported()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        using var templateResponse = await client.GetAsync($"{BasePath}/configuration/template");
+        using var exampleResponse = await client.GetAsync($"{BasePath}/configuration/example");
+        var template = JsonSerializer.Deserialize(
+            await templateResponse.Content.ReadAsByteArrayAsync(),
+            MockApiJsonContext.Default.MockApiConfigurationDocument)!;
+        var example = JsonSerializer.Deserialize(
+            await exampleResponse.Content.ReadAsByteArrayAsync(),
+            MockApiJsonContext.Default.MockApiConfigurationDocument)!;
+
+        Assert.Equal(HttpStatusCode.OK, templateResponse.StatusCode);
+        Assert.Equal("no-store", templateResponse.Headers.CacheControl!.ToString());
+        Assert.Empty(template.Endpoints);
+        Assert.Equal(HttpStatusCode.OK, exampleResponse.StatusCode);
+        var exampleEndpoint = Assert.Single(example.Endpoints);
+        Assert.Equal("/ex/rate-limited", exampleEndpoint.Path);
+
+        using var imported = await SendDocumentAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/configuration/import",
+            example,
+            "\"0\"");
+        using var mocked = await client.GetAsync(exampleEndpoint.Path);
+
+        Assert.Equal(HttpStatusCode.OK, imported.StatusCode);
+        Assert.Equal((HttpStatusCode)429, mocked.StatusCode);
+        Assert.Equal("{\"error\":\"try again later\"}", await mocked.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task BuiltInTemplate_AtomicallyReplacesActiveExample()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var example = await ReadDocumentAsync(client, $"{BasePath}/configuration/example");
+        var template = await ReadDocumentAsync(client, $"{BasePath}/configuration/template");
+        using var exampleImport = await SendDocumentAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/configuration/import",
+            example,
+            "\"0\"");
+
+        using var templateImport = await SendDocumentAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/configuration/import",
+            template,
+            "\"1\"");
+        using var removedRoute = await client.GetAsync("/ex/rate-limited");
+
+        Assert.Equal(HttpStatusCode.OK, templateImport.StatusCode);
+        Assert.Equal("\"2\"", templateImport.Headers.ETag!.Tag);
+        Assert.Equal(HttpStatusCode.NotFound, removedRoute.StatusCode);
     }
 
     [Fact]
@@ -220,8 +283,16 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Equal("text/javascript", script.Content.Headers.ContentType!.MediaType);
         Assert.Equal("no-store", script.Headers.CacheControl!.ToString());
         var html = await dashboard.Content.ReadAsStringAsync();
+        var javascript = await script.Content.ReadAsStringAsync();
         Assert.Contains("MockAPI", html, StringComparison.Ordinal);
         Assert.Contains("Endpoint configuration", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"load-template-button\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"load-example-button\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"https://github.com/simonkurtz-MSFT/MockAPI\"", html, StringComparison.Ordinal);
+        Assert.Contains("Version 1.0.0-alpha.1", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("{{VERSION}}", html, StringComparison.Ordinal);
+        Assert.Contains("loadBuiltInConfiguration(\"template\")", javascript, StringComparison.Ordinal);
+        Assert.Contains("loadBuiltInConfiguration(\"example\")", javascript, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -232,6 +303,16 @@ public sealed class RemainingManagementApiTests : IDisposable
             ManagementJsonContext.Default.HealthStatusResponse);
 
         Assert.Equal("ready", json.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public void Application_HasExpectedSemanticVersionMetadata()
+    {
+        var informationalVersion = typeof(Program).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
+            .InformationalVersion;
+
+        Assert.StartsWith("1.0.0-alpha.1", informationalVersion, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -268,6 +349,8 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(paths.TryGetProperty($"{BasePath}/configuration", out var configurationPath));
         Assert.True(configurationPath.TryGetProperty("get", out _));
+        Assert.True(paths.TryGetProperty($"{BasePath}/configuration/template", out _));
+        Assert.True(paths.TryGetProperty($"{BasePath}/configuration/example", out _));
         var endpointPath = paths.EnumerateObject().Single(path =>
             path.Name.StartsWith($"{BasePath}/endpoints/{{", StringComparison.Ordinal)
             && !path.Name.EndsWith("/enabled", StringComparison.Ordinal));
@@ -370,6 +453,15 @@ public sealed class RemainingManagementApiTests : IDisposable
             Body = body
         }
     };
+
+    private static async Task<MockApiConfigurationDocument> ReadDocumentAsync(HttpClient client, string path)
+    {
+        using var response = await client.GetAsync(path);
+        response.EnsureSuccessStatusCode();
+        return JsonSerializer.Deserialize(
+            await response.Content.ReadAsByteArrayAsync(),
+            MockApiJsonContext.Default.MockApiConfigurationDocument)!;
+    }
 
     private static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response) =>
         JsonDocument.Parse(await response.Content.ReadAsByteArrayAsync());

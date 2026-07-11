@@ -17,6 +17,11 @@ internal static class ConfigurationSchemaFixture
         "config",
         "mockapi.json");
 
+    public static string TemplatePath { get; } = Path.Combine(
+        RepositoryRoot,
+        "config",
+        "mockapi.template.json");
+
     private static readonly Lazy<JsonSchema> Schema = new(() =>
         JsonSchema.FromText(File.ReadAllText(SchemaPath)));
 

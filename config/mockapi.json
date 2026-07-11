@@ -9,7 +9,7 @@
       "methods": [
         "GET"
       ],
-      "path": "/api/rate-limited",
+      "path": "/ex/rate-limited",
       "response": {
         "statusCode": 429,
         "reasonPhrase": "Too Many Requests",

@@ -14,7 +14,8 @@ const state = {
 
 const elements = Object.fromEntries([
   "connection-status", "persistence-label", "save-button", "create-button", "import-button",
-  "import-file", "reset-statistics", "metric-total", "metric-matched", "metric-unmatched",
+  "load-template-button", "load-example-button", "import-file", "reset-statistics",
+  "metric-total", "metric-matched", "metric-unmatched",
   "metric-bytes", "metric-rate", "rate-bars", "endpoint-count", "endpoint-rows", "empty-state",
   "filter-text", "filter-method", "filter-enabled", "endpoint-dialog", "endpoint-form", "dialog-title",
   "form-error", "field-name", "field-path", "field-status", "field-reason", "field-content-type",
@@ -340,15 +341,29 @@ async function importConfiguration(file) {
   let document;
   try { document = JSON.parse(await file.text()); }
   catch { showToast("The selected file does not contain valid JSON.", true); return; }
+  await loadConfiguration(document, "Import configuration", "Configuration imported");
+}
+
+async function loadBuiltInConfiguration(name) {
+  try {
+    const response = await fetch(`${API}/configuration/${name}`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    const document = await response.json();
+    const label = name === "template" ? "template" : "example";
+    await loadConfiguration(document, `Load ${label}`, `${label[0].toUpperCase()}${label.slice(1)} loaded`);
+  } catch (error) { showToast(formatProblem(error), true); }
+}
+
+async function loadConfiguration(document, title, successMessage) {
   try {
     const validation = await api("/configuration/validate", { method: "POST", body: JSON.stringify(document) });
     if (!validation.isValid) {
       showToast(validation.errors.map(error => `${error.path}: ${error.message}`).join(" · "), true);
       return;
     }
-    confirmAction("Import configuration", `Replace the active configuration with ${document.endpoints.length} endpoint(s)?`, async () => {
+    confirmAction(title, `Replace the active configuration with ${document.endpoints.length} endpoint(s)?`, async () => {
       await api("/configuration/import", { method: "PUT", body: JSON.stringify(document), mutatesConfiguration: true });
-      showToast("Configuration imported");
+      showToast(successMessage);
       await refresh();
     });
   } catch (error) { showToast(formatProblem(error), true); }
@@ -387,6 +402,8 @@ function bindEvents() {
   for (const filter of [elements["filter-text"], elements["filter-method"], elements["filter-enabled"]]) {
     filter.addEventListener("input", renderEndpoints);
   }
+  elements["load-template-button"].addEventListener("click", () => loadBuiltInConfiguration("template"));
+  elements["load-example-button"].addEventListener("click", () => loadBuiltInConfiguration("example"));
   elements["import-button"].addEventListener("click", () => elements["import-file"].click());
   elements["import-file"].addEventListener("change", () => {
     const file = elements["import-file"].files[0];

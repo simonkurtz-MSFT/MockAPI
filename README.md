@@ -32,7 +32,7 @@ The WSLC container workflow builds the native host architecture, publishes port 
 
 ## Configuration File
 
-MockAPI loads and validates its configuration before serving requests. In containers, the default path is `/data/mockapi.json`; in local Development it is `mockapi.json` under the application content root. A missing file starts with an empty configuration by default.
+MockAPI loads and validates its configuration before serving requests. In containers, the default path is `/data/mockapi.json`; in local Development it is `mockapi.json` under the application content root. A missing file starts with an empty configuration by default. The checked-in `config/mockapi.template.json` is an empty starter document, while `config/mockapi.json` contains an HTTP 429 example at `/ex/rate-limited`.
 
 Set these environment variables to override that behavior:
 
@@ -51,7 +51,7 @@ Each exposure switch is independent. `EnableManagementApi=false` disables manage
 
 ## Administrative Dashboard
 
-The administrative dashboard is served at `/`. It provides endpoint creation, editing, duplication, enablement, deletion, filtering, configuration import/export/save, aggregate statistics, per-endpoint statistics, and reset operations. Statistics update through server-sent events with periodic HTTP polling as a fallback.
+The administrative dashboard is served at `/`. It provides endpoint creation, editing, duplication, enablement, deletion, filtering, configuration import/export/save, built-in template and example loading, aggregate statistics, per-endpoint statistics, and reset operations. Loading a built-in first asks for confirmation, then validates and atomically replaces the active configuration through the same ETag-protected import operation used for uploaded files. Statistics update through server-sent events with periodic HTTP polling as a fallback.
 
 The root path is reserved and cannot be configured as a mock endpoint. Set `MockApi__EnableDashboard=false` to disable static dashboard assets and the root application route.
 
@@ -62,7 +62,7 @@ Management operations are available under `/__mockapi/api`:
 | Area | Routes |
 | --- | --- |
 | Endpoint CRUD | `/endpoints`, `/endpoints/{id}`, `/endpoints/{id}/enabled` |
-| Configuration | `/configuration`, `/configuration/validate`, `/configuration/import`, `/configuration/export`, `/configuration/save` |
+| Configuration | `/configuration`, `/configuration/template`, `/configuration/example`, `/configuration/validate`, `/configuration/import`, `/configuration/export`, `/configuration/save` |
 | Statistics | `/statistics`, `/statistics/events`, `/statistics/reset`, `/statistics/endpoints/{id}/reset` |
 
 Create, replace, enable/disable, delete, import, and save requests require the latest quoted ETag in `If-Match`; stale writes return HTTP `412` without changing the active configuration. Successful changes are immediately visible to the mock dispatcher and remain unsaved until save is explicitly invoked.

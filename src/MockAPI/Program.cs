@@ -1,3 +1,4 @@
+using System.Reflection;
 using MockAPI.Configuration;
 using MockAPI.Management;
 using MockAPI.Runtime;
@@ -74,6 +75,15 @@ await configurationStore.LoadAsync(configuration, CancellationToken.None);
 
 if (options.EnableDashboard)
 {
+    var informationalVersion = typeof(Program).Assembly
+        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+        .InformationalVersion ?? throw new InvalidOperationException(
+            "The application informational version is unavailable.");
+    var version = informationalVersion.Split('+', 2)[0];
+    var dashboardHtml = (await File.ReadAllTextAsync(
+        Path.Combine(app.Environment.WebRootPath, "index.html"),
+        CancellationToken.None)).Replace("{{VERSION}}", version, StringComparison.Ordinal);
+
     app.MapGet("/app.css", (HttpContext context) =>
     {
         context.Response.Headers.CacheControl = "no-store";
@@ -93,9 +103,13 @@ if (options.EnableDashboard)
     app.MapMethods("/", [HttpMethods.Get, HttpMethods.Head], (HttpContext context) =>
     {
         context.Response.Headers.CacheControl = "no-store";
-        return Results.File(
-            Path.Combine(app.Environment.WebRootPath, "index.html"),
-            "text/html; charset=utf-8");
+        if (HttpMethods.IsHead(context.Request.Method))
+        {
+            context.Response.ContentType = "text/html; charset=utf-8";
+            return Results.Empty;
+        }
+
+        return Results.Text(dashboardHtml, "text/html; charset=utf-8");
     })
         .ExcludeFromDescription();
     app.MapGet("/__mockapi", () => Results.Redirect("/"))

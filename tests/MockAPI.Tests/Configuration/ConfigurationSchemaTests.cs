@@ -21,8 +21,24 @@ public sealed class ConfigurationSchemaTests
         Assert.True(ConfigurationValidator.Validate(document).IsValid);
 
         var endpoint = Assert.Single(document.Endpoints);
+        Assert.StartsWith("/ex/", endpoint.Path, StringComparison.Ordinal);
         Assert.Equal(["30"], endpoint.Response.Headers["Retry-After"]);
         Assert.Equal("{\"error\":\"try again later\"}", endpoint.Response.Body);
+    }
+
+    [Fact]
+    public void CheckedInTemplate_ValidatesAgainstSchemaAndSemanticRules()
+    {
+        var json = File.ReadAllText(ConfigurationSchemaFixture.TemplatePath);
+
+        AssertSchemaValid(json);
+
+        var document = JsonSerializer.Deserialize(
+            json,
+            MockApiJsonContext.Default.MockApiConfigurationDocument);
+        Assert.NotNull(document);
+        Assert.True(ConfigurationValidator.Validate(document).IsValid);
+        Assert.Empty(document.Endpoints);
     }
 
     [Fact]

@@ -7,6 +7,7 @@ COPY src/MockAPI/MockAPI.csproj src/MockAPI/
 RUN dotnet restore src/MockAPI/MockAPI.csproj
 
 COPY src/MockAPI/ src/MockAPI/
+COPY config/mockapi.json config/mockapi.template.json config/
 RUN dotnet publish src/MockAPI/MockAPI.csproj \
     --configuration Release \
     --no-restore \

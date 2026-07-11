@@ -56,6 +56,8 @@ html { min-width: 320px; }
 body {
   margin: 0;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   background: var(--cp-bg);
   color: var(--cp-text);
   font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -83,7 +85,7 @@ button:disabled { cursor: not-allowed; border-color: var(--cp-border); backgroun
 .connection-status.online > span { background: var(--cp-success); }
 .connection-status.offline > span { background: var(--cp-danger); }
 
-main { max-width: 1500px; margin: 0 auto; padding: 28px; }
+main { width: 100%; max-width: 1500px; margin: 0 auto; padding: 28px; flex: 1; }
 h1, h2, p { margin-top: 0; }
 h1 { margin-bottom: 5px; font-size: 24px; line-height: 1.2; }
 h2 { margin-bottom: 0; font-size: 18px; }
@@ -182,9 +184,13 @@ fieldset { margin: 0; padding: 0; border: 0; }
 .toast { max-width: 360px; padding: 11px 14px; border: 1px solid var(--cp-border-strong); border-left: 4px solid var(--cp-success); border-radius: 8px; background: var(--cp-panel-strong); color: var(--cp-text); box-shadow: var(--cp-shadow); font-size: 13px; }
 .toast.error { border-left-color: var(--cp-danger); }
 
+.app-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 28px; border-top: 1px solid var(--cp-border); background: var(--cp-bg-elevated); color: var(--cp-text-muted); font-size: 12px; }
+.app-footer a { color: var(--cp-link); font-weight: 600; }
+
 html[data-theme="dark"] .brand-lockup span,
 html[data-theme="dark"] .connection-status,
 html[data-theme="dark"] .command-bar p,
+html[data-theme="dark"] .app-footer,
 html[data-theme="dark"] th { color: var(--cp-text-soft); }
 html[data-theme="dark"] button:disabled { color: var(--cp-text-soft); }
 
@@ -202,6 +208,7 @@ html[data-theme="dark"] button:disabled { color: var(--cp-text-soft); }
   .app-header { padding: 0 16px; }
   .brand-lockup > div span, .connection-status { display: none; }
   main { padding: 18px 12px; }
+  .app-footer { padding: 16px; }
   .command-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .button { width: 100%; }
   .metric-strip { grid-template-columns: 1fr 1fr; }

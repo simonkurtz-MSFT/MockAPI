@@ -27,6 +27,8 @@ public static class ManagementApiEndpoints
 
         var group = app.MapGroup(BasePath).WithTags("Management");
         group.MapGet("/configuration", (HttpContext context, CancellationToken _) => WriteConfigurationStatusAsync(context, service));
+        group.MapGet("/configuration/template", (HttpContext context, CancellationToken _) => WriteBuiltInConfigurationAsync(context, "template"));
+        group.MapGet("/configuration/example", (HttpContext context, CancellationToken _) => WriteBuiltInConfigurationAsync(context, "example"));
         group.MapPost("/configuration/validate", (HttpContext context, CancellationToken _) => ValidateConfigurationAsync(context, configuration));
         group.MapPut("/configuration/import", (HttpContext context, CancellationToken _) => ImportConfigurationAsync(context, configuration));
         group.MapGet("/configuration/export", (HttpContext context, CancellationToken _) => ExportConfigurationAsync(context, configuration));
@@ -41,6 +43,18 @@ public static class ManagementApiEndpoints
         group.MapGet("/statistics/events", (HttpContext context, CancellationToken _) => StreamStatisticsAsync(context, statistics));
         group.MapPost("/statistics/reset", (HttpContext context, CancellationToken _) => ResetStatisticsAsync(context, statistics));
         group.MapPost("/statistics/endpoints/{id:guid}/reset", (HttpContext context, CancellationToken _) => ResetEndpointStatisticsAsync(context, statistics));
+    }
+
+    private static async Task WriteBuiltInConfigurationAsync(HttpContext context, string name)
+    {
+        await using var resource = typeof(ManagementApiEndpoints).Assembly.GetManifestResourceStream(
+            $"MockAPI.BuiltIns.{name}.json") ?? throw new InvalidOperationException(
+                $"The built-in {name} configuration is unavailable.");
+
+        context.Response.StatusCode = StatusCodes.Status200OK;
+        context.Response.ContentType = "application/json; charset=utf-8";
+        context.Response.Headers.CacheControl = "no-store";
+        await resource.CopyToAsync(context.Response.Body, context.RequestAborted);
     }
 
     private static async Task ValidateConfigurationAsync(
