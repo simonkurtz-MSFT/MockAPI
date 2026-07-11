@@ -79,9 +79,31 @@ function Invoke-Tool {
 
   Write-Host ''
   Write-Host $Operation -ForegroundColor Cyan
-  & $Executable @Arguments
-  if ($LASTEXITCODE -ne 0) {
-    throw "$Operation failed with exit code $LASTEXITCODE."
+  $result = Invoke-NativeTool -Executable $Executable -Arguments $Arguments -StreamOutput
+  if ($result.ExitCode -ne 0) {
+    throw "$Operation failed with exit code $($result.ExitCode)."
+  }
+}
+
+function Invoke-NativeTool {
+  param(
+    [Parameter(Mandatory)][string] $Executable,
+    [Parameter(Mandatory)][string[]] $Arguments,
+    [switch] $StreamOutput
+  )
+
+  $global:LASTEXITCODE = 0
+  $output = if ($StreamOutput) {
+    & $Executable @Arguments | Out-Host
+    @()
+  }
+  else {
+    @(& $Executable @Arguments)
+  }
+  $exitCode = $global:LASTEXITCODE
+  return [pscustomobject]@{
+    ExitCode = $exitCode
+    Output = $output
   }
 }
 
@@ -126,14 +148,19 @@ function Assert-DotNet {
   }
 
   $pinnedVersion = Get-PinnedSdkVersion
-  $resolvedVersion = (& dotnet --version).Trim()
-  if ($LASTEXITCODE -ne 0) {
+  $versionResult = Invoke-NativeTool -Executable 'dotnet' -Arguments @('--version')
+  if ($versionResult.ExitCode -ne 0) {
     throw 'Unable to resolve the .NET SDK version.'
   }
+  $resolvedVersion = ([string] ($versionResult.Output | Select-Object -First 1)).Trim()
   if ($resolvedVersion -ne $pinnedVersion) {
     if ($InstallMissing) {
       Install-DotNetSdk
-      $resolvedVersion = (& dotnet --version).Trim()
+      $versionResult = Invoke-NativeTool -Executable 'dotnet' -Arguments @('--version')
+      if ($versionResult.ExitCode -ne 0) {
+        throw 'Unable to resolve the .NET SDK version after installation.'
+      }
+      $resolvedVersion = ([string] ($versionResult.Output | Select-Object -First 1)).Trim()
     }
     if ($resolvedVersion -ne $pinnedVersion) {
       throw "Repository requires .NET SDK $pinnedVersion, but this directory resolves $resolvedVersion."
@@ -155,10 +182,11 @@ function Assert-Wslc {
     throw 'WSLC is still unavailable after the WSL update. Restart the terminal and run the check again.'
   }
 
-  $versionOutput = (& wslc version | Select-Object -First 1).Trim()
-  if ($LASTEXITCODE -ne 0) {
+  $versionResult = Invoke-NativeTool -Executable 'wslc' -Arguments @('version')
+  if ($versionResult.ExitCode -ne 0) {
     throw 'Unable to resolve the WSLC version.'
   }
+  $versionOutput = ([string] ($versionResult.Output | Select-Object -First 1)).Trim()
   Write-Field 'WSLC' $versionOutput Green
 }
 
@@ -238,12 +266,12 @@ function Assert-ContainerInputs {
 }
 
 function Get-WslcContainer {
-  $output = @(& wslc inspect $ContainerName 2>$null)
-  if ($LASTEXITCODE -ne 0) {
+  $result = Invoke-NativeTool -Executable 'wslc' -Arguments @('inspect', $ContainerName) 2>$null
+  if ($result.ExitCode -ne 0) {
     return $null
   }
 
-  $containers = @($output -join [Environment]::NewLine | ConvertFrom-Json)
+  $containers = @($result.Output -join [Environment]::NewLine | ConvertFrom-Json)
   if ($containers.Count -eq 0) {
     return $null
   }
@@ -251,8 +279,16 @@ function Get-WslcContainer {
 }
 
 function Test-WslcVolumeExists {
-  & wslc volume inspect $VolumeName *> $null
-  return $LASTEXITCODE -eq 0
+  $result = Invoke-NativeTool -Executable 'wslc' -Arguments @('volume', 'inspect', $VolumeName) 2>$null
+  return $result.ExitCode -eq 0
+}
+
+function Initialize-WslcVolumePermissions {
+  Invoke-Tool -Executable 'wslc' -Operation "Initializing volume permissions for $VolumeName" -Arguments @(
+    'run', '--rm', '--user', 'root', '--entrypoint', 'chown',
+    '--volume', "${VolumeName}:/data",
+    $ImageName, 'app:app', '/data'
+  )
 }
 
 function Invoke-ContainerBuild {
@@ -268,6 +304,7 @@ function Invoke-ContainerRun {
   if ($null -ne $container) {
     if ([bool] $container.State.Running) {
       Write-Field 'Container' "$ContainerName is already running" Green
+      Invoke-ContainerTest -SkipPrerequisiteCheck
       Write-Field 'Application URL' "http://localhost:$Port" Green
       return
     }
@@ -275,6 +312,7 @@ function Invoke-ContainerRun {
     Invoke-Tool -Executable 'wslc' -Operation "Restarting container $ContainerName" -Arguments @(
       'start', $ContainerName
     )
+    Invoke-ContainerTest -SkipPrerequisiteCheck
     Write-Field 'Application URL' "http://localhost:$Port" Green
     return
   }
@@ -283,7 +321,10 @@ function Invoke-ContainerRun {
       'volume', 'create', $VolumeName
     )
   }
+  Initialize-WslcVolumePermissions
 
+  Write-Host ''
+  Write-Host 'WSLC may warn that this WSL kernel cannot limit swap separately. The 256 MiB memory limit remains active.' -ForegroundColor DarkYellow
   Invoke-Tool -Executable 'wslc' -Operation "Starting container $ContainerName" -Arguments @(
     'run', '--detach', '--name', $ContainerName,
     '--cpus', '0.5', '--memory', '256M',
@@ -291,11 +332,16 @@ function Invoke-ContainerRun {
     '--volume', "${VolumeName}:/data",
     $ImageName
   )
+  Invoke-ContainerTest -SkipPrerequisiteCheck
   Write-Field 'Application URL' "http://localhost:$Port" Green
 }
 
 function Invoke-ContainerTest {
-  Assert-Wslc
+  param([switch] $SkipPrerequisiteCheck)
+
+  if (-not $SkipPrerequisiteCheck) {
+    Assert-Wslc
+  }
   $container = Get-WslcContainer
   if ($null -eq $container) {
     throw "Container '$ContainerName' does not exist. Run the container first."
@@ -304,7 +350,7 @@ function Invoke-ContainerTest {
     throw "Container '$ContainerName' is stopped (status: $($container.State.Status), exit code: $($container.State.ExitCode)). Run '.\start.ps1 -Action container-run' to restart it."
   }
 
-  $uri = "http://localhost:$Port/"
+  $uri = "http://localhost:$Port/health/ready"
   $attemptCount = 10
   $response = $null
   $lastFailure = $null
@@ -329,12 +375,19 @@ function Invoke-ContainerTest {
     throw "Container smoke test failed for '$uri' after $attemptCount attempts. Review '.\start.ps1 -Action container-logs'. $lastFailure"
   }
   if ($response.StatusCode -ne 200) {
-    throw "Container smoke test expected the root service route to return HTTP 200 but received $($response.StatusCode)."
+    throw "Container smoke test expected readiness to return HTTP 200 but received $($response.StatusCode)."
   }
-  if ($response.Content -ne "MockAPI is running.`n") {
-    throw "Container smoke test received an unexpected response body from the root service route."
+  if ($response.Content -notmatch '"status"\s*:\s*"ready"') {
+    throw "Container smoke test received an unexpected readiness response body."
   }
   Write-Field 'Smoke test' "$uri -> HTTP $($response.StatusCode)" Green
+
+  $dashboardUri = "http://localhost:$Port/"
+  $dashboard = Invoke-WebRequest -Uri $dashboardUri -TimeoutSec 2 -SkipHttpErrorCheck
+  if ($dashboard.StatusCode -ne 200 -or $dashboard.Content -notmatch '<title>MockAPI') {
+    throw "Container smoke test expected the administrative dashboard at '$dashboardUri'."
+  }
+  Write-Field 'Dashboard' "$dashboardUri -> HTTP $($dashboard.StatusCode)" Green
 }
 
 function Invoke-ContainerLogs {

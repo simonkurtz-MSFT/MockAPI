@@ -20,6 +20,7 @@ FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-alpine3.24 AS final
 
 WORKDIR /app
 COPY --from=build --chown=app:app /app/publish ./
+RUN mkdir -p /data && chown app:app /data
 
 USER app
 ENV ASPNETCORE_HTTP_PORTS=8080 \

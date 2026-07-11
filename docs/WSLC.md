@@ -64,7 +64,11 @@ wslc stats --format table mockapi-dev
 wslc logs mockapi-dev
 ```
 
-The container reads `/data/mockapi.json` by default and starts with an empty configuration when that file is absent. Set `MockApi__AllowEmptyConfiguration=false` when a missing configuration must fail startup. Exercise HTTP endpoints from Windows, then recreate the container with the same volume to verify persistence. Until the planned health routes are implemented, the developer CLI smoke-tests `/` and expects the root service response `MockAPI is running.` with HTTP `200`:
+The container reads `/data/mockapi.json` by default and starts with an empty configuration when that file is absent. Set `MockApi__AllowEmptyConfiguration=false` when a missing configuration must fail startup. Exercise HTTP endpoints from Windows, then recreate the container with the same volume to verify persistence. The developer CLI smoke-tests `/health/ready` and the administrative dashboard at `/`, expecting HTTP `200` from both:
+
+Before starting a new container, the developer CLI uses a short-lived root maintenance container to set the named volume root to `app:app`. The application container itself always runs as the non-root `app` user. This initialization also repairs volumes created by older MockAPI images without deleting their contents.
+
+On WSL kernels without swap-accounting support, WSLC reports `Memory limited without swap` when the container starts. This is a host capability warning: the configured 256 MiB memory limit is still applied, but WSLC cannot enforce a separate swap limit. The developer CLI explains this before launch and reports the application URL only after readiness and dashboard smoke tests pass.
 
 ```powershell
 Invoke-WebRequest http://localhost:8080/ -SkipHttpErrorCheck
