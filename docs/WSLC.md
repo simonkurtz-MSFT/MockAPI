@@ -32,11 +32,15 @@ Use the developer CLI from the repository root for the normal workflow:
 .\start.ps1 -Action container-test
 ```
 
-The equivalent direct WSLC build command is:
+The developer CLI gives each image a permanent UTC timestamp tag, then moves the `mockapi:dev` alias to the new image. The equivalent direct WSLC commands are:
 
 ```powershell
-wslc build --pull --tag mockapi:dev .
+$buildImage = 'mockapi:build-' + [DateTimeOffset]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+wslc build --pull --tag $buildImage .
+wslc image tag $buildImage mockapi:dev
 ```
+
+Because every build retains its timestamp tag, moving `mockapi:dev` does not leave the previous image untagged. On the first build after adopting this convention, the developer CLI preserves an existing alias-only image using its creation timestamp and short image ID before moving the alias.
 
 Create a persistent data volume once:
 
@@ -66,7 +70,9 @@ wslc logs mockapi-dev
 
 The container reads `/data/mockapi.json` by default and starts with an empty configuration when that file is absent. Set `MockApi__AllowEmptyConfiguration=false` when a missing configuration must fail startup. Exercise HTTP endpoints from Windows, then recreate the container with the same volume to verify persistence. The developer CLI smoke-tests `/health/ready` and the administrative dashboard at `/`, expecting HTTP `200` from both:
 
-Before starting a new container, the developer CLI uses a short-lived root maintenance container to set the named volume root to `app:app`. The application container itself always runs as the non-root `app` user. This initialization also repairs volumes created by older MockAPI images without deleting their contents.
+Before starting a new container, the developer CLI uses a short-lived root maintenance container to set the named volume root to the numeric `app` identity (`1654:1654`). The application container itself always runs as the non-root `app` user. This initialization also repairs volumes created by older MockAPI images without deleting their contents. WSLC `2.9.3.0` can incorrectly return exit code `137` during automatic `--rm` teardown even when the maintenance command succeeded, so the CLI names the maintenance container and removes it explicitly after it exits.
+
+The developer CLI records the immutable image ID on each created container. When `container-run` finds a running or stopped container whose recorded ID differs from the current tagged image, it recreates the container while retaining the named data volume. Containers created before image-ID tracking are recreated once to establish the label. A running container is reported as already running only when its recorded image ID matches the current image.
 
 On WSL kernels without swap-accounting support, WSLC reports `Memory limited without swap` when the container starts. This is a host capability warning: the configured 256 MiB memory limit is still applied, but WSLC cannot enforce a separate swap limit. The developer CLI explains this before launch and reports the application URL only after readiness and dashboard smoke tests pass.
 

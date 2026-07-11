@@ -54,6 +54,7 @@ $artifactsDirectory = Join-Path $repositoryRoot 'artifacts'
 $coverageDirectory = Join-Path $artifactsDirectory 'coverage'
 $publishDirectory = Join-Path $artifactsDirectory 'publish'
 $fieldWidth = 20
+$containerImageIdLabel = 'mockapi.image-id'
 
 function Write-Field {
   param(
@@ -278,29 +279,154 @@ function Get-WslcContainer {
   return $containers[0]
 }
 
+function Get-WslcImageId {
+  $result = Invoke-NativeTool -Executable 'wslc' -Arguments @('image', 'inspect', $ImageName) 2>$null
+  if ($result.ExitCode -ne 0) {
+    throw "Container image '$ImageName' does not exist. Run '.\start.ps1 -Action container-build'."
+  }
+
+  $images = @($result.Output -join [Environment]::NewLine | ConvertFrom-Json)
+  if ($images.Count -eq 0 -or [string]::IsNullOrWhiteSpace([string] $images[0].Id)) {
+    throw "Container image '$ImageName' does not expose an image ID."
+  }
+  return ([string] $images[0].Id).Trim()
+}
+
+function Get-WslcContainerImageId {
+  param([Parameter(Mandatory)] $Container)
+
+  if ($null -eq $Container.Labels) {
+    return $null
+  }
+  $property = $Container.Labels.PSObject.Properties[$containerImageIdLabel]
+  if ($null -eq $property -or [string]::IsNullOrWhiteSpace([string] $property.Value)) {
+    return $null
+  }
+  return ([string] $property.Value).Trim()
+}
+
+function Get-ImageRepository {
+  $lastSlash = $ImageName.LastIndexOf('/')
+  $lastColon = $ImageName.LastIndexOf(':')
+  if ($lastColon -gt $lastSlash) {
+    return $ImageName.Substring(0, $lastColon)
+  }
+  return $ImageName
+}
+
+function New-BuildImageName {
+  param(
+    [Parameter(Mandatory)][DateTimeOffset] $Timestamp,
+    [string] $Suffix
+  )
+
+  $repository = Get-ImageRepository
+  $tag = 'build-' + $Timestamp.ToUniversalTime().ToString(
+    'yyyyMMddTHHmmssZ',
+    [Globalization.CultureInfo]::InvariantCulture
+  )
+  if (-not [string]::IsNullOrWhiteSpace($Suffix)) {
+    $tag += "-$Suffix"
+  }
+  return "${repository}:$tag"
+}
+
+function Add-BuildTagToCurrentImage {
+  $result = Invoke-NativeTool -Executable 'wslc' -Arguments @('image', 'inspect', $ImageName) 2>$null
+  if ($result.ExitCode -ne 0) {
+    return
+  }
+
+  $images = @($result.Output -join [Environment]::NewLine | ConvertFrom-Json)
+  if ($images.Count -eq 0) {
+    return
+  }
+  $image = $images[0]
+  $buildTagPrefix = "$(Get-ImageRepository):build-"
+  $hasBuildTag = @($image.RepoTags | Where-Object {
+      ([string] $_).StartsWith($buildTagPrefix, [StringComparison]::OrdinalIgnoreCase)
+    }).Count -gt 0
+  if ($hasBuildTag) {
+    return
+  }
+
+  $created = [DateTimeOffset]::Parse(
+    [string] $image.Created,
+    [Globalization.CultureInfo]::InvariantCulture,
+    [Globalization.DateTimeStyles]::AssumeUniversal
+  )
+  $shortImageId = ([string] $image.Id).Replace('sha256:', '').Substring(0, 12)
+  $buildImageName = New-BuildImageName -Timestamp $created -Suffix $shortImageId
+  Invoke-Tool -Executable 'wslc' -Operation "Preserving current image as $buildImageName" -Arguments @(
+    'image', 'tag', $ImageName, $buildImageName
+  )
+}
+
 function Test-WslcVolumeExists {
   $result = Invoke-NativeTool -Executable 'wslc' -Arguments @('volume', 'inspect', $VolumeName) 2>$null
   return $result.ExitCode -eq 0
 }
 
 function Initialize-WslcVolumePermissions {
-  Invoke-Tool -Executable 'wslc' -Operation "Initializing volume permissions for $VolumeName" -Arguments @(
-    'run', '--rm', '--user', 'root', '--entrypoint', 'chown',
-    '--volume', "${VolumeName}:/data",
-    $ImageName, 'app:app', '/data'
-  )
+  $maintenanceContainerName = "$ContainerName-volume-init-$([Guid]::NewGuid().ToString('N').Substring(0, 8))"
+  try {
+    Invoke-Tool -Executable 'wslc' -Operation "Initializing volume permissions for $VolumeName" -Arguments @(
+      'run', '--name', $maintenanceContainerName,
+      '--user', 'root', '--entrypoint', 'chown',
+      '--volume', "${VolumeName}:/data",
+      $ImageName, '1654:1654', '/data'
+    )
+  }
+  finally {
+    $maintenanceContainer = Invoke-NativeTool -Executable 'wslc' -Arguments @(
+      'inspect', $maintenanceContainerName
+    ) 2>$null
+    if ($maintenanceContainer.ExitCode -eq 0) {
+      $removeResult = Invoke-NativeTool -Executable 'wslc' -StreamOutput -Arguments @(
+        'remove', '--force', $maintenanceContainerName
+      )
+      if ($removeResult.ExitCode -ne 0) {
+        Write-Warning "Unable to remove maintenance container '$maintenanceContainerName'."
+      }
+    }
+  }
 }
 
 function Invoke-ContainerBuild {
   Assert-ContainerInputs
-  Invoke-Tool -Executable 'wslc' -Operation "Building native container image $ImageName" -Arguments @(
-    'build', '--pull', '--tag', $ImageName, $repositoryRoot
+  Add-BuildTagToCurrentImage
+  $buildImageName = New-BuildImageName -Timestamp ([DateTimeOffset]::UtcNow)
+  Invoke-Tool -Executable 'wslc' -Operation "Building native container image $buildImageName" -Arguments @(
+    'build', '--pull', '--tag', $buildImageName, $repositoryRoot
   )
+  Invoke-Tool -Executable 'wslc' -Operation "Moving image alias $ImageName to $buildImageName" -Arguments @(
+    'image', 'tag', $buildImageName, $ImageName
+  )
+  Write-Field 'Build image' $buildImageName Green
+  Write-Field 'Current alias' $ImageName Green
 }
 
 function Invoke-ContainerRun {
   Assert-ContainerInputs
+  $currentImageId = Get-WslcImageId
   $container = Get-WslcContainer
+  if ($null -ne $container) {
+    $containerImageId = Get-WslcContainerImageId -Container $container
+    if ([string]::IsNullOrWhiteSpace($containerImageId) -or
+        -not $containerImageId.Equals($currentImageId, [StringComparison]::OrdinalIgnoreCase)) {
+      $reason = if ([string]::IsNullOrWhiteSpace($containerImageId)) {
+        'does not record its image ID'
+      }
+      else {
+        "uses image $containerImageId instead of $currentImageId"
+      }
+      Write-Field 'Container' "$ContainerName $reason; recreating" Yellow
+      Invoke-Tool -Executable 'wslc' -Operation "Removing stale container $ContainerName" -Arguments @(
+        'remove', '--force', $ContainerName
+      )
+      $container = $null
+    }
+  }
   if ($null -ne $container) {
     if ([bool] $container.State.Running) {
       Write-Field 'Container' "$ContainerName is already running" Green
@@ -327,6 +453,7 @@ function Invoke-ContainerRun {
   Write-Host 'WSLC may warn that this WSL kernel cannot limit swap separately. The 256 MiB memory limit remains active.' -ForegroundColor DarkYellow
   Invoke-Tool -Executable 'wslc' -Operation "Starting container $ContainerName" -Arguments @(
     'run', '--detach', '--name', $ContainerName,
+    '--label', "${containerImageIdLabel}=${currentImageId}",
     '--cpus', '0.5', '--memory', '256M',
     '--publish', "${Port}:8080",
     '--volume', "${VolumeName}:/data",
@@ -463,8 +590,8 @@ Setup and managed code:
   validate           Restore, build, test, collect coverage, and publish.
 
 Native container workflow (WSLC):
-  container-build    Build $ImageName from the Dockerfile.
-  container-run      Create, start, or restart $ContainerName on port $Port.
+  container-build    Build a uniquely tagged image and move the $ImageName alias to it.
+  container-run      Create or start $ContainerName on port $Port; recreate it when $ImageName changed.
   container-test     Send an HTTP smoke test to the running container.
   container-logs     Show the last 200 container log lines.
   container-status   Inspect the container.
