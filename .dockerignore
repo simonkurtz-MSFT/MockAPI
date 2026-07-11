@@ -1,6 +1,15 @@
 .git
 .github
 .vs
+.vscode
+artifacts
+**/bin
+**/obj
+**/TestResults
+*.user
+*.suo.git
+.github
+.vs
 **/bin
 **/obj
 artifacts

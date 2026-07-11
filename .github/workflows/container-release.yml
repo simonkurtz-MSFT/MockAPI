@@ -1,0 +1,101 @@
+name: Container release evidence
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  native-image:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+            suffix: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build native image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          load: true
+          push: false
+          tags: mockapi:release-${{ matrix.suffix }}
+      name: Verify native image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker volume create mockapi-data
+          docker run --detach --name mockapi \
+            --read-only --cpus 0.5 --memory 256m \
+            --publish 8080:8080 --volume mockapi-data:/data \
+            mockapi:release-${{ matrix.suffix }}
+          for attempt in {1..20}; do
+            if curl --fail --silent http://localhost:8080/health/ready >/dev/null; then break; fi
+            if [ "$attempt" = 20 ]; then docker logs mockapi; exit 1; fi
+            sleep 1
+          done
+          docker inspect mockapi > container-${{ matrix.suffix }}.json
+          docker image inspect mockapi:release-${{ matrix.suffix }} > image-${{ matrix.suffix }}.json
+          docker stats --no-stream mockapi > stats-${{ matrix.suffix }}.txt
+      name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: mockapi:release-${{ matrix.suffix }}
+          format: spdx-json
+          output-file: sbom-${{ matrix.suffix }}.spdx.json
+      name: Scan image
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: mockapi:release-${{ matrix.suffix }}
+          format: json
+          output: trivy-${{ matrix.suffix }}.json
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+      uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.suffix }}-evidence
+          path: |
+            container-${{ matrix.suffix }}.json
+            image-${{ matrix.suffix }}.json
+            stats-${{ matrix.suffix }}.txt
+            sbom-${{ matrix.suffix }}.spdx.json
+            trivy-${{ matrix.suffix }}.json
+
+  oci-index:
+    needs: native-image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build multi-platform OCI index
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: false
+          outputs: type=oci,dest=/tmp/mockapi-oci.tar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mockapi-multi-platform-oci
+          path: /tmp/mockapi-oci.tar
+
+  publishing-disabled:
+    needs: [native-image, oci-index]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record publishing boundary
+        run: echo "Docker Hub publishing remains disabled until namespace, credentials, and tag policy are approved."

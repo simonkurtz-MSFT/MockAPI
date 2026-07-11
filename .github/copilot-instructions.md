@@ -24,6 +24,13 @@
 - Make focused changes and add tests at the lowest layer that can prove the behavior.
 - Do not create GitHub Actions or Dependabot configuration until the plan phase that introduces them.
 
+## Repository Automation
+
+- Assign every issue created or reused by a GitHub Actions workflow to the professional GitHub account `simonkurtz-MSFT`.
+- Keep the issue recipient in one clearly named workflow-level environment variable and use that variable for issue creation and `gh issue edit --add-assignee` calls.
+- When automation deduplicates against an existing open issue, reapply `simonkurtz-MSFT` to that issue before reporting it as the active review item.
+- Do not use the personal `simonua` account for MockAPI issue or pull-request assignment.
+
 ## Validation
 
 - Use the narrowest relevant test first, then run the broader project checks affected by the change.

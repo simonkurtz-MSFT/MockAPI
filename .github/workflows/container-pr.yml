@@ -1,0 +1,97 @@
+name: Container pull request validation
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/container-pr.yml"
+      - "config/**"
+      - "src/**"
+      - "tests/**"
+      - "Dockerfile"
+      - "global.json"
+      - "MockAPI.slnx"
+
+permissions:
+  contents: read
+
+jobs:
+  managed-code:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore
+        run: dotnet restore MockAPI.slnx
+      - name: Test
+        run: dotnet test MockAPI.slnx --configuration Release --no-restore -p:TreatWarningsAsErrors=true
+
+  image:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            suffix: amd64
+          - platform: linux/arm64
+            suffix: arm64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build ${{ matrix.platform }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          load: true
+          push: false
+          tags: mockapi:pr-${{ matrix.suffix }}
+          cache-from: type=gha,scope=${{ matrix.suffix }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.suffix }}
+      name: Verify non-root read-only runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker volume create mockapi-data
+          docker run --detach --name mockapi \
+            --read-only --cpus 0.5 --memory 256m \
+            --publish 8080:8080 --volume mockapi-data:/data \
+            mockapi:pr-${{ matrix.suffix }}
+          for attempt in {1..20}; do
+            if curl --fail --silent http://localhost:8080/health/ready >/dev/null; then break; fi
+            if [ "$attempt" = 20 ]; then docker logs mockapi; exit 1; fi
+            sleep 1
+          done
+          test "$(docker inspect --format '{{.Config.User}}' mockapi)" = "app"
+          curl --fail --silent http://localhost:8080/ | grep -q '<title>MockAPI Console</title>'
+          test -z "$(curl --silent --dump-header - --output /dev/null http://localhost:8080/health/live | grep -i '^server:' || true)"
+      name: Run built-in example showcase
+        shell: bash
+        run: |
+          set -euo pipefail
+          etag=$(curl --fail --silent http://localhost:8080/__mockapi/api/configuration | jq --raw-output .etag)
+          curl --fail --silent --request POST \
+            --header "If-Match: $etag" \
+            http://localhost:8080/__mockapi/api/configuration/example/merge >/dev/null
+          pwsh ./start.ps1 -Action container-showcase -Port 8080 -SkipContainerCheck
+      name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: mockapi:pr-${{ matrix.suffix }}
+          format: spdx-json
+          output-file: sbom-${{ matrix.suffix }}.spdx.json
+      name: Scan image
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: mockapi:pr-${{ matrix.suffix }}
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+      uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.suffix }}
+          path: sbom-${{ matrix.suffix }}.spdx.json
