@@ -16,24 +16,24 @@ Management routes allow 120 requests per client address in a rolling one-minute 
 
 ## Routes
 
-| Method | Route | Purpose |
-| --- | --- | --- |
-| `GET` | `/configuration` | Revision, ETag, and unsaved status |
-| `GET` | `/configuration/template` | Read-only built-in empty template |
-| `GET` | `/configuration/example` | Read-only built-in examples |
-| `POST` | `/configuration/{template\|example}/merge` | Add missing built-ins and skip identical entries |
-| `POST` | `/configuration/{template\|example}/merge?force=true` | Apply reviewed built-in conflicts |
-| `POST` | `/configuration/validate` | Validate a complete candidate without activation |
-| `PUT` | `/configuration/import` | Atomically replace with a complete candidate |
-| `GET` | `/configuration/export` | Download the active document |
-| `POST` | `/configuration/save` | Persist the active revision |
-| `GET`, `POST` | `/endpoints` | List or create endpoint definitions |
-| `GET`, `PUT`, `DELETE` | `/endpoints/{id}` | Read, replace, or delete one endpoint |
-| `PUT` | `/endpoints/{id}/enabled` | Enable or disable one endpoint |
-| `GET` | `/statistics` | Aggregate and per-endpoint statistics |
-| `GET` | `/statistics/events` | Server-Sent Events statistics stream |
-| `POST` | `/statistics/reset` | Reset all process-local statistics |
-| `POST` | `/statistics/endpoints/{id}/reset` | Reset one endpoint's statistics |
+| Method                 | Route                                                 | Purpose                                          |
+| ---------------------- | ----------------------------------------------------- | ------------------------------------------------ |
+| `GET`                  | `/configuration`                                      | Revision, ETag, and unsaved status               |
+| `GET`                  | `/configuration/template`                             | Read-only built-in empty template                |
+| `GET`                  | `/configuration/example`                              | Read-only built-in examples                      |
+| `POST`                 | `/configuration/{template\|example}/merge`            | Add missing built-ins and skip identical entries |
+| `POST`                 | `/configuration/{template\|example}/merge?force=true` | Apply reviewed built-in conflicts                |
+| `POST`                 | `/configuration/validate`                             | Validate a complete candidate without activation |
+| `PUT`                  | `/configuration/import`                               | Atomically replace with a complete candidate     |
+| `GET`                  | `/configuration/export`                               | Download the active document                     |
+| `POST`                 | `/configuration/save`                                 | Persist the active revision                      |
+| `GET`, `POST`          | `/endpoints`                                          | List or create endpoint definitions              |
+| `GET`, `PUT`, `DELETE` | `/endpoints/{id}`                                     | Read, replace, or delete one endpoint            |
+| `PUT`                  | `/endpoints/{id}/enabled`                             | Enable or disable one endpoint                   |
+| `GET`                  | `/statistics`                                         | Aggregate and per-endpoint statistics            |
+| `GET`                  | `/statistics/events`                                  | Server-Sent Events statistics stream             |
+| `POST`                 | `/statistics/reset`                                   | Reset all process-local statistics               |
+| `POST`                 | `/statistics/endpoints/{id}/reset`                    | Reset one endpoint's statistics                  |
 
 ## Built-In Merge Results
 

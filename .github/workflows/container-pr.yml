@@ -10,6 +10,14 @@ on:
       - "Dockerfile"
       - "global.json"
       - "MockAPI.slnx"
+      - ".editorconfig"
+      - ".gitattributes"
+      - ".markdownlint.jsonc"
+      - ".prettierignore"
+      - ".prettierrc.json"
+      - ".nvmrc"
+      - "package.json"
+      - "pnpm-lock.yaml"
 
 permissions:
   contents: read
@@ -19,11 +27,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
       - name: Restore
         run: dotnet restore MockAPI.slnx
+      - name: Restore formatting tools
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
       - name: Test
         run: dotnet test MockAPI.slnx --configuration Release --no-restore -p:TreatWarningsAsErrors=true
 

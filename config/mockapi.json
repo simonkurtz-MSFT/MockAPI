@@ -6,17 +6,13 @@
       "id": "4cb6e141-5f4f-4a30-9715-ec2c68554ad0",
       "name": "Hello from MockAPI",
       "enabled": true,
-      "methods": [
-        "GET"
-      ],
+      "methods": ["GET"],
       "path": "/ex/hello",
       "response": {
         "statusCode": 200,
         "reasonPhrase": "OK",
         "headers": {
-          "X-Mock-Source": [
-            "MockAPI"
-          ]
+          "X-Mock-Source": ["MockAPI"]
         },
         "contentType": "application/json; charset=utf-8",
         "body": "{\"message\":\"Hello from MockAPI\"}"
@@ -26,20 +22,14 @@
       "id": "17a50c14-e67f-4770-9bf6-afb4a80e4609",
       "name": "Create an order",
       "enabled": true,
-      "methods": [
-        "POST"
-      ],
+      "methods": ["POST"],
       "path": "/ex/orders",
       "response": {
         "statusCode": 201,
         "reasonPhrase": "Created",
         "headers": {
-          "Location": [
-            "/ex/orders/42"
-          ],
-          "X-Mock-Source": [
-            "MockAPI"
-          ]
+          "Location": ["/ex/orders/42"],
+          "X-Mock-Source": ["MockAPI"]
         },
         "contentType": "application/json; charset=utf-8",
         "body": "{\"id\":42,\"status\":\"created\"}"
@@ -49,21 +39,14 @@
       "id": "7b2d425d-75f1-4ded-a74e-503374a7e99e",
       "name": "Rate limited response",
       "enabled": true,
-      "methods": [
-        "GET"
-      ],
+      "methods": ["GET"],
       "path": "/ex/rate-limited",
       "response": {
         "statusCode": 429,
         "reasonPhrase": "Too Many Requests",
         "headers": {
-          "Retry-After": [
-            "30"
-          ],
-          "X-Mock-Source": [
-            "MockAPI",
-            "checked-in-example"
-          ]
+          "Retry-After": ["30"],
+          "X-Mock-Source": ["MockAPI", "checked-in-example"]
         },
         "contentType": "application/json; charset=utf-8",
         "body": "{\"error\":\"try again later\"}"
@@ -73,17 +56,13 @@
       "id": "b53545e8-fd25-44cb-940b-0ce175547483",
       "name": "Delete an order",
       "enabled": true,
-      "methods": [
-        "DELETE"
-      ],
+      "methods": ["DELETE"],
       "path": "/ex/orders/42",
       "response": {
         "statusCode": 204,
         "reasonPhrase": "No Content",
         "headers": {
-          "X-Mock-Source": [
-            "MockAPI"
-          ]
+          "X-Mock-Source": ["MockAPI"]
         },
         "contentType": null,
         "body": ""

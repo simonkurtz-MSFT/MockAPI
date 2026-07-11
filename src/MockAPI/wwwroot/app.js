@@ -13,26 +13,82 @@ const state = {
   mergeInFlight: false,
   testAbort: null,
   testTrigger: null,
-  testEndpointId: null
+  testEndpointId: null,
 };
 
-const elements = Object.fromEntries([
-  "connection-status", "persistence-label", "save-button", "create-button", "import-button",
-  "load-template-button", "load-example-button", "empty-load-template-button", "empty-load-example-button",
-  "import-file", "reset-statistics",
-  "metric-total", "metric-matched", "metric-unmatched",
-  "metric-bytes", "metric-rate", "rate-bars", "endpoint-count", "endpoint-rows", "empty-state",
-  "empty-state-title", "empty-state-description", "starter-actions",
-  "filter-text", "filter-method", "filter-enabled", "filter-status", "endpoint-dialog", "endpoint-form", "dialog-title",
-  "form-error", "field-name", "field-path", "field-status", "field-reason", "field-content-type",
-  "field-body", "field-enabled", "method-options", "header-rows", "add-header", "copy-url",
-  "confirm-dialog", "confirm-title", "confirm-message", "confirm-cancel", "confirm-accept",
-  "test-blade-shell", "test-blade-backdrop", "test-blade", "test-blade-title", "test-blade-context",
-  "test-blade-close", "test-method", "test-path", "test-request-headers", "test-request-body",
-  "test-send", "test-cancel", "test-copy-url", "test-copy-response", "test-status",
-  "test-response-status", "test-response-time", "test-response-url", "test-response-headers", "test-response-body",
-  "toast-region", "theme-toggle"
-].map(id => [id, document.getElementById(id)]));
+const elements = Object.fromEntries(
+  [
+    "connection-status",
+    "persistence-label",
+    "save-button",
+    "create-button",
+    "import-button",
+    "load-template-button",
+    "load-example-button",
+    "empty-load-template-button",
+    "empty-load-example-button",
+    "import-file",
+    "reset-statistics",
+    "metric-total",
+    "metric-matched",
+    "metric-unmatched",
+    "metric-bytes",
+    "metric-rate",
+    "rate-bars",
+    "endpoint-count",
+    "endpoint-rows",
+    "empty-state",
+    "empty-state-title",
+    "empty-state-description",
+    "starter-actions",
+    "filter-text",
+    "filter-method",
+    "filter-enabled",
+    "filter-status",
+    "endpoint-dialog",
+    "endpoint-form",
+    "dialog-title",
+    "form-error",
+    "field-name",
+    "field-path",
+    "field-status",
+    "field-reason",
+    "field-content-type",
+    "field-body",
+    "field-enabled",
+    "method-options",
+    "header-rows",
+    "add-header",
+    "copy-url",
+    "confirm-dialog",
+    "confirm-title",
+    "confirm-message",
+    "confirm-cancel",
+    "confirm-accept",
+    "test-blade-shell",
+    "test-blade-backdrop",
+    "test-blade",
+    "test-blade-title",
+    "test-blade-context",
+    "test-blade-close",
+    "test-method",
+    "test-path",
+    "test-request-headers",
+    "test-request-body",
+    "test-send",
+    "test-cancel",
+    "test-copy-url",
+    "test-copy-response",
+    "test-status",
+    "test-response-status",
+    "test-response-time",
+    "test-response-url",
+    "test-response-headers",
+    "test-response-body",
+    "toast-region",
+    "theme-toggle",
+  ].map((id) => [id, document.getElementById(id)])
+);
 
 function makeElement(tag, className, text) {
   const element = document.createElement(tag);
@@ -62,7 +118,11 @@ async function api(path, options = {}) {
   if (responseEtag) state.etag = responseEtag;
   if (!response.ok) {
     let problem;
-    try { problem = await response.json(); } catch { problem = {}; }
+    try {
+      problem = await response.json();
+    } catch {
+      problem = {};
+    }
     const error = new Error(problem.detail || `${response.status} ${response.statusText}`);
     error.problem = problem;
     error.status = response.status;
@@ -75,7 +135,9 @@ async function api(path, options = {}) {
 async function refresh() {
   try {
     const [configuration, endpoints, statistics] = await Promise.all([
-      api("/configuration"), api("/endpoints"), api("/statistics")
+      api("/configuration"),
+      api("/endpoints"),
+      api("/statistics"),
     ]);
     state.revision = configuration.revision;
     state.etag = configuration.etag;
@@ -112,7 +174,7 @@ function renderStatistics() {
   elements["metric-rate"].textContent = `${(recentTotal / 60).toFixed(1)} req/min`;
   elements["rate-bars"].replaceChildren();
   const display = recent.slice(-30);
-  const maximum = Math.max(1, ...display.map(bucket => bucket.requests));
+  const maximum = Math.max(1, ...display.map((bucket) => bucket.requests));
   for (const bucket of display) {
     const bar = makeElement("i");
     bar.style.height = `${Math.max(5, (bucket.requests / maximum) * 100)}%`;
@@ -121,7 +183,7 @@ function renderStatistics() {
 }
 
 function endpointStatistics(id) {
-  return state.statistics?.endpoints?.find(item => item.endpointId === id);
+  return state.statistics?.endpoints?.find((item) => item.endpointId === id);
 }
 
 function renderEndpoints() {
@@ -129,11 +191,15 @@ function renderEndpoints() {
   const method = elements["filter-method"].value;
   const enabled = elements["filter-enabled"].value;
   const statusClass = elements["filter-status"].value;
-  const visible = state.endpoints.filter(endpoint =>
-    (!query || endpoint.name.toLocaleLowerCase().includes(query) || endpoint.path.toLocaleLowerCase().includes(query)) &&
-    (!method || endpoint.methods.includes(method)) &&
-    (!enabled || String(endpoint.enabled) === enabled) &&
-    (!statusClass || String(Math.floor(endpoint.response.statusCode / 100)) === statusClass));
+  const visible = state.endpoints.filter(
+    (endpoint) =>
+      (!query ||
+        endpoint.name.toLocaleLowerCase().includes(query) ||
+        endpoint.path.toLocaleLowerCase().includes(query)) &&
+      (!method || endpoint.methods.includes(method)) &&
+      (!enabled || String(endpoint.enabled) === enabled) &&
+      (!statusClass || String(Math.floor(endpoint.response.statusCode / 100)) === statusClass)
+  );
 
   elements["endpoint-count"].textContent = visible.length;
   elements["endpoint-rows"].replaceChildren();
@@ -179,7 +245,7 @@ function createEndpointRow(endpoint) {
 
   const actionCell = document.createElement("td");
   const actions = makeElement("div", "row-actions");
-  const testButton = actionButton("Test", "▶", event => openTestBlade(endpoint, event.currentTarget));
+  const testButton = actionButton("Test", "▶", (event) => openTestBlade(endpoint, event.currentTarget));
   testButton.dataset.testEndpointId = endpoint.id;
   actions.append(
     testButton,
@@ -251,13 +317,16 @@ function openEndpointDialog(endpoint = null) {
 }
 
 function readEndpointForm() {
-  const methods = [...elements["method-options"].querySelectorAll("input:checked")].map(input => input.value);
+  const methods = [...elements["method-options"].querySelectorAll("input:checked")].map((input) => input.value);
   const headers = {};
   for (const row of elements["header-rows"].children) {
     const inputs = row.querySelectorAll("input");
     const name = inputs[0].value.trim();
     if (!name) continue;
-    headers[name] = inputs[1].value.split("\n").map(value => value.trim()).filter(Boolean);
+    headers[name] = inputs[1].value
+      .split("\n")
+      .map((value) => value.trim())
+      .filter(Boolean);
   }
   return {
     id: state.editingId || crypto.randomUUID(),
@@ -270,8 +339,8 @@ function readEndpointForm() {
       reasonPhrase: elements["field-reason"].value.trim() || null,
       headers,
       contentType: elements["field-content-type"].value.trim() || null,
-      body: elements["field-body"].value
-    }
+      body: elements["field-body"].value,
+    },
   };
 }
 
@@ -287,7 +356,7 @@ async function submitEndpoint(event) {
     await api(editing ? `/endpoints/${endpoint.id}` : "/endpoints", {
       method: editing ? "PUT" : "POST",
       body: JSON.stringify(endpoint),
-      mutatesConfiguration: true
+      mutatesConfiguration: true,
     });
     elements["endpoint-dialog"].close();
     showToast(editing ? "Endpoint updated" : "Endpoint created");
@@ -306,7 +375,7 @@ function showFormError(message) {
 function formatProblem(error) {
   const validation = error.problem?.errors;
   if (Array.isArray(validation) && validation.length) {
-    return validation.map(item => `${item.path}: ${item.message}`).join("\n");
+    return validation.map((item) => `${item.path}: ${item.message}`).join("\n");
   }
   return error.message;
 }
@@ -314,7 +383,9 @@ function formatProblem(error) {
 async function toggleEndpoint(endpoint, enabled) {
   try {
     await api(`/endpoints/${endpoint.id}/enabled`, {
-      method: "PUT", body: JSON.stringify({ enabled }), mutatesConfiguration: true
+      method: "PUT",
+      body: JSON.stringify({ enabled }),
+      mutatesConfiguration: true,
     });
     await refresh();
   } catch (error) {
@@ -335,11 +406,15 @@ function duplicateEndpoint(endpoint) {
 }
 
 function requestDelete(endpoint) {
-  confirmAction("Delete endpoint", `Delete “${endpoint.name}”? This changes the active configuration immediately.`, async () => {
-    await api(`/endpoints/${endpoint.id}`, { method: "DELETE", mutatesConfiguration: true });
-    showToast("Endpoint deleted");
-    await refresh();
-  });
+  confirmAction(
+    "Delete endpoint",
+    `Delete “${endpoint.name}”? This changes the active configuration immediately.`,
+    async () => {
+      await api(`/endpoints/${endpoint.id}`, { method: "DELETE", mutatesConfiguration: true });
+      showToast("Endpoint deleted");
+      await refresh();
+    }
+  );
 }
 
 function confirmAction(title, message, action, acceptLabel = "Confirm") {
@@ -356,13 +431,22 @@ async function acceptConfirmation() {
   state.pendingConfirm = null;
   elements["confirm-dialog"].close();
   if (!action) return;
-  try { await action(); } catch (error) { showToast(formatProblem(error), true); await refresh(); }
+  try {
+    await action();
+  } catch (error) {
+    showToast(formatProblem(error), true);
+    await refresh();
+  }
 }
 
 async function importConfiguration(file) {
   let document;
-  try { document = JSON.parse(await file.text()); }
-  catch { showToast("The selected file does not contain valid JSON.", true); return; }
+  try {
+    document = JSON.parse(await file.text());
+  } catch {
+    showToast("The selected file does not contain valid JSON.", true);
+    return;
+  }
   await loadConfiguration(document, "Import configuration", "Configuration imported");
 }
 
@@ -374,7 +458,8 @@ async function loadBuiltInConfiguration(name) {
   state.mergeInFlight = true;
   try {
     const result = await api(`/configuration/${name}/merge`, {
-      method: "POST", mutatesConfiguration: true
+      method: "POST",
+      mutatesConfiguration: true,
     });
     showToast(formatMergeResult(name, result));
     await refresh();
@@ -384,20 +469,24 @@ async function loadBuiltInConfiguration(name) {
       return;
     }
     const details = error.problem.conflicts
-      .map(conflict => `${conflict.builtInName} conflicts with ${conflict.existingName}`)
+      .map((conflict) => `${conflict.builtInName} conflicts with ${conflict.existingName}`)
       .join("; ");
     confirmAction(
       "Built-in configuration conflicts",
       `${details}. No changes were made. Force update applies the built-in versions and preserves unrelated endpoints.`,
       async () => {
         const result = await api(`/configuration/${name}/merge?force=true`, {
-          method: "POST", mutatesConfiguration: true
+          method: "POST",
+          mutatesConfiguration: true,
         });
         showToast(formatMergeResult(name, result));
         await refresh();
       },
-      "Force update");
-  } finally { state.mergeInFlight = false; }
+      "Force update"
+    );
+  } finally {
+    state.mergeInFlight = false;
+  }
 }
 
 function formatMergeResult(name, result) {
@@ -413,15 +502,25 @@ async function loadConfiguration(document, title, successMessage) {
   try {
     const validation = await api("/configuration/validate", { method: "POST", body: JSON.stringify(document) });
     if (!validation.isValid) {
-      showToast(validation.errors.map(error => `${error.path}: ${error.message}`).join(" · "), true);
+      showToast(validation.errors.map((error) => `${error.path}: ${error.message}`).join(" · "), true);
       return;
     }
-    confirmAction(title, `Replace the active configuration with ${document.endpoints.length} endpoint(s)?`, async () => {
-      await api("/configuration/import", { method: "PUT", body: JSON.stringify(document), mutatesConfiguration: true });
-      showToast(successMessage);
-      await refresh();
-    });
-  } catch (error) { showToast(formatProblem(error), true); }
+    confirmAction(
+      title,
+      `Replace the active configuration with ${document.endpoints.length} endpoint(s)?`,
+      async () => {
+        await api("/configuration/import", {
+          method: "PUT",
+          body: JSON.stringify(document),
+          mutatesConfiguration: true,
+        });
+        showToast(successMessage);
+        await refresh();
+      }
+    );
+  } catch (error) {
+    showToast(formatProblem(error), true);
+  }
 }
 
 async function saveConfiguration() {
@@ -429,7 +528,9 @@ async function saveConfiguration() {
     await api("/configuration/save", { method: "POST", mutatesConfiguration: true });
     showToast("Configuration saved");
     await refresh();
-  } catch (error) { showToast(formatProblem(error), true); }
+  } catch (error) {
+    showToast(formatProblem(error), true);
+  }
 }
 
 function openTestBlade(endpoint, trigger) {
@@ -437,12 +538,14 @@ function openTestBlade(endpoint, trigger) {
   state.testEndpointId = endpoint.id;
   elements["test-blade-title"].textContent = endpoint.name;
   elements["test-blade-context"].textContent = endpoint.path;
-  elements["test-method"].replaceChildren(...endpoint.methods.map(method => {
-    const option = document.createElement("option");
-    option.value = method;
-    option.textContent = method;
-    return option;
-  }));
+  elements["test-method"].replaceChildren(
+    ...endpoint.methods.map((method) => {
+      const option = document.createElement("option");
+      option.value = method;
+      option.textContent = method;
+      return option;
+    })
+  );
   elements["test-path"].value = endpoint.path;
   elements["test-request-headers"].value = "";
   elements["test-request-body"].value = "";
@@ -495,8 +598,12 @@ async function sendTestRequest() {
   }
 
   let headers;
-  try { headers = parseTestHeaders(elements["test-request-headers"].value); }
-  catch (error) { showToast(error.message, true); return; }
+  try {
+    headers = parseTestHeaders(elements["test-request-headers"].value);
+  } catch (error) {
+    showToast(error.message, true);
+    return;
+  }
 
   const controller = new AbortController();
   state.testAbort = controller;
@@ -519,7 +626,8 @@ async function sendTestRequest() {
     elements["test-status"].textContent = `Request completed with HTTP ${response.status}.`;
     elements["test-copy-response"].disabled = false;
   } catch (error) {
-    elements["test-status"].textContent = error.name === "AbortError" ? "Request cancelled." : `Network error: ${error.message}`;
+    elements["test-status"].textContent =
+      error.name === "AbortError" ? "Request cancelled." : `Network error: ${error.message}`;
   } finally {
     state.testAbort = null;
     elements["test-send"].disabled = false;
@@ -532,22 +640,33 @@ function testResponseText() {
     `Status: ${elements["test-response-status"].textContent}`,
     `Elapsed: ${elements["test-response-time"].textContent}`,
     `URL: ${elements["test-response-url"].textContent}`,
-    "", elements["test-response-headers"].textContent,
-    "", elements["test-response-body"].textContent
+    "",
+    elements["test-response-headers"].textContent,
+    "",
+    elements["test-response-body"].textContent,
   ].join("\n");
 }
 
 function trapBladeFocus(event) {
   if (event.key !== "Tab") return;
-  const focusable = [...elements["test-blade"].querySelectorAll("button:not(:disabled), input, select, textarea, [tabindex='0']")];
+  const focusable = [
+    ...elements["test-blade"].querySelectorAll("button:not(:disabled), input, select, textarea, [tabindex='0']"),
+  ];
   if (focusable.length === 0) return;
   const first = focusable[0];
   const last = focusable[focusable.length - 1];
-  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
-function formatNumber(value) { return new Intl.NumberFormat().format(value); }
+function formatNumber(value) {
+  return new Intl.NumberFormat().format(value);
+}
 function formatBytes(value) {
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`;
@@ -569,7 +688,12 @@ function bindEvents() {
   for (const button of document.querySelectorAll("[data-close]")) {
     button.addEventListener("click", () => elements["endpoint-dialog"].close());
   }
-  for (const filter of [elements["filter-text"], elements["filter-method"], elements["filter-enabled"], elements["filter-status"]]) {
+  for (const filter of [
+    elements["filter-text"],
+    elements["filter-method"],
+    elements["filter-enabled"],
+    elements["filter-status"],
+  ]) {
     filter.addEventListener("input", renderEndpoints);
   }
   elements["load-template-button"].addEventListener("click", () => loadBuiltInConfiguration("template"));
@@ -583,18 +707,19 @@ function bindEvents() {
     elements["import-file"].value = "";
   });
   elements["save-button"].addEventListener("click", saveConfiguration);
-  elements["reset-statistics"].addEventListener("click", () => confirmAction(
-    "Reset statistics", "Reset all process-local request statistics?", async () => {
+  elements["reset-statistics"].addEventListener("click", () =>
+    confirmAction("Reset statistics", "Reset all process-local request statistics?", async () => {
       await api("/statistics/reset", { method: "POST" });
       showToast("Statistics reset");
       await refresh();
-    }));
+    })
+  );
   elements["confirm-cancel"].addEventListener("click", () => elements["confirm-dialog"].close());
   elements["confirm-accept"].addEventListener("click", acceptConfirmation);
   elements["test-blade-close"].addEventListener("click", closeTestBlade);
   elements["test-blade-backdrop"].addEventListener("click", closeTestBlade);
   elements["test-blade"].addEventListener("keydown", trapBladeFocus);
-  document.addEventListener("keydown", event => {
+  document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !elements["test-blade-shell"].hidden) {
       event.preventDefault();
       closeTestBlade();
@@ -619,7 +744,7 @@ function bindEvents() {
 function connectStatisticsStream() {
   if (!("EventSource" in window)) return;
   const events = new EventSource(`${API}/statistics/events`);
-  events.addEventListener("statistics", event => {
+  events.addEventListener("statistics", (event) => {
     state.statistics = JSON.parse(event.data);
     setConnection(true);
     renderStatistics();

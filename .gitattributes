@@ -1,0 +1,12 @@
+# Keep text files consistent across operating systems and editors.
+* text=auto eol=lf
+
+# Preserve binary assets.
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.woff binary
+*.woff2 binary

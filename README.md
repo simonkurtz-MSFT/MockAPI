@@ -6,6 +6,7 @@ Project planning is tracked in [docs/PLAN.md](docs/PLAN.md). Local container dev
 
 - Windows with PowerShell 7 and WSLC for the supported local container workflow.
 - The .NET SDK version pinned in [global.json](global.json) for managed-code development.
+- Node.js from [.nvmrc](.nvmrc) with Corepack and the pnpm version declared in [package.json](package.json) for formatting and Markdown linting.
 
 Run the setup check from a clean checkout:
 
@@ -49,6 +50,8 @@ Common automation-friendly actions:
 
 ```powershell
 .\start.ps1 -Action setup
+.\start.ps1 -Action format
+.\start.ps1 -Action lint
 .\start.ps1 -Action test
 .\start.ps1 -Action coverage
 .\start.ps1 -Action validate
@@ -58,7 +61,7 @@ Common automation-friendly actions:
 .\start.ps1 -Action container-showcase
 ```
 
-`setup` checks the pinned .NET SDK and WSLC, then restores NuGet packages. Pass `-InstallMissing` to explicitly permit .NET installation through winget or a WSL update when a prerequisite is missing. Run `.\start.ps1 -Action help` for every action and option.
+`setup` checks the pinned .NET SDK, pnpm, and WSLC, then restores the development dependencies. `format` applies Prettier and `dotnet format`; `lint` verifies formatting, Markdown, and managed code style. Pass `-InstallMissing` to explicitly permit .NET installation through winget or a WSL update when a prerequisite is missing. Run `.\start.ps1 -Action help` for every action and option.
 
 The WSLC container workflow builds the native host architecture, publishes port `8080`, applies the `0.5` CPU and `256 MiB` limits, and mounts the persistent `mockapi-data` volume at `/data`. `container-run` creates the container when absent and restarts it when stopped. Multi-platform image assembly and the checks unsupported by WSLC remain CI responsibilities.
 
@@ -93,11 +96,11 @@ The root path is reserved and cannot be configured as a mock endpoint. Set `Mock
 
 Management operations are available under `/__mockapi/api`:
 
-| Area | Routes |
-| --- | --- |
-| Endpoint CRUD | `/endpoints`, `/endpoints/{id}`, `/endpoints/{id}/enabled` |
-| Configuration | `/configuration`, `/configuration/template`, `/configuration/example`, `/configuration/{template|example}/merge`, `/configuration/validate`, `/configuration/import`, `/configuration/export`, `/configuration/save` |
-| Statistics | `/statistics`, `/statistics/events`, `/statistics/reset`, `/statistics/endpoints/{id}/reset` |
+| Area          | Routes                                                                                                                                                                                                                                     |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Endpoint CRUD | `/endpoints`, `/endpoints/{id}`, `/endpoints/{id}/enabled`                                                                                                                                                                                 |
+| Configuration | `/configuration`, `/configuration/template`, `/configuration/example`, `/configuration/template/merge`, `/configuration/example/merge`, `/configuration/validate`, `/configuration/import`, `/configuration/export`, `/configuration/save` |
+| Statistics    | `/statistics`, `/statistics/events`, `/statistics/reset`, `/statistics/endpoints/{id}/reset`                                                                                                                                               |
 
 Create, replace, enable/disable, delete, import, and save requests require the latest quoted ETag in `If-Match`; stale writes return HTTP `412` without changing the active configuration. Successful changes are immediately visible to the mock dispatcher and remain unsaved until save is explicitly invoked.
 

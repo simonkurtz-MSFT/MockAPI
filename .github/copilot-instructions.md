@@ -34,7 +34,7 @@
 ## Validation
 
 - Use the narrowest relevant test first, then run the broader project checks affected by the change.
-- Use `start.ps1` as the canonical local entry point for setup, managed-code validation, publication, and WSLC container workflows; keep its help and documentation current when commands change.
+- Use `start.ps1` as the canonical local entry point for setup, formatting, linting, managed-code validation, publication, and WSLC container workflows; keep its help and documentation current when commands change.
 - For cross-cutting endpoint contract changes, use the `mock-endpoint-change` skill.
 - For trimming, container, or release-readiness work, use the `release-validation` skill.
 - Do not claim container properties such as non-root execution, read-only compatibility, or persistence until they have been exercised against the built image.

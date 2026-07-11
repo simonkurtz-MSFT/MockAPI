@@ -19,7 +19,7 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
   [ValidateSet(
-    'menu', 'help', 'check', 'setup', 'restore', 'build', 'run', 'test', 'coverage',
+    'menu', 'help', 'check', 'setup', 'restore', 'format', 'lint', 'build', 'run', 'test', 'coverage',
     'publish', 'validate', 'container-build', 'container-run', 'container-test',
     'container-showcase', 'container-logs', 'container-status', 'container-stop',
     'container-remove', 'all')]
@@ -194,13 +194,45 @@ function Assert-Wslc {
   Write-Field 'WSLC' $versionOutput Green
 }
 
+function Assert-Pnpm {
+  if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
+    throw "pnpm is missing. Install Node.js from '.nvmrc', enable Corepack, and run 'corepack install'."
+  }
+
+  $versionResult = Invoke-NativeTool -Executable 'pnpm' -Arguments @('--version')
+  if ($versionResult.ExitCode -ne 0) {
+    throw 'Unable to resolve the pnpm version.'
+  }
+  Write-Field 'pnpm' ([string] ($versionResult.Output | Select-Object -First 1)).Trim() Green
+}
+
 function Test-Prerequisites {
   Assert-DotNet
+  Assert-Pnpm
   Assert-Wslc
   Write-Field 'Solution' $solutionFile
   Write-Field 'Container engine' 'WSLC (native host architecture)'
   Write-Host ''
   Write-Host 'Prerequisite checks passed.' -ForegroundColor Green
+}
+
+function Invoke-ToolingRestore {
+  Assert-Pnpm
+  Invoke-Tool -Executable 'pnpm' -Operation 'Restoring formatting tools' -Arguments @(
+    'install', '--frozen-lockfile'
+  )
+}
+
+function Invoke-Format {
+  Assert-DotNet
+  Assert-Pnpm
+  Invoke-Tool -Executable 'pnpm' -Operation 'Formatting repository files' -Arguments @('run', 'format')
+}
+
+function Invoke-Lint {
+  Assert-DotNet
+  Assert-Pnpm
+  Invoke-Tool -Executable 'pnpm' -Operation 'Checking repository formatting and Markdown' -Arguments @('run', 'lint')
 }
 
 function Invoke-Restore {
@@ -643,13 +675,16 @@ function Invoke-ContainerRemove {
 
 function Invoke-Setup {
   Test-Prerequisites
+  Invoke-ToolingRestore
   Invoke-Restore
   Write-Host ''
   Write-Host 'Local development setup is ready.' -ForegroundColor Green
 }
 
 function Invoke-Validation {
+  Invoke-ToolingRestore
   Invoke-Restore
+  Invoke-Lint
   Invoke-Build
   Invoke-Tests
   Invoke-Coverage
@@ -673,9 +708,11 @@ Usage:
   .\start.ps1 -Action <action> [options]
 
 Setup and managed code:
-  check              Verify the pinned .NET SDK and WSLC.
-  setup              Check prerequisites and restore NuGet packages.
+  check              Verify the pinned .NET SDK, pnpm, and WSLC.
+  setup              Check prerequisites and restore development dependencies.
   restore            Restore NuGet packages.
+  format             Format supported repository files and managed code.
+  lint               Check formatting, Markdown, and managed code style.
   build              Build with warnings treated as errors.
   run                Run MockAPI directly with dotnet.
   test               Run all tests.
@@ -744,6 +781,8 @@ function Invoke-Action {
     'check' { Test-Prerequisites }
     'setup' { Invoke-Setup }
     'restore' { Invoke-Restore }
+    'format' { Invoke-Format }
+    'lint' { Invoke-Lint }
     'build' { Invoke-Build }
     'run' { Invoke-Run }
     'test' { Invoke-Tests }

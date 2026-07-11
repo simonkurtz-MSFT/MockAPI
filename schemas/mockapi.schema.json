@@ -5,10 +5,7 @@
   "description": "Configuration for exact HTTP mock endpoints. The x-maximum*Utf8Bytes annotations are enforced by MockAPI semantic validation.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schemaVersion",
-    "endpoints"
-  ],
+  "required": ["schemaVersion", "endpoints"],
   "properties": {
     "$schema": {
       "type": "string"
@@ -39,14 +36,7 @@
     "endpoint": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "id",
-        "name",
-        "enabled",
-        "methods",
-        "path",
-        "response"
-      ],
+      "required": ["id", "name", "enabled", "methods", "path", "response"],
       "properties": {
         "id": {
           "type": "string",
@@ -83,11 +73,7 @@
     "response": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "statusCode",
-        "headers",
-        "body"
-      ],
+      "required": ["statusCode", "headers", "body"],
       "properties": {
         "statusCode": {
           "type": "integer",
@@ -95,10 +81,7 @@
           "maximum": 599
         },
         "reasonPhrase": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": ["string", "null"],
           "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
         },
         "headers": {
@@ -116,10 +99,7 @@
           "x-maximumCombinedUtf8Bytes": 32768
         },
         "contentType": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": ["string", "null"],
           "minLength": 1,
           "pattern": "^[^\\r\\n]*$"
         },

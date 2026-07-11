@@ -16,18 +16,18 @@ The authoritative JSON Schema is [schemas/mockapi.schema.json](../schemas/mockap
 
 ## Endpoint Definition
 
-| Property | Requirements |
-| --- | --- |
-| `id` | Stable UUID preserved across edits and import/export |
-| `name` | Non-empty display name, at most 200 characters |
-| `enabled` | Controls matching without deleting the definition |
-| `methods` | One to eight unique valid HTTP method tokens |
-| `path` | Exact case-sensitive path beginning with `/`, at most 2,048 characters |
-| `response.statusCode` | Integer from 100 through 599 |
-| `response.reasonPhrase` | Optional HTTP/1.1 reason phrase without control characters |
-| `response.headers` | Object whose values are arrays, preserving repeated values |
-| `response.contentType` | Required when a non-empty body is configured |
-| `response.body` | Raw response text, at most 1 MiB as UTF-8 |
+| Property                | Requirements                                                           |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `id`                    | Stable UUID preserved across edits and import/export                   |
+| `name`                  | Non-empty display name, at most 200 characters                         |
+| `enabled`               | Controls matching without deleting the definition                      |
+| `methods`               | One to eight unique valid HTTP method tokens                           |
+| `path`                  | Exact case-sensitive path beginning with `/`, at most 2,048 characters |
+| `response.statusCode`   | Integer from 100 through 599                                           |
+| `response.reasonPhrase` | Optional HTTP/1.1 reason phrase without control characters             |
+| `response.headers`      | Object whose values are arrays, preserving repeated values             |
+| `response.contentType`  | Required when a non-empty body is configured                           |
+| `response.body`         | Raw response text, at most 1 MiB as UTF-8                              |
 
 Matching uses only the case-insensitive HTTP method and exact case-sensitive normalized path. Query strings, request headers, and request bodies do not participate. Disabled endpoints and unmatched requests return `404`.
 

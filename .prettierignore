@@ -1,6 +1,4 @@
+artifacts/
 **/bin/
 **/obj/
-artifacts/
-TestResults/
-.vs/
 node_modules/
