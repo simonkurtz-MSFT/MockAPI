@@ -21,10 +21,13 @@ param(
   [ValidateSet(
     'menu', 'help', 'check', 'setup', 'restore', 'build', 'run', 'test', 'coverage',
     'publish', 'validate', 'container-build', 'container-run', 'container-test',
-    'container-logs', 'container-status', 'container-stop', 'container-remove', 'all')]
+    'container-showcase', 'container-logs', 'container-status', 'container-stop',
+    'container-remove', 'all')]
   [string] $Action = 'menu',
 
   [switch] $InstallMissing,
+
+  [switch] $SkipContainerCheck,
 
   [ValidateNotNullOrEmpty()]
   [string] $Configuration = 'Release',
@@ -517,6 +520,97 @@ function Invoke-ContainerTest {
   Write-Field 'Dashboard' "$dashboardUri -> HTTP $($dashboard.StatusCode)" Green
 }
 
+function Invoke-ContainerShowcase {
+  if (-not $SkipContainerCheck) {
+    Assert-Wslc
+    $container = Get-WslcContainer
+    if ($null -eq $container -or -not [bool] $container.State.Running) {
+      throw "Container '$ContainerName' is not running. Run '.\start.ps1 -Action container-run' first."
+    }
+  }
+
+  $baseUri = "http://localhost:$Port"
+  $statisticsUri = "$baseUri/__mockapi/api/statistics"
+  $exampleUri = "$baseUri/ex/rate-limited"
+  $endpointId = '7b2d425d-75f1-4ded-a74e-503374a7e99e'
+  $before = Invoke-RestMethod -Uri $statisticsUri -TimeoutSec 5
+  $beforeEndpoint = @($before.endpoints | Where-Object { [string] $_.endpointId -eq $endpointId } | Select-Object -First 1)
+  $beforeEndpointTotal = if ($beforeEndpoint.Count -eq 0) { 0L } else { [long] $beforeEndpoint[0].totalRequests }
+  $checks = [Collections.Generic.List[object]]::new()
+
+  function Add-ShowcaseCheck {
+    param(
+      [Parameter(Mandatory)][string] $Name,
+      [Parameter(Mandatory)][bool] $Passed,
+      [Parameter(Mandatory)][string] $Detail
+    )
+    $checks.Add([pscustomobject]@{
+        Check = $Name
+        Result = if ($Passed) { 'PASS' } else { 'FAIL' }
+        Detail = $Detail
+      })
+  }
+
+  $httpClient = [Net.Http.HttpClient]::new()
+  $httpClient.Timeout = [TimeSpan]::FromSeconds(5)
+  $request = [Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::Get, $exampleUri)
+  $request.Version = [Version]::new(1, 1)
+  $request.VersionPolicy = [Net.Http.HttpVersionPolicy]::RequestVersionExact
+  $response = $null
+  try {
+    $response = $httpClient.Send($request)
+    if ([int] $response.StatusCode -eq 404) {
+      throw "The built-in example is not loaded. Use 'Load examples' in the dashboard at $baseUri, then rerun the showcase."
+    }
+    $responseBody = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    $sourceValues = [string]::Join(',', @($response.Headers.GetValues('X-Mock-Source')))
+    $retryAfter = [string]::Join(',', @($response.Headers.GetValues('Retry-After')))
+    $contentType = [string] $response.Content.Headers.ContentType
+    Add-ShowcaseCheck '429 status' ([int] $response.StatusCode -eq 429) "HTTP $([int] $response.StatusCode)"
+    Add-ShowcaseCheck 'Reason phrase' ($response.ReasonPhrase -ceq 'Too Many Requests') ([string] $response.ReasonPhrase)
+    Add-ShowcaseCheck 'Retry-After' ($retryAfter -eq '30') $retryAfter
+    Add-ShowcaseCheck 'Repeated headers' ($sourceValues.Contains('MockAPI') -and $sourceValues.Contains('checked-in-example')) $sourceValues
+    Add-ShowcaseCheck 'Content type' ($contentType -eq 'application/json; charset=utf-8') $contentType
+    Add-ShowcaseCheck 'Exact body' ($responseBody -ceq '{"error":"try again later"}') $responseBody
+  }
+  catch {
+    throw "Container '$ContainerName' is not responding correctly at '$exampleUri'. Run '.\start.ps1 -Action container-logs' and verify the configured port. $($_.Exception.Message)"
+  }
+  finally {
+    if ($null -ne $response) {
+      $response.Dispose()
+    }
+    $request.Dispose()
+    $httpClient.Dispose()
+  }
+
+  $queryResponse = Invoke-WebRequest -Uri "$exampleUri`?request=showcase" -TimeoutSec 5 -SkipHttpErrorCheck
+  Add-ShowcaseCheck 'Query-insensitive match' ($queryResponse.StatusCode -eq 429) "HTTP $($queryResponse.StatusCode)"
+  $wrongMethod = Invoke-WebRequest -Uri $exampleUri -Method Post -TimeoutSec 5 -SkipHttpErrorCheck
+  Add-ShowcaseCheck 'Unsupported method' ($wrongMethod.StatusCode -eq 404) "HTTP $($wrongMethod.StatusCode)"
+  $unmatched = Invoke-WebRequest -Uri "$baseUri/ex/not-configured" -TimeoutSec 5 -SkipHttpErrorCheck
+  Add-ShowcaseCheck 'Unmatched path' ($unmatched.StatusCode -eq 404) "HTTP $($unmatched.StatusCode)"
+
+  $after = Invoke-RestMethod -Uri $statisticsUri -TimeoutSec 5
+  $afterEndpoint = @($after.endpoints | Where-Object { [string] $_.endpointId -eq $endpointId } | Select-Object -First 1)
+  $afterEndpointTotal = if ($afterEndpoint.Count -eq 0) { 0L } else { [long] $afterEndpoint[0].totalRequests }
+  Add-ShowcaseCheck 'Aggregate statistics' (
+    ([long] $after.totalRequests - [long] $before.totalRequests) -eq 4 -and
+    ([long] $after.matchedRequests - [long] $before.matchedRequests) -eq 2 -and
+    ([long] $after.unmatchedRequests - [long] $before.unmatchedRequests) -eq 2
+  ) "total +$([long] $after.totalRequests - [long] $before.totalRequests), matched +$([long] $after.matchedRequests - [long] $before.matchedRequests), unmatched +$([long] $after.unmatchedRequests - [long] $before.unmatchedRequests)"
+  Add-ShowcaseCheck 'Endpoint statistics' (($afterEndpointTotal - $beforeEndpointTotal) -eq 2) "endpoint +$($afterEndpointTotal - $beforeEndpointTotal)"
+
+  Write-Host ''
+  Write-Host 'Built-in example showcase' -ForegroundColor Cyan
+  $checks | Format-Table -AutoSize | Out-Host
+  $failed = @($checks | Where-Object Result -eq 'FAIL')
+  if ($failed.Count -ne 0) {
+    throw "$($failed.Count) showcase assertion(s) failed."
+  }
+  Write-Field 'Showcase' 'All assertions passed' Green
+}
+
 function Invoke-ContainerLogs {
   Assert-Wslc
   Invoke-Tool -Executable 'wslc' -Operation "Showing logs for $ContainerName" -Arguments @(
@@ -593,6 +687,7 @@ Native container workflow (WSLC):
   container-build    Build a uniquely tagged image and move the $ImageName alias to it.
   container-run      Create or start $ContainerName on port $Port; recreate it when $ImageName changed.
   container-test     Send an HTTP smoke test to the running container.
+  container-showcase Exercise the loaded rate-limit example and verify response and statistics behavior.
   container-logs     Show the last 200 container log lines.
   container-status   Inspect the container.
   container-stop     Stop the container.
@@ -601,6 +696,7 @@ Native container workflow (WSLC):
 
 Options:
   -InstallMissing    Permit setup/check to install .NET 10 with winget or update WSL.
+  -SkipContainerCheck  Skip WSLC/container inspection for isolated CI execution only.
   -Configuration     Build configuration; default: Release.
   -ImageName         Container image; default: mockapi:dev.
   -ContainerName     Container name; default: mockapi-dev.
@@ -616,10 +712,11 @@ function Show-Menu {
     '3' = @{ Label = 'Build native container'; Action = 'container-build' }
     '4' = @{ Label = 'Start or restart native container'; Action = 'container-run' }
     '5' = @{ Label = 'Test running container'; Action = 'container-test' }
-    '6' = @{ Label = 'Show container logs'; Action = 'container-logs' }
-    '7' = @{ Label = 'Stop container'; Action = 'container-stop' }
-    '8' = @{ Label = 'Remove container'; Action = 'container-remove' }
-    '9' = @{ Label = 'Run all local validation'; Action = 'all' }
+    '6' = @{ Label = 'Showcase loaded example'; Action = 'container-showcase' }
+    '7' = @{ Label = 'Show container logs'; Action = 'container-logs' }
+    '8' = @{ Label = 'Stop container'; Action = 'container-stop' }
+    '9' = @{ Label = 'Remove container'; Action = 'container-remove' }
+    'a' = @{ Label = 'Run all local validation'; Action = 'all' }
     'h' = @{ Label = 'Help'; Action = 'help' }
     'q' = @{ Label = 'Quit'; Action = 'quit' }
   }
@@ -656,6 +753,7 @@ function Invoke-Action {
     'container-build' { Invoke-ContainerBuild }
     'container-run' { Invoke-ContainerRun }
     'container-test' { Invoke-ContainerTest }
+    'container-showcase' { Invoke-ContainerShowcase }
     'container-logs' { Invoke-ContainerLogs }
     'container-status' { Invoke-ContainerStatus }
     'container-stop' { Invoke-ContainerStop }
