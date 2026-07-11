@@ -14,6 +14,28 @@ public sealed class ManagementApiTests
     private const string EndpointsPath = "/__mockapi/api/endpoints";
 
     [Fact]
+    public async Task ManagementRateLimit_ReturnsProblemWithoutAffectingHealth()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        using var client = factory.CreateClient();
+        HttpResponseMessage? limited = null;
+
+        for (var request = 0; request < 121; request++)
+        {
+            limited?.Dispose();
+            limited = await client.GetAsync("/__mockapi/api/configuration");
+        }
+
+        using (limited)
+        {
+            await AssertProblemAsync(limited!, 429, "management-rate-limit");
+            Assert.Equal(TimeSpan.FromSeconds(60), limited!.Headers.RetryAfter!.Delta);
+        }
+        using var health = await client.GetAsync("/health/live");
+        Assert.Equal(HttpStatusCode.OK, health.StatusCode);
+    }
+
+    [Fact]
     public async Task Queries_ReturnCurrentStateAndQuotedETag()
     {
         await using var factory = new WebApplicationFactory<Program>();

@@ -39,7 +39,7 @@
       </div>
       <div class="command-actions">
         <input id="import-file" type="file" accept="application/json,.json" hidden>
-        <button id="load-template-button" class="button secondary" type="button">Start blank</button>
+        <button id="load-template-button" class="button secondary" type="button">Load template</button>
         <button id="load-example-button" class="button secondary" type="button">Load examples</button>
         <button id="import-button" class="button secondary" type="button">Import</button>
         <a id="export-button" class="button secondary" href="/__mockapi/api/configuration/export" download="mockapi.json">Export</a>
@@ -88,6 +88,14 @@
               <option value="false">Disabled</option>
             </select>
           </label>
+          <label>
+            <span class="visually-hidden">Filter by response status</span>
+            <select id="filter-status">
+              <option value="">Any status</option>
+              <option value="1">1xx</option><option value="2">2xx</option><option value="3">3xx</option>
+              <option value="4">4xx</option><option value="5">5xx</option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -112,7 +120,7 @@
           <p id="empty-state-description">Load working examples or begin with a blank configuration.</p>
           <div id="starter-actions" class="starter-actions">
             <button id="empty-load-example-button" class="button primary" type="button">Load examples</button>
-            <button id="empty-load-template-button" class="button secondary" type="button">Start blank</button>
+            <button id="empty-load-template-button" class="button secondary" type="button">Load template</button>
           </div>
         </div>
       </div>
@@ -120,7 +128,11 @@
   </main>
 
   <footer class="app-footer">
-    <a href="https://github.com/simonkurtz-MSFT/MockAPI">MockAPI on GitHub</a>
+    <div class="footer-links">
+      <a href="https://github.com/simonkurtz-MSFT/MockAPI">MockAPI on GitHub</a>
+      <span aria-hidden="true">·</span>
+      <a href="https://www.linkedin.com/in/simonkurtz">Simon Kurtz</a>
+    </div>
     <span>Version {{VERSION}}</span>
   </footer>
 
@@ -170,6 +182,52 @@
       </div>
     </div>
   </dialog>
+
+  <div id="test-blade-shell" class="blade-shell" hidden>
+    <button id="test-blade-backdrop" class="blade-backdrop" type="button" aria-label="Close endpoint test"></button>
+    <aside id="test-blade" class="test-blade" aria-labelledby="test-blade-title" aria-modal="true" role="dialog">
+      <header class="blade-header">
+        <div>
+          <span class="eyebrow">Endpoint test</span>
+          <h2 id="test-blade-title">Test endpoint</h2>
+          <p id="test-blade-context"></p>
+        </div>
+        <button id="test-blade-close" class="icon-button" type="button" title="Close" aria-label="Close endpoint test">×</button>
+      </header>
+      <div class="blade-body">
+        <section aria-labelledby="test-request-heading">
+          <div class="section-heading">
+            <h3 id="test-request-heading">Request</h3>
+            <button id="test-copy-url" class="icon-button" type="button" title="Copy request URL" aria-label="Copy request URL">⧉</button>
+          </div>
+          <div class="request-target">
+            <label>Method<select id="test-method"></select></label>
+            <label>Path and query<input id="test-path" spellcheck="false"></label>
+          </div>
+          <label>Request headers <span class="hint">One Name: value pair per line</span><textarea id="test-request-headers" rows="5" spellcheck="false"></textarea></label>
+          <label>Request body<textarea id="test-request-body" rows="7" spellcheck="false"></textarea></label>
+          <div class="test-actions">
+            <button id="test-cancel" class="button secondary" type="button" disabled>Cancel</button>
+            <button id="test-send" class="button primary" type="button">Send request</button>
+          </div>
+        </section>
+        <section class="test-response" aria-labelledby="test-response-heading">
+          <div class="section-heading">
+            <h3 id="test-response-heading">Response</h3>
+            <button id="test-copy-response" class="icon-button" type="button" title="Copy response details" aria-label="Copy response details" disabled>⧉</button>
+          </div>
+          <p id="test-status" class="test-status" role="status" aria-live="polite">Send a request to inspect its response.</p>
+          <dl class="response-summary">
+            <div><dt>Status</dt><dd id="test-response-status">—</dd></div>
+            <div><dt>Elapsed</dt><dd id="test-response-time">—</dd></div>
+            <div><dt>Effective URL</dt><dd id="test-response-url">—</dd></div>
+          </dl>
+          <label>Response headers<pre id="test-response-headers" tabindex="0">No response yet.</pre></label>
+          <label>Raw response body<pre id="test-response-body" tabindex="0">No response yet.</pre></label>
+        </section>
+      </div>
+    </aside>
+  </div>
 
   <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
 </body>

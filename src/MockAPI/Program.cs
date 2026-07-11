@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using MockAPI.Configuration;
 using MockAPI.Management;
 using MockAPI.Runtime;
@@ -62,9 +64,39 @@ builder.Services.AddSingleton<ConfigurationFileStore>();
 builder.Services.AddSingleton<EndpointManagementService>();
 builder.Services.AddSingleton<ConfigurationManagementService>();
 builder.Services.AddSingleton<RequestStatisticsCollector>();
+builder.Services.AddRateLimiter(rateLimiter =>
+{
+    rateLimiter.AddPolicy(ManagementApiEndpoints.RateLimitPolicyName, context =>
+        RateLimitPartition.GetSlidingWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new SlidingWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                SegmentsPerWindow = 6,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+    rateLimiter.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.Headers.RetryAfter = "60";
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            new ManagementProblemDetails(
+                "https://mockapi.local/problems/management-rate-limit",
+                "Management API rate limit exceeded",
+                StatusCodes.Status429TooManyRequests,
+                "Too many management requests were received. Retry after the indicated interval.",
+                context.HttpContext.Request.Path),
+            ManagementJsonContext.Default.ManagementProblemDetails,
+            contentType: "application/problem+json",
+            cancellationToken);
+    };
+});
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+app.UseRateLimiter();
 var configuration = app.Services.GetRequiredService<ConfigurationState>();
 var configurationStore = app.Services.GetRequiredService<ConfigurationFileStore>();
 var endpointManagement = app.Services.GetRequiredService<EndpointManagementService>();

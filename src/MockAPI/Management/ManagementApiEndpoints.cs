@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Net.Http.Headers;
 using MockAPI.Configuration;
 using MockAPI.Runtime;
@@ -9,6 +10,7 @@ namespace MockAPI.Management;
 
 public static class ManagementApiEndpoints
 {
+    internal const string RateLimitPolicyName = "management";
     private const string BasePath = "/__mockapi/api";
     private const string ProblemBase = "https://mockapi.local/problems/";
     private static readonly ManagementJsonContext CompactJsonContext = new(
@@ -25,10 +27,14 @@ public static class ManagementApiEndpoints
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(statistics);
 
-        var group = app.MapGroup(BasePath).WithTags("Management");
+        var group = app.MapGroup(BasePath)
+            .WithTags("Management")
+            .RequireRateLimiting(RateLimitPolicyName);
         group.MapGet("/configuration", (HttpContext context, CancellationToken _) => WriteConfigurationStatusAsync(context, service));
         group.MapGet("/configuration/template", (HttpContext context, CancellationToken _) => WriteBuiltInConfigurationAsync(context, "template"));
         group.MapGet("/configuration/example", (HttpContext context, CancellationToken _) => WriteBuiltInConfigurationAsync(context, "example"));
+        group.MapPost("/configuration/template/merge", (HttpContext context, CancellationToken _) => MergeBuiltInConfigurationAsync(context, configuration, "template"));
+        group.MapPost("/configuration/example/merge", (HttpContext context, CancellationToken _) => MergeBuiltInConfigurationAsync(context, configuration, "example"));
         group.MapPost("/configuration/validate", (HttpContext context, CancellationToken _) => ValidateConfigurationAsync(context, configuration));
         group.MapPut("/configuration/import", (HttpContext context, CancellationToken _) => ImportConfigurationAsync(context, configuration));
         group.MapGet("/configuration/export", (HttpContext context, CancellationToken _) => ExportConfigurationAsync(context, configuration));
@@ -55,6 +61,67 @@ public static class ManagementApiEndpoints
         context.Response.ContentType = "application/json; charset=utf-8";
         context.Response.Headers.CacheControl = "no-store";
         await resource.CopyToAsync(context.Response.Body, context.RequestAborted);
+    }
+
+    private static async Task MergeBuiltInConfigurationAsync(
+        HttpContext context,
+        ConfigurationManagementService service,
+        string name)
+    {
+        var expectedRevision = await ReadExpectedRevisionAsync(context, service.Current);
+        if (expectedRevision is null)
+        {
+            return;
+        }
+
+        var force = bool.TryParse(context.Request.Query["force"], out var forceValue) && forceValue;
+        await using var resource = typeof(ManagementApiEndpoints).Assembly.GetManifestResourceStream(
+            $"MockAPI.BuiltIns.{name}.json") ?? throw new InvalidOperationException(
+                $"The built-in {name} configuration is unavailable.");
+        var builtIn = await JsonSerializer.DeserializeAsync(
+            resource,
+            MockApiJsonContext.Default.MockApiConfigurationDocument,
+            context.RequestAborted) ?? throw new InvalidOperationException(
+                $"The built-in {name} configuration could not be read.");
+
+        var result = service.MergeBuiltIn(builtIn, expectedRevision.Value, force);
+        if (result.Status == BuiltInMergeStatus.RevisionConflict)
+        {
+            await WriteRevisionConflictAsync(context, service.Current);
+            return;
+        }
+
+        if (result.Status == BuiltInMergeStatus.ValidationFailed)
+        {
+            await WriteProblemAsync(
+                context,
+                StatusCodes.Status422UnprocessableEntity,
+                "validation-failed",
+                "Merged configuration validation failed",
+                "The built-in configuration was rejected and the active configuration was not modified.",
+                service.Current,
+                result.Validation.Errors);
+            return;
+        }
+
+        var snapshot = result.Snapshot!;
+        SetETag(context, snapshot);
+        await WriteJsonAsync(
+            context,
+            result.Status == BuiltInMergeStatus.Conflict
+                ? StatusCodes.Status409Conflict
+                : StatusCodes.Status200OK,
+            new BuiltInMergeResponse(
+                result.Status == BuiltInMergeStatus.Applied,
+                force,
+                snapshot.Revision,
+                snapshot.ETag,
+                snapshot.HasUnsavedChanges,
+                result.Added,
+                result.Updated,
+                result.Skipped,
+                result.Conflicts),
+            ManagementJsonContext.Default.BuiltInMergeResponse);
     }
 
     private static async Task ValidateConfigurationAsync(

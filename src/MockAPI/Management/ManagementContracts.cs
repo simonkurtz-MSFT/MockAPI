@@ -19,6 +19,24 @@ public sealed record ConfigurationSaveResponse(
     long Revision,
     bool IsCurrentRevision);
 
+public sealed record BuiltInMergeConflict(
+    Guid BuiltInEndpointId,
+    string BuiltInName,
+    string Kind,
+    Guid ExistingEndpointId,
+    string ExistingName);
+
+public sealed record BuiltInMergeResponse(
+    bool Applied,
+    bool Forced,
+    long Revision,
+    [property: JsonPropertyName("etag")] string ETag,
+    bool HasUnsavedChanges,
+    int Added,
+    int Updated,
+    int Skipped,
+    IReadOnlyList<BuiltInMergeConflict> Conflicts);
+
 public sealed record HealthStatusResponse(string Status);
 
 public sealed record ManagementProblemDetails(
@@ -37,6 +55,7 @@ public sealed record ManagementProblemDetails(
 [JsonSerializable(typeof(EndpointEnabledRequest))]
 [JsonSerializable(typeof(ConfigurationValidationResponse))]
 [JsonSerializable(typeof(ConfigurationSaveResponse))]
+[JsonSerializable(typeof(BuiltInMergeResponse))]
 [JsonSerializable(typeof(HealthStatusResponse))]
 [JsonSerializable(typeof(ManagementProblemDetails))]
 [JsonSerializable(typeof(RequestStatisticsSnapshot))]

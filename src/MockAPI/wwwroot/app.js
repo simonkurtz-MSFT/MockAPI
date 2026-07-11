@@ -9,7 +9,11 @@ const state = {
   revision: 0,
   dirty: false,
   editingId: null,
-  pendingConfirm: null
+  pendingConfirm: null,
+  mergeInFlight: false,
+  testAbort: null,
+  testTrigger: null,
+  testEndpointId: null
 };
 
 const elements = Object.fromEntries([
@@ -19,10 +23,14 @@ const elements = Object.fromEntries([
   "metric-total", "metric-matched", "metric-unmatched",
   "metric-bytes", "metric-rate", "rate-bars", "endpoint-count", "endpoint-rows", "empty-state",
   "empty-state-title", "empty-state-description", "starter-actions",
-  "filter-text", "filter-method", "filter-enabled", "endpoint-dialog", "endpoint-form", "dialog-title",
+  "filter-text", "filter-method", "filter-enabled", "filter-status", "endpoint-dialog", "endpoint-form", "dialog-title",
   "form-error", "field-name", "field-path", "field-status", "field-reason", "field-content-type",
   "field-body", "field-enabled", "method-options", "header-rows", "add-header", "copy-url",
   "confirm-dialog", "confirm-title", "confirm-message", "confirm-cancel", "confirm-accept",
+  "test-blade-shell", "test-blade-backdrop", "test-blade", "test-blade-title", "test-blade-context",
+  "test-blade-close", "test-method", "test-path", "test-request-headers", "test-request-body",
+  "test-send", "test-cancel", "test-copy-url", "test-copy-response", "test-status",
+  "test-response-status", "test-response-time", "test-response-url", "test-response-headers", "test-response-body",
   "toast-region", "theme-toggle"
 ].map(id => [id, document.getElementById(id)]));
 
@@ -120,10 +128,12 @@ function renderEndpoints() {
   const query = elements["filter-text"].value.trim().toLocaleLowerCase();
   const method = elements["filter-method"].value;
   const enabled = elements["filter-enabled"].value;
+  const statusClass = elements["filter-status"].value;
   const visible = state.endpoints.filter(endpoint =>
     (!query || endpoint.name.toLocaleLowerCase().includes(query) || endpoint.path.toLocaleLowerCase().includes(query)) &&
     (!method || endpoint.methods.includes(method)) &&
-    (!enabled || String(endpoint.enabled) === enabled));
+    (!enabled || String(endpoint.enabled) === enabled) &&
+    (!statusClass || String(Math.floor(endpoint.response.statusCode / 100)) === statusClass));
 
   elements["endpoint-count"].textContent = visible.length;
   elements["endpoint-rows"].replaceChildren();
@@ -169,7 +179,10 @@ function createEndpointRow(endpoint) {
 
   const actionCell = document.createElement("td");
   const actions = makeElement("div", "row-actions");
+  const testButton = actionButton("Test", "▶", event => openTestBlade(endpoint, event.currentTarget));
+  testButton.dataset.testEndpointId = endpoint.id;
   actions.append(
+    testButton,
     actionButton("Edit", "✎", () => openEndpointDialog(endpoint)),
     actionButton("Duplicate", "⧉", () => duplicateEndpoint(endpoint)),
     actionButton("Delete", "⌫", () => requestDelete(endpoint))
@@ -329,10 +342,11 @@ function requestDelete(endpoint) {
   });
 }
 
-function confirmAction(title, message, action) {
+function confirmAction(title, message, action, acceptLabel = "Confirm") {
   elements["confirm-title"].textContent = title;
   elements["confirm-message"].textContent = message;
   state.pendingConfirm = action;
+  elements["confirm-accept"].textContent = acceptLabel;
   elements["confirm-dialog"].showModal();
   elements["confirm-accept"].focus();
 }
@@ -353,14 +367,46 @@ async function importConfiguration(file) {
 }
 
 async function loadBuiltInConfiguration(name) {
+  if (state.mergeInFlight) {
+    showToast("A built-in configuration merge is already in progress.", true);
+    return;
+  }
+  state.mergeInFlight = true;
   try {
-    const response = await fetch(`${API}/configuration/${name}`, { cache: "no-store" });
-    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-    const document = await response.json();
-    const title = name === "template" ? "Start blank" : "Load examples";
-    const successMessage = name === "template" ? "Blank configuration loaded" : "Examples loaded";
-    await loadConfiguration(document, title, successMessage);
-  } catch (error) { showToast(formatProblem(error), true); }
+    const result = await api(`/configuration/${name}/merge`, {
+      method: "POST", mutatesConfiguration: true
+    });
+    showToast(formatMergeResult(name, result));
+    await refresh();
+  } catch (error) {
+    if (error.status !== 409 || !Array.isArray(error.problem?.conflicts)) {
+      showToast(formatProblem(error), true);
+      return;
+    }
+    const details = error.problem.conflicts
+      .map(conflict => `${conflict.builtInName} conflicts with ${conflict.existingName}`)
+      .join("; ");
+    confirmAction(
+      "Built-in configuration conflicts",
+      `${details}. No changes were made. Force update applies the built-in versions and preserves unrelated endpoints.`,
+      async () => {
+        const result = await api(`/configuration/${name}/merge?force=true`, {
+          method: "POST", mutatesConfiguration: true
+        });
+        showToast(formatMergeResult(name, result));
+        await refresh();
+      },
+      "Force update");
+  } finally { state.mergeInFlight = false; }
+}
+
+function formatMergeResult(name, result) {
+  if (!result.applied) return `No ${name} changes were needed`;
+  const parts = [];
+  if (result.added) parts.push(`${result.added} added`);
+  if (result.updated) parts.push(`${result.updated} updated`);
+  if (result.skipped) parts.push(`${result.skipped} already present`);
+  return `${name === "example" ? "Examples" : "Template"}: ${parts.join(", ")}`;
 }
 
 async function loadConfiguration(document, title, successMessage) {
@@ -386,6 +432,121 @@ async function saveConfiguration() {
   } catch (error) { showToast(formatProblem(error), true); }
 }
 
+function openTestBlade(endpoint, trigger) {
+  state.testTrigger = trigger;
+  state.testEndpointId = endpoint.id;
+  elements["test-blade-title"].textContent = endpoint.name;
+  elements["test-blade-context"].textContent = endpoint.path;
+  elements["test-method"].replaceChildren(...endpoint.methods.map(method => {
+    const option = document.createElement("option");
+    option.value = method;
+    option.textContent = method;
+    return option;
+  }));
+  elements["test-path"].value = endpoint.path;
+  elements["test-request-headers"].value = "";
+  elements["test-request-body"].value = "";
+  resetTestResponse();
+  elements["test-blade-shell"].hidden = false;
+  document.body.classList.add("blade-open");
+  elements["test-method"].focus();
+}
+
+function closeTestBlade() {
+  state.testAbort?.abort();
+  state.testAbort = null;
+  elements["test-blade-shell"].hidden = true;
+  document.body.classList.remove("blade-open");
+  const currentTrigger = state.testEndpointId
+    ? document.querySelector(`[data-test-endpoint-id="${CSS.escape(state.testEndpointId)}"]`)
+    : null;
+  (state.testTrigger?.isConnected ? state.testTrigger : currentTrigger)?.focus();
+  state.testTrigger = null;
+  state.testEndpointId = null;
+}
+
+function resetTestResponse() {
+  elements["test-status"].textContent = "Send a request to inspect its response.";
+  elements["test-response-status"].textContent = "—";
+  elements["test-response-time"].textContent = "—";
+  elements["test-response-url"].textContent = "—";
+  elements["test-response-headers"].textContent = "No response yet.";
+  elements["test-response-body"].textContent = "No response yet.";
+  elements["test-copy-response"].disabled = true;
+}
+
+function parseTestHeaders(value) {
+  const headers = new Headers();
+  for (const [index, line] of value.split("\n").entries()) {
+    if (!line.trim()) continue;
+    const separator = line.indexOf(":");
+    if (separator <= 0) throw new Error(`Request header line ${index + 1} must use Name: value.`);
+    headers.append(line.slice(0, separator).trim(), line.slice(separator + 1).trim());
+  }
+  return headers;
+}
+
+async function sendTestRequest() {
+  const method = elements["test-method"].value;
+  const url = new URL(elements["test-path"].value, window.location.origin);
+  if (url.origin !== window.location.origin) {
+    showToast("Endpoint tests must target the current MockAPI origin.", true);
+    return;
+  }
+
+  let headers;
+  try { headers = parseTestHeaders(elements["test-request-headers"].value); }
+  catch (error) { showToast(error.message, true); return; }
+
+  const controller = new AbortController();
+  state.testAbort = controller;
+  elements["test-send"].disabled = true;
+  elements["test-cancel"].disabled = false;
+  elements["test-status"].textContent = "Sending request…";
+  const started = performance.now();
+  try {
+    const options = { method, headers, signal: controller.signal };
+    if (method !== "GET" && method !== "HEAD") options.body = elements["test-request-body"].value;
+    const response = await fetch(url, options);
+    const body = await response.text();
+    const elapsed = performance.now() - started;
+    const responseHeaders = [...response.headers.entries()].map(([name, value]) => `${name}: ${value}`).join("\n");
+    elements["test-response-status"].textContent = `${response.status} ${response.statusText}`.trim();
+    elements["test-response-time"].textContent = `${elapsed.toFixed(1)} ms`;
+    elements["test-response-url"].textContent = response.url;
+    elements["test-response-headers"].textContent = responseHeaders || "No response headers.";
+    elements["test-response-body"].textContent = body || "Empty response body.";
+    elements["test-status"].textContent = `Request completed with HTTP ${response.status}.`;
+    elements["test-copy-response"].disabled = false;
+  } catch (error) {
+    elements["test-status"].textContent = error.name === "AbortError" ? "Request cancelled." : `Network error: ${error.message}`;
+  } finally {
+    state.testAbort = null;
+    elements["test-send"].disabled = false;
+    elements["test-cancel"].disabled = true;
+  }
+}
+
+function testResponseText() {
+  return [
+    `Status: ${elements["test-response-status"].textContent}`,
+    `Elapsed: ${elements["test-response-time"].textContent}`,
+    `URL: ${elements["test-response-url"].textContent}`,
+    "", elements["test-response-headers"].textContent,
+    "", elements["test-response-body"].textContent
+  ].join("\n");
+}
+
+function trapBladeFocus(event) {
+  if (event.key !== "Tab") return;
+  const focusable = [...elements["test-blade"].querySelectorAll("button:not(:disabled), input, select, textarea, [tabindex='0']")];
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+}
+
 function formatNumber(value) { return new Intl.NumberFormat().format(value); }
 function formatBytes(value) {
   if (value < 1024) return `${value} B`;
@@ -408,7 +569,7 @@ function bindEvents() {
   for (const button of document.querySelectorAll("[data-close]")) {
     button.addEventListener("click", () => elements["endpoint-dialog"].close());
   }
-  for (const filter of [elements["filter-text"], elements["filter-method"], elements["filter-enabled"]]) {
+  for (const filter of [elements["filter-text"], elements["filter-method"], elements["filter-enabled"], elements["filter-status"]]) {
     filter.addEventListener("input", renderEndpoints);
   }
   elements["load-template-button"].addEventListener("click", () => loadBuiltInConfiguration("template"));
@@ -430,6 +591,25 @@ function bindEvents() {
     }));
   elements["confirm-cancel"].addEventListener("click", () => elements["confirm-dialog"].close());
   elements["confirm-accept"].addEventListener("click", acceptConfirmation);
+  elements["test-blade-close"].addEventListener("click", closeTestBlade);
+  elements["test-blade-backdrop"].addEventListener("click", closeTestBlade);
+  elements["test-blade"].addEventListener("keydown", trapBladeFocus);
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !elements["test-blade-shell"].hidden) {
+      event.preventDefault();
+      closeTestBlade();
+    }
+  });
+  elements["test-send"].addEventListener("click", sendTestRequest);
+  elements["test-cancel"].addEventListener("click", () => state.testAbort?.abort());
+  elements["test-copy-url"].addEventListener("click", async () => {
+    await navigator.clipboard.writeText(new URL(elements["test-path"].value, window.location.origin).href);
+    showToast("Request URL copied");
+  });
+  elements["test-copy-response"].addEventListener("click", async () => {
+    await navigator.clipboard.writeText(testResponseText());
+    showToast("Response details copied");
+  });
   elements["theme-toggle"].addEventListener("click", () => {
     const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
     document.documentElement.dataset.theme = next;

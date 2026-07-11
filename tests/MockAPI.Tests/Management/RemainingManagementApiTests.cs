@@ -116,30 +116,98 @@ public sealed class RemainingManagementApiTests : IDisposable
     }
 
     [Fact]
-    public async Task BuiltInTemplate_AtomicallyReplacesActiveExample()
+    public async Task BuiltInConfigurations_MergeWithoutRemovingOrDuplicatingEndpoints()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var customEndpoint = CreateEndpoint("/custom", "custom");
+        using var customImport = await SendDocumentAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/configuration/import",
+            CreateDocument(customEndpoint),
+            "\"0\"");
+
+        using var templateMerge = await SendAsync(
+            client,
+            HttpMethod.Post,
+            $"{BasePath}/configuration/template/merge",
+            "\"1\"");
+        using var firstExampleMerge = await SendAsync(
+            client,
+            HttpMethod.Post,
+            $"{BasePath}/configuration/example/merge",
+            "\"1\"");
+        using var secondExampleMerge = await SendAsync(
+            client,
+            HttpMethod.Post,
+            $"{BasePath}/configuration/example/merge",
+            "\"2\"");
+        using var activeEndpoints = await client.GetAsync($"{BasePath}/endpoints");
+        using var active = await ReadJsonAsync(activeEndpoints);
+
+        Assert.Equal(HttpStatusCode.OK, templateMerge.StatusCode);
+        Assert.Equal("\"1\"", templateMerge.Headers.ETag!.Tag);
+        Assert.Equal(HttpStatusCode.OK, firstExampleMerge.StatusCode);
+        Assert.Equal("\"2\"", firstExampleMerge.Headers.ETag!.Tag);
+        Assert.Equal(HttpStatusCode.OK, secondExampleMerge.StatusCode);
+        Assert.Equal("\"2\"", secondExampleMerge.Headers.ETag!.Tag);
+        Assert.Equal(5, active.RootElement.GetArrayLength());
+        Assert.Equal(5, active.RootElement.EnumerateArray().Select(endpoint => endpoint.GetProperty("id").GetGuid()).Distinct().Count());
+        Assert.Equal("custom", await client.GetStringAsync(customEndpoint.Path));
+    }
+
+    [Fact]
+    public async Task BuiltInConfiguration_ConflictRequiresForceAndPreservesUnrelatedEndpoints()
     {
         await using var factory = CreateFactory();
         using var client = factory.CreateClient();
         var example = await ReadDocumentAsync(client, $"{BasePath}/configuration/example");
-        var template = await ReadDocumentAsync(client, $"{BasePath}/configuration/template");
-        using var exampleImport = await SendDocumentAsync(
+        var builtInHello = Assert.Single(example.Endpoints, endpoint => endpoint.Path == "/ex/hello");
+        var changedHello = builtInHello with
+        {
+            Response = builtInHello.Response with { Body = "changed locally" }
+        };
+        var custom = CreateEndpoint("/custom", "custom");
+        using var initialImport = await SendDocumentAsync(
             client,
             HttpMethod.Put,
             $"{BasePath}/configuration/import",
-            example,
+            CreateDocument(changedHello, custom),
             "\"0\"");
 
-        using var templateImport = await SendDocumentAsync(
+        using var conflict = await SendAsync(
             client,
-            HttpMethod.Put,
-            $"{BasePath}/configuration/import",
-            template,
+            HttpMethod.Post,
+            $"{BasePath}/configuration/example/merge",
             "\"1\"");
-        using var removedRoute = await client.GetAsync("/ex/rate-limited");
+        using var conflictJson = await ReadJsonAsync(conflict);
+        using var endpointsAfterConflict = await client.GetAsync($"{BasePath}/endpoints");
+        using var unchanged = await ReadJsonAsync(endpointsAfterConflict);
 
-        Assert.Equal(HttpStatusCode.OK, templateImport.StatusCode);
-        Assert.Equal("\"2\"", templateImport.Headers.ETag!.Tag);
-        Assert.Equal(HttpStatusCode.NotFound, removedRoute.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
+        Assert.False(conflictJson.RootElement.GetProperty("applied").GetBoolean());
+        Assert.Equal("different", Assert.Single(conflictJson.RootElement.GetProperty("conflicts").EnumerateArray()).GetProperty("kind").GetString());
+        Assert.Equal("\"1\"", conflict.Headers.ETag!.Tag);
+        Assert.Equal(2, unchanged.RootElement.GetArrayLength());
+        Assert.Equal("changed locally", await client.GetStringAsync(changedHello.Path));
+
+        using var forced = await SendAsync(
+            client,
+            HttpMethod.Post,
+            $"{BasePath}/configuration/example/merge?force=true",
+            "\"1\"");
+        using var forcedJson = await ReadJsonAsync(forced);
+        using var activeEndpoints = await client.GetAsync($"{BasePath}/endpoints");
+        using var active = await ReadJsonAsync(activeEndpoints);
+
+        Assert.Equal(HttpStatusCode.OK, forced.StatusCode);
+        Assert.True(forcedJson.RootElement.GetProperty("applied").GetBoolean());
+        Assert.Equal(3, forcedJson.RootElement.GetProperty("added").GetInt32());
+        Assert.Equal(1, forcedJson.RootElement.GetProperty("updated").GetInt32());
+        Assert.Equal(5, active.RootElement.GetArrayLength());
+        Assert.Equal("{\"message\":\"Hello from MockAPI\"}", await client.GetStringAsync(builtInHello.Path));
+        Assert.Equal("custom", await client.GetStringAsync(custom.Path));
     }
 
     [Fact]
@@ -307,13 +375,19 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Contains("id=\"load-example-button\"", html, StringComparison.Ordinal);
         Assert.Contains("id=\"empty-load-template-button\"", html, StringComparison.Ordinal);
         Assert.Contains("id=\"empty-load-example-button\"", html, StringComparison.Ordinal);
-        Assert.Contains("Start blank", html, StringComparison.Ordinal);
+        Assert.Contains("Load template", html, StringComparison.Ordinal);
         Assert.Contains("Load examples", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"test-blade\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"test-send\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"filter-status\"", html, StringComparison.Ordinal);
         Assert.Contains("href=\"https://github.com/simonkurtz-MSFT/MockAPI\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"https://www.linkedin.com/in/simonkurtz\">Simon Kurtz</a>", html, StringComparison.Ordinal);
         Assert.Contains("Version 1.0.0-alpha.1", html, StringComparison.Ordinal);
         Assert.DoesNotContain("{{VERSION}}", html, StringComparison.Ordinal);
         Assert.Contains("loadBuiltInConfiguration(\"template\")", javascript, StringComparison.Ordinal);
         Assert.Contains("loadBuiltInConfiguration(\"example\")", javascript, StringComparison.Ordinal);
+        Assert.Contains("/merge?force=true", javascript, StringComparison.Ordinal);
+        Assert.Contains("openTestBlade", javascript, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -372,6 +446,10 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.True(configurationPath.TryGetProperty("get", out _));
         Assert.True(paths.TryGetProperty($"{BasePath}/configuration/template", out _));
         Assert.True(paths.TryGetProperty($"{BasePath}/configuration/example", out _));
+        Assert.True(paths.TryGetProperty($"{BasePath}/configuration/template/merge", out var templateMerge));
+        Assert.True(templateMerge.TryGetProperty("post", out _));
+        Assert.True(paths.TryGetProperty($"{BasePath}/configuration/example/merge", out var exampleMerge));
+        Assert.True(exampleMerge.TryGetProperty("post", out _));
         var endpointPath = paths.EnumerateObject().Single(path =>
             path.Name.StartsWith($"{BasePath}/endpoints/{{", StringComparison.Ordinal)
             && !path.Name.EndsWith("/enabled", StringComparison.Ordinal));
