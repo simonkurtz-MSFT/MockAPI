@@ -628,7 +628,7 @@ function Invoke-ContainerStatus {
 function Invoke-ContainerStop {
   Assert-Wslc
   Invoke-Tool -Executable 'wslc' -Operation "Stopping $ContainerName" -Arguments @(
-    'stop', $ContainerName
+    'stop', '--time', '1', $ContainerName
   )
 }
 
@@ -690,7 +690,7 @@ Native container workflow (WSLC):
   container-showcase Exercise the loaded rate-limit example and verify response and statistics behavior.
   container-logs     Show the last 200 container log lines.
   container-status   Inspect the container.
-  container-stop     Stop the container.
+  container-stop     Stop the container with a one-second graceful shutdown window.
   container-remove   Remove the stopped container; the data volume is retained.
   all                Run managed validation and build the native container image.
 
