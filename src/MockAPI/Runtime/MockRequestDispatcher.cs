@@ -10,7 +10,7 @@ public static class MockRequestDispatcher
         ConfigurationState configuration,
         RequestStatisticsCollector statistics)
     {
-        var path = context.Request.Path.Value ?? string.Empty;
+        var path = GetPathValue(context.Request.Path);
         if (!configuration.Current.Endpoints.TryGet(context.Request.Method, path, out var endpoint))
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
@@ -54,4 +54,6 @@ public static class MockRequestDispatcher
             throw;
         }
     }
+
+    internal static string GetPathValue(PathString path) => path.Value ?? string.Empty;
 }

@@ -15,4 +15,6 @@ public sealed class MockApiOptions
     public bool EnableOpenApi { get; init; } = true;
 
     public bool EnableSwaggerUi { get; init; } = true;
+
+    public int ManagementPermitLimit { get; init; } = 120;
 }

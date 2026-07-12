@@ -30,11 +30,13 @@
 - Keep the issue recipient in one clearly named workflow-level environment variable and use that variable for issue creation and `gh issue edit --add-assignee` calls.
 - When automation deduplicates against an existing open issue, reapply `simonkurtz-MSFT` to that issue before reporting it as the active review item.
 - Do not use the personal `simonua` account for MockAPI issue or pull-request assignment.
+- Pin every external GitHub Action to a full 40-character immutable commit SHA and retain its release tag in a trailing comment for maintainability. Pin `docker://` workflow actions by `sha256` digest. Never use mutable tags or branches in workflow `uses:` references.
+- Run `pnpm run validate:workflow-pins` after changing any workflow and before committing automation changes.
 
 ## Validation
 
 - Use the narrowest relevant test first, then run the broader project checks affected by the change.
-- Use `start.ps1` as the canonical local entry point for setup, formatting, linting, managed-code validation, publication, and WSLC container workflows; keep its help and documentation current when commands change.
+- Use `start.ps1` as the canonical local entry point for setup, formatting, linting, backend/frontend coverage validation, managed-code validation, publication, and WSLC container workflows; keep its help and documentation current when commands change.
 - For cross-cutting endpoint contract changes, use the `mock-endpoint-change` skill.
 - For trimming, container, or release-readiness work, use the `release-validation` skill.
 - Do not claim container properties such as non-root execution, read-only compatibility, or persistence until they have been exercised against the built image.

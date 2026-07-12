@@ -104,6 +104,9 @@ public sealed class ConfigurationValidatorTests
     [Theory]
     [InlineData("GET", true)]
     [InlineData("CUSTOM-METHOD", true)]
+    [InlineData("!#$%&'*+-.^_`|~", true)]
+    [InlineData("", false)]
+    [InlineData("MÉTHOD", false)]
     [InlineData("BAD METHOD", false)]
     [InlineData("GET\r\nInjected", false)]
     public void Validate_EnforcesHttpMethodTokenSyntax(string method, bool expectedIsValid)

@@ -103,6 +103,23 @@ public sealed class MockDispatcherTests
     }
 
     [Fact]
+    public async Task Dispatcher_NullPathIsUnmatched()
+    {
+        var configuration = new ConfigurationState();
+        var statistics = new RequestStatisticsCollector();
+        var context = new DefaultHttpContext();
+        context.Request.Method = "GET";
+        context.Request.Path = default;
+
+        await MockRequestDispatcher.DispatchAsync(context, configuration, statistics);
+
+        Assert.Equal(StatusCodes.Status404NotFound, context.Response.StatusCode);
+        Assert.Equal(1, statistics.GetSnapshot().UnmatchedRequests);
+        Assert.Equal(string.Empty, MockRequestDispatcher.GetPathValue(default));
+        Assert.Equal("/value", MockRequestDispatcher.GetPathValue(new PathString("/value")));
+    }
+
+    [Fact]
     public async Task Dispatcher_FallbackMatchesPathsWithFileExtensions()
     {
         await using var factory = new WebApplicationFactory<Program>();

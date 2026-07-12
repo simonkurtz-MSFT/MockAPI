@@ -43,8 +43,7 @@ public sealed class ConfigurationManagementService(
 
         var builtInIds = builtIn.Endpoints.Select(endpoint => endpoint.Id).ToHashSet();
         var retained = current.Endpoints.Where(active =>
-            !builtInIds.Contains(active.Id) &&
-            (!force || !builtIn.Endpoints.Any(builtInEndpoint => RoutesOverlap(active, builtInEndpoint))));
+            ShouldRetain(active, builtInIds, builtIn.Endpoints, force));
         var additions = builtIn.Endpoints.Where(builtInEndpoint =>
             !current.Endpoints.Any(active => active.Id == builtInEndpoint.Id || RoutesOverlap(active, builtInEndpoint)));
         var changed = builtIn.Endpoints.Where(builtInEndpoint =>
@@ -131,6 +130,14 @@ public sealed class ConfigurationManagementService(
     private static bool RoutesOverlap(MockEndpointDefinition left, MockEndpointDefinition right) =>
         string.Equals(left.Path, right.Path, StringComparison.Ordinal) &&
         left.Methods.Any(leftMethod => right.Methods.Contains(leftMethod, StringComparer.OrdinalIgnoreCase));
+
+    internal static bool ShouldRetain(
+        MockEndpointDefinition active,
+        IReadOnlySet<Guid> builtInIds,
+        IReadOnlyList<MockEndpointDefinition> builtInEndpoints,
+        bool force) =>
+        !builtInIds.Contains(active.Id) &&
+        (!force || !builtInEndpoints.Any(builtInEndpoint => RoutesOverlap(active, builtInEndpoint)));
 }
 
 public enum BuiltInMergeStatus

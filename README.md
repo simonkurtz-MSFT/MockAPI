@@ -1,5 +1,7 @@
 # MockAPI
 
+![MockAPI](.github/social-preview.png)
+
 Project planning is tracked in [docs/PLAN.md](docs/PLAN.md). Local container development uses WSLC; see [docs/WSLC.md](docs/WSLC.md) for verified commands, supported checks, and the CI boundary for multi-architecture releases.
 
 ## Prerequisites
@@ -36,7 +38,7 @@ In the dashboard, select **Load examples**. This adds only missing examples and 
 
 ## Small Container Footprint
 
-The current native `linux/arm64` development image is only **26.84 MB** as reported by WSLC, with an estimated **13.85 MB gzip-compressed layer payload**. The self-contained, fully trimmed application runs in the minimal .NET runtime-deps image without carrying the SDK or shared .NET framework runtime. See the [measured image footprint](docs/WSLC.md#measured-image-footprint) for the exact baseline and methodology.
+The current native `linux/arm64` validation image is only **28.10 MB** as reported by WSLC, with an estimated **14.98 MB gzip-compressed layer payload**. The self-contained, fully trimmed application runs in the minimal .NET runtime-deps image without carrying the SDK, shared .NET framework runtime, debug symbols, Node.js, browser binaries, tests, or development manifests. See the [measured image footprint](docs/WSLC.md#measured-image-footprint) for the exact baseline and methodology.
 
 ## Developer CLI
 
@@ -61,6 +63,18 @@ Common automation-friendly actions:
 .\start.ps1 -Action container-showcase
 ```
 
+Phase 7 quality checks are development-only and never enter the runtime image:
+
+```powershell
+pnpm run test:frontend:coverage
+pnpm run test:browser:smoke
+pnpm run test:browser
+```
+
+Backend and extracted frontend production scopes enforce 100% line and branch coverage. Generated serializers, compiler output under `obj`, and browser orchestration are validated separately and are not used to dilute the coverage denominator.
+
+Playwright starts an isolated MockAPI process on port `8091` with a temporary configuration under `artifacts/`; it does not modify the development container or persisted configuration. See [Accessibility verification](docs/ACCESSIBILITY.md) for the automated and manual WCAG 2.2 AA evidence requirements.
+
 `setup` checks the pinned .NET SDK, pnpm, and WSLC, then restores the development dependencies. `format` applies Prettier and `dotnet format`; `lint` verifies formatting, Markdown, and managed code style. Pass `-InstallMissing` to explicitly permit .NET installation through winget or a WSL update when a prerequisite is missing. Run `.\start.ps1 -Action help` for every action and option.
 
 The WSLC container workflow builds the native host architecture, publishes port `8080`, applies the `0.5` CPU and `256 MiB` limits, and mounts the persistent `mockapi-data` volume at `/data`. `container-run` creates the container when absent and restarts it when stopped. Multi-platform image assembly and the checks unsupported by WSLC remain CI responsibilities.
@@ -78,6 +92,7 @@ MockApi__EnableManagementApi=true
 MockApi__EnableDashboard=true
 MockApi__EnableOpenApi=true
 MockApi__EnableSwaggerUi=true
+MockApi__ManagementPermitLimit=120
 ```
 
 Malformed, oversized, or semantically invalid configured files fail startup without activating a partial configuration. Runtime edits remain in memory until an explicit save operation atomically replaces the configured file.
@@ -115,6 +130,7 @@ The management API and dashboard have no authentication. Keep them on localhost 
 - [Configuration reference](docs/CONFIGURATION.md)
 - [Management API and ETags](docs/MANAGEMENT_API.md)
 - [Operations, security, containers, and local HTTPS](docs/OPERATIONS.md)
+- [Accessibility statement and verification](docs/ACCESSIBILITY.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [WSLC command reference and measured image footprint](docs/WSLC.md)
 - [Implementation plan](docs/PLAN.md)

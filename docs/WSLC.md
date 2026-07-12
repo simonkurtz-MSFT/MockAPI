@@ -90,16 +90,18 @@ Repeat the `wslc run` command with `mockapi-data:/data` and confirm that explici
 
 The native `linux/arm64` development image is deliberately small because the application is self-contained, published as a compressed single file, fully trimmed, and based on the minimal .NET runtime-deps image. The final stage carries neither the build SDK nor a shared .NET framework runtime.
 
-The following baseline was measured on 2026-07-10 from image `mockapi:dev` (`536b01cc2e7b`) using WSLC `2.9.3.0`:
+The following baseline was measured on 2026-07-11 from native branded validation image `mockapi:branding-validation` (`cebec3ff3f54`) using WSLC `2.9.3.0`:
 
 | Measurement                             |      Bytes | Decimal MB | Binary MiB |
 | --------------------------------------- | ---------: | ---------: | ---------: |
-| WSLC-reported image size                | 26,844,770 |   26.84 MB |  25.60 MiB |
-| Uncompressed layer tar streams          | 27,152,896 |   27.15 MB |  25.90 MiB |
-| Estimated gzip-compressed layer payload | 13,853,123 |   13.85 MB |  13.21 MiB |
-| Uncompressed OCI archive with metadata  | 27,174,912 |   27.17 MB |  25.92 MiB |
+| WSLC-reported image size                | 28,101,107 |   28.10 MB |  26.80 MiB |
+| Uncompressed layer tar streams          | 28,422,144 |   28.42 MB |  27.11 MiB |
+| Estimated gzip-compressed layer payload | 14,976,761 |   14.98 MB |  14.28 MiB |
+| Uncompressed OCI archive with metadata  | 28,446,208 |   28.45 MB |  27.13 MiB |
 
-`wslc image inspect mockapi:dev` provides the WSLC-reported size. WSLC exports this local image with uncompressed OCI layer tar streams, so the compressed estimate was calculated by gzip-compressing each exported layer independently with .NET's optimal compression level and summing the results. The resulting payload is approximately 51% of the uncompressed layer tar size.
+`wslc image inspect mockapi:branding-validation` provides the WSLC-reported size. WSLC exports this local image with uncompressed OCI layer tar streams, so the compressed estimate was calculated by gzip-compressing each exported layer independently with .NET's optimal compression level and summing the results. The resulting payload is approximately 53% of the uncompressed layer tar size.
+
+The reconstructed `/app` layer contains 19 runtime files, including the SVG favicon and its two compressed static variants, and no PDB, Node.js, Playwright, Vitest, test, documentation, package-manager, or development-manifest artifacts. The favicon adds 7,824 bytes to the native image; the complete 100%-covered branded image is only 22,559 bytes larger than the preceding `mockapi:dev` image measured on the same host.
 
 Treat the compressed value as a reproducible local estimate, not an exact registry transfer size. Registry compression settings can produce a slightly different result. Release validation must record the exact compressed descriptor sizes for both `linux/amd64` and `linux/arm64` from the published multi-platform image manifest.
 

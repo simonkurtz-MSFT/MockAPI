@@ -63,6 +63,52 @@ public sealed class EndpointManagementServiceTests
         Assert.True(state.Current.Endpoints.TryGet("GET", endpoint.Path, out _));
     }
 
+    [Fact]
+    public void SetEnabledAndDelete_RejectStaleRevisionsAndMissingEndpoints()
+    {
+        var state = new ConfigurationState();
+        var service = new EndpointManagementService(state);
+        var endpoint = CreateEndpoint("/stale");
+        Assert.Equal(ManagementOperationStatus.Applied, service.Create(endpoint, 0).Status);
+
+        Assert.Equal(ManagementOperationStatus.RevisionConflict, service.SetEnabled(endpoint.Id, false, 0).Status);
+        Assert.Equal(ManagementOperationStatus.RevisionConflict, service.Delete(endpoint.Id, 0).Status);
+        Assert.Equal(ManagementOperationStatus.NotFound, service.SetEnabled(Guid.NewGuid(), false, 1).Status);
+        Assert.Equal(ManagementOperationStatus.NotFound, service.Delete(Guid.NewGuid(), 1).Status);
+    }
+
+    [Fact]
+    public async Task Create_WhenRevisionChangesDuringApplyReturnsConflict()
+    {
+        var firstReachedLock = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        var state = new ConfigurationState(() =>
+        {
+            if (Interlocked.Increment(ref calls) == 1)
+            {
+                firstReachedLock.SetResult();
+                releaseFirst.Task.GetAwaiter().GetResult();
+            }
+        });
+        var service = new EndpointManagementService(state);
+        var createTask = Task.Run(() => service.Create(CreateEndpoint("/loser"), 0));
+        await firstReachedLock.Task;
+        var winner = state.TryReplace(
+            new MockApiConfigurationDocument
+            {
+                SchemaVersion = "1.0",
+                Endpoints = [CreateEndpoint("/winner")]
+            },
+            0);
+        releaseFirst.SetResult();
+
+        var result = await createTask;
+
+        Assert.Equal(ConfigurationUpdateStatus.Applied, winner.Status);
+        Assert.Equal(ManagementOperationStatus.RevisionConflict, result.Status);
+    }
+
     private static MockEndpointDefinition CreateEndpoint(string path) => new()
     {
         Id = Guid.NewGuid(),

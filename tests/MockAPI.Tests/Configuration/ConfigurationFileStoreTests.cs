@@ -55,6 +55,7 @@ public sealed class ConfigurationFileStoreTests : IDisposable
 
     [Theory]
     [InlineData("{not json")]
+    [InlineData("null")]
     [InlineData("{\"schemaVersion\":\"1.0\",\"endpoints\":[{}]}")]
     [InlineData("{\"schemaVersion\":\"2.0\",\"endpoints\":[]}")]
     public async Task LoadAsync_InvalidFileFailsWithoutChangingState(string content)
@@ -89,6 +90,66 @@ public sealed class ConfigurationFileStoreTests : IDisposable
 
         Assert.Equal(ConfigurationPersistenceError.DocumentTooLarge, exception.Error);
         Assert.Equal(0, state.Current.Revision);
+    }
+
+    [Fact]
+    public async Task LoadAsync_LockedFileReturnsIoFailure()
+    {
+        Directory.CreateDirectory(_directory);
+        var path = Path.Combine(_directory, "locked.json");
+        await File.WriteAllTextAsync(path, Serialize(CreateDocument("/locked", "body")));
+        await using var locked = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        var state = new ConfigurationState();
+        var store = CreateStore(path, allowEmptyConfiguration: false);
+
+        var exception = await Assert.ThrowsAsync<ConfigurationPersistenceException>(
+            () => store.LoadAsync(state, CancellationToken.None));
+
+        Assert.Equal(ConfigurationPersistenceError.IoFailure, exception.Error);
+        Assert.IsType<IOException>(exception.InnerException);
+        Assert.Equal(0, state.Current.Revision);
+    }
+
+    [Fact]
+    public async Task LoadAsync_UnauthorizedReadReturnsIoFailure()
+    {
+        Directory.CreateDirectory(_directory);
+        var path = Path.Combine(_directory, "unauthorized.json");
+        await File.WriteAllTextAsync(path, "{}");
+        var state = new ConfigurationState();
+        var store = CreateStore(
+            path,
+            openRead: (_, _) => ValueTask.FromException<Stream>(new UnauthorizedAccessException("denied")));
+
+        var exception = await Assert.ThrowsAsync<ConfigurationPersistenceException>(
+            () => store.LoadAsync(state, CancellationToken.None));
+
+        Assert.Equal(ConfigurationPersistenceError.IoFailure, exception.Error);
+        Assert.IsType<UnauthorizedAccessException>(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task LoadAsync_WhenRevisionChangesAfterReadReturnsRevisionConflict()
+    {
+        Directory.CreateDirectory(_directory);
+        var path = Path.Combine(_directory, "revision.json");
+        await File.WriteAllTextAsync(path, Serialize(CreateDocument("/loaded", "loaded")));
+        var state = new ConfigurationState();
+        var store = CreateStore(
+            path,
+            onDocumentLoaded: _ =>
+            {
+                Assert.Equal(
+                    ConfigurationUpdateStatus.Applied,
+                    state.TryReplace(CreateDocument("/concurrent", "concurrent"), 0).Status);
+                return ValueTask.CompletedTask;
+            });
+
+        var exception = await Assert.ThrowsAsync<ConfigurationPersistenceException>(
+            () => store.LoadAsync(state, CancellationToken.None));
+
+        Assert.Equal(ConfigurationPersistenceError.RevisionConflict, exception.Error);
+        Assert.True(state.Current.Endpoints.TryGet("GET", "/concurrent", out _));
     }
 
     [Fact]
@@ -183,6 +244,91 @@ public sealed class ConfigurationFileStoreTests : IDisposable
         Assert.Equal("/second", saved.RootElement.GetProperty("endpoints")[0].GetProperty("path").GetString());
     }
 
+    [Fact]
+    public async Task SaveAsync_WhenParentPathIsAFile_ReturnsIoFailureAndLeavesStateDirty()
+    {
+        Directory.CreateDirectory(_directory);
+        var blocker = Path.Combine(_directory, "not-a-directory");
+        await File.WriteAllTextAsync(blocker, "blocker");
+        var state = new ConfigurationState();
+        Assert.Equal(
+            ConfigurationUpdateStatus.Applied,
+            state.TryReplace(CreateDocument("/unsaved", "body"), expectedRevision: 0).Status);
+        var store = CreateStore(Path.Combine(blocker, "mockapi.json"), allowEmptyConfiguration: true);
+
+        var exception = await Assert.ThrowsAsync<ConfigurationPersistenceException>(
+            () => store.SaveAsync(state, CancellationToken.None));
+
+        Assert.Equal(ConfigurationPersistenceError.IoFailure, exception.Error);
+        Assert.True(state.Current.HasUnsavedChanges);
+        Assert.Equal("blocker", await File.ReadAllTextAsync(blocker));
+    }
+
+    [Fact]
+    public async Task SaveAsync_RootPathWithoutParentReturnsIoFailure()
+    {
+        var root = Path.GetPathRoot(Path.GetFullPath(_directory))!;
+        var state = new ConfigurationState();
+        Assert.Equal(
+            ConfigurationUpdateStatus.Applied,
+            state.TryReplace(CreateDocument("/unsaved", "body"), 0).Status);
+        var store = CreateStore(root, allowEmptyConfiguration: true);
+
+        var exception = await Assert.ThrowsAsync<ConfigurationPersistenceException>(
+            () => store.SaveAsync(state, CancellationToken.None));
+
+        Assert.Equal(ConfigurationPersistenceError.IoFailure, exception.Error);
+    }
+
+    [Fact]
+    public async Task SaveAsync_UnauthorizedDirectoryCreationReturnsIoFailure()
+    {
+        var path = Path.Combine(_directory, "unauthorized", "mockapi.json");
+        var state = new ConfigurationState();
+        Assert.Equal(
+            ConfigurationUpdateStatus.Applied,
+            state.TryReplace(CreateDocument("/unsaved", "body"), 0).Status);
+        var store = CreateStore(
+            path,
+            createDirectory: _ => throw new UnauthorizedAccessException("denied"));
+
+        var exception = await Assert.ThrowsAsync<ConfigurationPersistenceException>(
+            () => store.SaveAsync(state, CancellationToken.None));
+
+        Assert.Equal(ConfigurationPersistenceError.IoFailure, exception.Error);
+        Assert.IsType<UnauthorizedAccessException>(exception.InnerException);
+        Assert.True(state.Current.HasUnsavedChanges);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SaveAsync_TemporaryCleanupFailureDoesNotFailSuccessfulSave(bool unauthorized)
+    {
+        var path = Path.Combine(_directory, "cleanup", "mockapi.json");
+        var state = new ConfigurationState();
+        Assert.Equal(
+            ConfigurationUpdateStatus.Applied,
+            state.TryReplace(CreateDocument("/saved", "body"), 0).Status);
+        var store = CreateStore(
+            path,
+            deleteFile: _ =>
+            {
+                if (unauthorized)
+                {
+                    throw new UnauthorizedAccessException("denied");
+                }
+
+                throw new IOException("busy");
+            });
+
+        var result = await store.SaveAsync(state, CancellationToken.None);
+
+        Assert.True(result.IsCurrentRevision);
+        Assert.False(state.Current.HasUnsavedChanges);
+        Assert.True(File.Exists(path));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_directory))
@@ -197,6 +343,24 @@ public sealed class ConfigurationFileStoreTests : IDisposable
             ConfigurationPath = Path.IsPathRooted(path) ? path : Path.Combine(_directory, path),
             AllowEmptyConfiguration = allowEmptyConfiguration
         });
+
+    private ConfigurationFileStore CreateStore(
+        string path,
+        Func<CancellationToken, ValueTask>? onDocumentLoaded = null,
+        Func<string, CancellationToken, ValueTask<Stream>>? openRead = null,
+        Action<string>? createDirectory = null,
+        Action<string>? deleteFile = null) =>
+        new(
+            new MockApiOptions
+            {
+                ConfigurationPath = Path.IsPathRooted(path) ? path : Path.Combine(_directory, path),
+                AllowEmptyConfiguration = false
+            },
+            _ => ValueTask.CompletedTask,
+            onDocumentLoaded,
+            openRead,
+            createDirectory,
+            deleteFile);
 
     private static MockApiConfigurationDocument CreateDocument(string path, string body) => new()
     {

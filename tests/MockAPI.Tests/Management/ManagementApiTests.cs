@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using MockAPI.Configuration;
@@ -12,6 +13,88 @@ namespace MockAPI.Tests.Management;
 public sealed class ManagementApiTests
 {
     private const string EndpointsPath = "/__mockapi/api/endpoints";
+
+    [Fact]
+    public async Task JsonReader_HandlesRawEmptySuffixAndUnknownLengthBodies()
+    {
+        var emptyContext = CreateJsonContext([], "application/json");
+        var empty = await MockAPI.Management.ManagementApiEndpoints.ReadJsonAsync(
+            emptyContext,
+            MockApiJsonContext.Default.MockApiConfigurationDocument);
+        var validDocument = new MockApiConfigurationDocument
+        {
+            SchemaVersion = "1.0",
+            Endpoints = []
+        };
+        var validBytes = JsonSerializer.SerializeToUtf8Bytes(
+            validDocument,
+            MockApiJsonContext.Default.MockApiConfigurationDocument);
+        var suffixContext = CreateJsonContext(validBytes, "application/problem+json");
+        var suffix = await MockAPI.Management.ManagementApiEndpoints.ReadJsonAsync(
+            suffixContext,
+            MockApiJsonContext.Default.MockApiConfigurationDocument);
+        var oversizedContext = CreateJsonContext(
+            new byte[ConfigurationLimits.MaximumDocumentBytes + 1],
+            "application/json");
+        var oversized = await MockAPI.Management.ManagementApiEndpoints.ReadJsonAsync(
+            oversizedContext,
+            MockApiJsonContext.Default.MockApiConfigurationDocument);
+
+        Assert.Null(empty);
+        Assert.Equal(StatusCodes.Status400BadRequest, emptyContext.Response.StatusCode);
+        Assert.NotNull(suffix);
+        Assert.Equal("1.0", suffix.SchemaVersion);
+        Assert.Null(oversized);
+        Assert.Equal(StatusCodes.Status413PayloadTooLarge, oversizedContext.Response.StatusCode);
+        Assert.Throws<JsonException>(() => MockAPI.Management.ManagementApiEndpoints.DeserializeRequired(
+            "null"u8,
+            MockApiJsonContext.Default.MockApiConfigurationDocument));
+        Assert.Equal("1.0", MockAPI.Management.ManagementApiEndpoints.DeserializeRequired(
+            validBytes,
+            MockApiJsonContext.Default.MockApiConfigurationDocument).SchemaVersion);
+    }
+
+    [Fact]
+    public async Task StatisticsStream_CancellationIsHandled()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var context = new DefaultHttpContext();
+        context.RequestAborted = cancellation.Token;
+        context.Response.Body = new MemoryStream();
+
+        var streamTask = MockAPI.Management.ManagementApiEndpoints.StreamStatisticsAsync(
+            context,
+            new MockAPI.Runtime.RequestStatisticsCollector());
+        await WaitForAsync(() => context.Response.Body.Length > 0, TimeSpan.FromSeconds(2));
+        cancellation.Cancel();
+        await streamTask;
+
+        context.Response.Body.Position = 0;
+        using var reader = new StreamReader(context.Response.Body);
+        Assert.Contains("event: statistics", await reader.ReadToEndAsync());
+    }
+
+    [Fact]
+    public async Task BuiltInResourceHelpers_ReportMissingAndNullDocuments()
+    {
+        var missing = Assert.Throws<InvalidOperationException>(() =>
+            MockAPI.Management.ManagementApiEndpoints.OpenBuiltInConfiguration("missing"));
+        await using var nullDocument = new MemoryStream("null"u8.ToArray());
+
+        var unreadable = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            MockAPI.Management.ManagementApiEndpoints.ReadBuiltInConfigurationAsync(
+                nullDocument,
+                "null",
+                CancellationToken.None));
+
+        Assert.Contains("missing configuration is unavailable", missing.Message, StringComparison.Ordinal);
+        Assert.Contains("null configuration could not be read", unreadable.Message, StringComparison.Ordinal);
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            MockAPI.Management.ManagementApiEndpoints.ReadBuiltInConfigurationAsync(
+                null!,
+                "null",
+                CancellationToken.None));
+    }
 
     [Fact]
     public async Task ManagementRateLimit_ReturnsProblemWithoutAffectingHealth()
@@ -485,4 +568,22 @@ public sealed class ManagementApiTests
 
     private static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response) =>
         JsonDocument.Parse(await response.Content.ReadAsByteArrayAsync());
+
+    private static DefaultHttpContext CreateJsonContext(byte[] body, string contentType)
+    {
+        var context = new DefaultHttpContext();
+        context.Request.ContentType = contentType;
+        context.Request.Body = new MemoryStream(body);
+        context.Response.Body = new MemoryStream();
+        return context;
+    }
+
+    private static async Task WaitForAsync(Func<bool> condition, TimeSpan timeout)
+    {
+        using var cancellation = new CancellationTokenSource(timeout);
+        while (!condition())
+        {
+            await Task.Delay(10, cancellation.Token);
+        }
+    }
 }

@@ -43,4 +43,59 @@ Suggested subject: `docs: complete operating and release guidance`
 - `docs/PLAN.md`
 - `docs/COMMIT_PLAN.md`
 
-Before each commit, inspect both staged and unstaged changes because some files may already contain user-staged work. Do not use a blanket reset or checkout.
+## 4. Quality engineering and minimal publish enforcement
+
+Suggested subject: `test: add coverage accessibility and browser quality gates`
+
+- `package.json`
+- `pnpm-lock.yaml`
+- `pnpm-workspace.yaml`
+- `vitest.config.js`
+- `playwright.config.js`
+- `.github/mockapi-mark.svg`
+- `.github/social-preview.svg`
+- `.github/social-preview.png`
+- `src/MockAPI/wwwroot/dashboard-core.js`
+- `src/MockAPI/wwwroot/favicon.svg`
+- `tests/frontend/dashboard-core.test.js`
+- `tests/browser/global-setup.js`
+- `tests/browser/dashboard.spec.js`
+- `tests/coverage.runsettings`
+- `scripts/Assert-Coverage.ps1`
+- `scripts/Assert-PublishContents.ps1`
+- `scripts/Test-DependencyAge.ps1`
+- `scripts/Test-WorkflowPins.ps1`
+- `.github/dependency-age-exceptions.json`
+- `.github/workflows/quality.yml`
+- `.github/workflows/container-pr.yml`
+- `.github/workflows/container-release.yml`
+- `.github/dependabot.yml`
+- `.dockerignore`
+- `src/MockAPI/MockAPI.csproj`
+- `src/MockAPI/Configuration/MockApiOptions.cs`
+- `src/MockAPI/Program.cs`
+- `src/MockAPI/wwwroot/app.js`
+- `src/MockAPI/wwwroot/app.css`
+- `src/MockAPI/wwwroot/index.html`
+- `start.ps1`
+- `tests/MockAPI.Tests/Configuration/ConfigurationStartupTests.cs`
+- `tests/MockAPI.Tests/Configuration/ConfigurationFileStoreTests.cs`
+- `tests/MockAPI.Tests/Configuration/ConfigurationStateTests.cs`
+- `tests/MockAPI.Tests/Configuration/ConfigurationValidatorTests.cs`
+- `tests/MockAPI.Tests/Management/ConfigurationManagementServiceTests.cs`
+- `tests/MockAPI.Tests/Management/EndpointManagementServiceTests.cs`
+- `tests/MockAPI.Tests/Management/ManagementApiTests.cs`
+- `tests/MockAPI.Tests/Management/RemainingManagementApiTests.cs`
+- `tests/MockAPI.Tests/Runtime/MockDispatcherTests.cs`
+- `tests/MockAPI.Tests/Runtime/RequestStatisticsCollectorTests.cs`
+- `docs/ACCESSIBILITY.md`
+- `docs/PLAN.md`
+- `docs/WSLC.md`
+- `README.md`
+- `.github/copilot-instructions.md`
+- `.github/instructions/container.instructions.md`
+- `.github/instructions/dotnet.instructions.md`
+
+Includes seven-day dependency-age enforcement, source-only backend coverage gates, 100% deterministic frontend helper coverage, Playwright/axe projects and CI evidence, accessibility release guidance, symbol-free publications, minimized Docker context, and measured final image contents.
+
+Before each commit, inspect both staged and unstaged changes because some Phase 7 files currently contain both staged and unstaged edits. Do not use a blanket reset, checkout, or indiscriminate `git add -A`.

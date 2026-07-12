@@ -260,6 +260,221 @@ public sealed class RemainingManagementApiTests : IDisposable
     }
 
     [Fact]
+    public async Task Save_StaleRevisionAndPersistenceFailureReturnProblems()
+    {
+        var blocker = Path.Combine(_directory, "not-a-directory");
+        Directory.CreateDirectory(_directory);
+        await File.WriteAllTextAsync(blocker, "blocker");
+        await using var factory = CreateFactory(Path.Combine(blocker, "mockapi.json"));
+        using var client = factory.CreateClient();
+        using var imported = await SendDocumentAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/configuration/import",
+            CreateDocument(CreateEndpoint("/dirty", "body")),
+            "\"0\"");
+
+        using var stale = await SendAsync(client, HttpMethod.Post, $"{BasePath}/configuration/save", "\"0\"");
+        using var failed = await SendAsync(client, HttpMethod.Post, $"{BasePath}/configuration/save", "\"1\"");
+
+        Assert.Equal(HttpStatusCode.PreconditionFailed, stale.StatusCode);
+        using var staleProblem = await ReadJsonAsync(stale);
+        Assert.EndsWith("revision-conflict", staleProblem.RootElement.GetProperty("type").GetString(), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.InternalServerError, failed.StatusCode);
+        using var failedProblem = await ReadJsonAsync(failed);
+        Assert.EndsWith("persistence-failed", failedProblem.RootElement.GetProperty("type").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ConfigurationOperations_MalformedJsonAndStaleMergeReturnProblems()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        using var malformedValidation = await SendAsync(
+            client,
+            HttpMethod.Post,
+            $"{BasePath}/configuration/validate",
+            json: "{not json");
+        using var malformedImport = await SendAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/configuration/import",
+            "\"0\"",
+            "{not json");
+        using var imported = await SendDocumentAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/configuration/import",
+            CreateDocument(CreateEndpoint("/revision", "body")),
+            "\"0\"");
+        using var staleMerge = await SendAsync(
+            client,
+            HttpMethod.Post,
+            $"{BasePath}/configuration/example/merge",
+            "\"0\"");
+
+        Assert.Equal(HttpStatusCode.BadRequest, malformedValidation.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, malformedImport.StatusCode);
+        Assert.Equal(HttpStatusCode.PreconditionFailed, staleMerge.StatusCode);
+    }
+
+    [Fact]
+    public async Task ConfigurationOperations_EnforceBodyAndJsonMediaContracts()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        using var empty = await client.PostAsync(
+            $"{BasePath}/configuration/validate",
+            new StringContent(string.Empty, Encoding.UTF8, "application/json"));
+        using var noMediaTypeRequest = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{BasePath}/configuration/validate")
+        {
+            Content = new ByteArrayContent("{}"u8.ToArray())
+        };
+        using var noMediaType = await client.SendAsync(noMediaTypeRequest);
+        using var suffixRequest = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{BasePath}/configuration/validate")
+        {
+            Content = new StringContent(
+                JsonSerializer.Serialize(CreateDocument(), MockApiJsonContext.Default.MockApiConfigurationDocument),
+                Encoding.UTF8,
+                "application/problem+json")
+        };
+        using var suffix = await client.SendAsync(suffixRequest);
+        using var chunkedRequest = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{BasePath}/configuration/validate")
+        {
+            Content = new UnknownLengthJsonContent(new byte[ConfigurationLimits.MaximumDocumentBytes + 1])
+        };
+        using var chunked = await client.SendAsync(chunkedRequest);
+
+        Assert.Equal(HttpStatusCode.BadRequest, empty.StatusCode);
+        Assert.Equal(HttpStatusCode.UnsupportedMediaType, noMediaType.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, suffix.StatusCode);
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, chunked.StatusCode);
+    }
+
+    [Fact]
+    public async Task ConfigurationAndEndpointWrites_RequirePreconditionsBeforeReadingBodies()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var endpointId = Guid.NewGuid();
+        var requests = new[]
+        {
+            new HttpRequestMessage(HttpMethod.Post, $"{BasePath}/configuration/example/merge"),
+            new HttpRequestMessage(HttpMethod.Put, $"{BasePath}/configuration/import"),
+            new HttpRequestMessage(HttpMethod.Post, $"{BasePath}/configuration/save"),
+            new HttpRequestMessage(HttpMethod.Put, $"{BasePath}/endpoints/{endpointId}"),
+            new HttpRequestMessage(HttpMethod.Put, $"{BasePath}/endpoints/{endpointId}/enabled"),
+            new HttpRequestMessage(HttpMethod.Delete, $"{BasePath}/endpoints/{endpointId}")
+        };
+
+        foreach (var request in requests)
+        {
+            using (request)
+            using (var response = await client.SendAsync(request))
+            {
+                Assert.Equal(HttpStatusCode.PreconditionRequired, response.StatusCode);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task BuiltInMerge_InvalidMergedDocumentLeavesActiveConfigurationUnchanged()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var endpoints = Enumerable.Range(0, ConfigurationLimits.MaximumEndpoints - 3)
+            .Select(index => CreateEndpoint($"/custom-{index}", $"body-{index}"))
+            .ToArray();
+        using var imported = await SendDocumentAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/configuration/import",
+            CreateDocument(endpoints),
+            "\"0\"");
+
+        using var response = await SendAsync(
+            client,
+            HttpMethod.Post,
+            $"{BasePath}/configuration/example/merge",
+            "\"1\"");
+        using var active = await client.GetAsync($"{BasePath}/endpoints");
+        using var activeJson = await ReadJsonAsync(active);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal(endpoints.Length, activeJson.RootElement.GetArrayLength());
+        Assert.Equal("\"1\"", response.Headers.ETag!.Tag);
+    }
+
+    [Fact]
+    public async Task Import_WhenRevisionChangesDuringBodyReadReturnsConflict()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var releaseBody = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var bodyStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var candidate = JsonSerializer.SerializeToUtf8Bytes(
+            CreateDocument(CreateEndpoint("/slow-import", "slow")),
+            MockApiJsonContext.Default.MockApiConfigurationDocument);
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"{BasePath}/configuration/import")
+        {
+            Content = new GatedJsonContent(candidate, bodyStarted, releaseBody)
+        };
+        request.Headers.TryAddWithoutValidation("If-Match", "\"0\"");
+        var importTask = client.SendAsync(request);
+        await bodyStarted.Task;
+        using var concurrent = await SendDocumentAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/configuration/import",
+            CreateDocument(CreateEndpoint("/winner", "winner")),
+            "\"0\"");
+        releaseBody.SetResult();
+
+        using var response = await importTask;
+
+        Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
+        Assert.Equal("winner", await client.GetStringAsync("/winner"));
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/slow-import")).StatusCode);
+    }
+
+    [Fact]
+    public async Task EndpointUpdates_MalformedBodiesReturnProblemsWithoutMutation()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var endpoint = CreateEndpoint("/malformed-update", "body");
+        using var created = await SendDocumentAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/configuration/import",
+            CreateDocument(endpoint),
+            "\"0\"");
+
+        using var replace = await SendAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/endpoints/{endpoint.Id}",
+            "\"1\"",
+            "{not json");
+        using var enabled = await SendAsync(
+            client,
+            HttpMethod.Put,
+            $"{BasePath}/endpoints/{endpoint.Id}/enabled",
+            "\"1\"",
+            "{not json");
+
+        Assert.Equal(HttpStatusCode.BadRequest, replace.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, enabled.StatusCode);
+        Assert.Equal("body", await client.GetStringAsync(endpoint.Path));
+    }
+
+    [Fact]
     public async Task Statistics_QueryAndResetExposeAggregateAndEndpointState()
     {
         await using var factory = CreateFactory();
@@ -315,6 +530,25 @@ public sealed class RemainingManagementApiTests : IDisposable
     }
 
     [Fact]
+    public async Task Statistics_MissingEndpointResetReturnsProblem()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        using var response = await SendAsync(
+            client,
+            HttpMethod.Post,
+            $"{BasePath}/statistics/endpoints/{Guid.NewGuid()}/reset");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        using var problem = await ReadJsonAsync(response);
+        Assert.EndsWith(
+            "endpoint-statistics-not-found",
+            problem.RootElement.GetProperty("type").GetString(),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task StatisticsEvents_StreamServerSentStatistics()
     {
         await using var factory = CreateFactory();
@@ -341,6 +575,27 @@ public sealed class RemainingManagementApiTests : IDisposable
     }
 
     [Fact]
+    public async Task StatisticsEvents_ClientCancellationClosesStream()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        using var cancellation = new CancellationTokenSource();
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{BasePath}/statistics/events");
+        using var response = await client.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellation.Token);
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellation.Token);
+        using var reader = new StreamReader(stream);
+        Assert.Equal("event: statistics", await reader.ReadLineAsync(cancellation.Token));
+
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await reader.ReadLineAsync(cancellation.Token));
+    }
+
+    [Fact]
     public async Task HealthAndRootDashboardAreApplicationRoutes()
     {
         await using var factory = CreateFactory();
@@ -351,6 +606,8 @@ public sealed class RemainingManagementApiTests : IDisposable
         using var dashboard = await client.GetAsync("/");
         using var stylesheet = await client.GetAsync("/app.css");
         using var script = await client.GetAsync("/app.js");
+        using var dashboardCore = await client.GetAsync("/dashboard-core.js");
+        using var favicon = await client.GetAsync("/favicon.svg");
 
         Assert.Equal(HttpStatusCode.OK, live.StatusCode);
         Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
@@ -367,6 +624,12 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, script.StatusCode);
         Assert.Equal("text/javascript", script.Content.Headers.ContentType!.MediaType);
         Assert.Equal("no-store", script.Headers.CacheControl!.ToString());
+        Assert.Equal(HttpStatusCode.OK, dashboardCore.StatusCode);
+        Assert.Equal("text/javascript", dashboardCore.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("no-store", dashboardCore.Headers.CacheControl!.ToString());
+        Assert.Equal(HttpStatusCode.OK, favicon.StatusCode);
+        Assert.Equal("image/svg+xml", favicon.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("public, max-age=86400", favicon.Headers.CacheControl!.ToString());
         var html = await dashboard.Content.ReadAsStringAsync();
         var javascript = await script.Content.ReadAsStringAsync();
         Assert.Contains("MockAPI", html, StringComparison.Ordinal);
@@ -388,6 +651,9 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Contains("loadBuiltInConfiguration(\"example\")", javascript, StringComparison.Ordinal);
         Assert.Contains("/merge?force=true", javascript, StringComparison.Ordinal);
         Assert.Contains("openTestBlade", javascript, StringComparison.Ordinal);
+        Assert.Contains("type=\"module\"", html, StringComparison.Ordinal);
+        Assert.Contains("rel=\"icon\" href=\"/favicon.svg\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"theme-color\" content=\"#b11f4b\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -564,4 +830,55 @@ public sealed class RemainingManagementApiTests : IDisposable
 
     private static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response) =>
         JsonDocument.Parse(await response.Content.ReadAsByteArrayAsync());
+
+    private sealed class UnknownLengthJsonContent : HttpContent
+    {
+        private readonly byte[] _content;
+
+        public UnknownLengthJsonContent(byte[] content)
+        {
+            _content = content;
+            Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+        }
+
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            stream.WriteAsync(_content).AsTask();
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return false;
+        }
+    }
+
+    private sealed class GatedJsonContent : HttpContent
+    {
+        private readonly byte[] _content;
+        private readonly TaskCompletionSource _started;
+        private readonly TaskCompletionSource _release;
+
+        public GatedJsonContent(byte[] content, TaskCompletionSource started, TaskCompletionSource release)
+        {
+            _content = content;
+            _started = started;
+            _release = release;
+            Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+        }
+
+        protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+        {
+            var split = _content.Length / 2;
+            await stream.WriteAsync(_content.AsMemory(0, split));
+            await stream.FlushAsync();
+            _started.SetResult();
+            await _release.Task;
+            await stream.WriteAsync(_content.AsMemory(split));
+        }
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return false;
+        }
+    }
 }

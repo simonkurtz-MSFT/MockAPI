@@ -8,6 +8,7 @@ public sealed class RequestStatisticsCollector
     public const int MaximumTrackedEndpoints = 256;
 
     private readonly TimeProvider _timeProvider;
+    private readonly Action? _beforeEndpointLock;
     private readonly MinuteBucketSeries _recentMinutes = new();
     private readonly ConcurrentDictionary<Guid, EndpointCounter> _endpoints = new();
     private readonly object _endpointGate = new();
@@ -23,8 +24,14 @@ public sealed class RequestStatisticsCollector
     private long _responseBytes;
 
     public RequestStatisticsCollector(TimeProvider? timeProvider = null)
+        : this(timeProvider, beforeEndpointLock: null)
+    {
+    }
+
+    internal RequestStatisticsCollector(TimeProvider? timeProvider, Action? beforeEndpointLock)
     {
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _beforeEndpointLock = beforeEndpointLock;
     }
 
     public void RecordUnmatched()
@@ -111,6 +118,7 @@ public sealed class RequestStatisticsCollector
             return existing;
         }
 
+        _beforeEndpointLock?.Invoke();
         lock (_endpointGate)
         {
             if (_endpoints.TryGetValue(endpointId, out existing))
@@ -151,6 +159,11 @@ public sealed class RequestStatisticsCollector
         }
     }
 
+    internal static uint GetNextBucketCount(int recordedMinute, int minute, uint count) =>
+        recordedMinute == minute
+            ? count == uint.MaxValue ? count : count + 1
+            : 1;
+
     private sealed class EndpointCounter
     {
         private readonly MinuteBucketSeries _recentMinutes = new();
@@ -174,7 +187,7 @@ public sealed class RequestStatisticsCollector
             return new EndpointStatisticsSnapshot(
                 endpointId,
                 Interlocked.Read(ref _totalRequests),
-                lastRequestTicks == 0 ? null : new DateTimeOffset(lastRequestTicks, TimeSpan.Zero),
+                new DateTimeOffset(lastRequestTicks, TimeSpan.Zero),
                 Volatile.Read(ref _lastStatusCode),
                 Interlocked.Read(ref _responseBytes),
                 _recentMinutes.GetSnapshot(now));
@@ -191,7 +204,7 @@ public sealed class RequestStatisticsCollector
         public void Record(DateTimeOffset timestamp)
         {
             var minute = GetUnixMinute(timestamp);
-            _buckets[minute % BucketCount].Record(minute);
+            _buckets[GetBucketIndex(minute)].Record(minute);
         }
 
         public ImmutableArray<MinuteBucketSnapshot> GetSnapshot(DateTimeOffset timestamp)
@@ -201,9 +214,11 @@ public sealed class RequestStatisticsCollector
             for (var offset = BucketCount - 1; offset >= 0; offset--)
             {
                 var minute = currentMinute - offset;
-                var requests = _buckets[minute % BucketCount].Read(minute);
+                var requests = _buckets[GetBucketIndex(minute)].Read(minute);
                 builder.Add(new MinuteBucketSnapshot(
-                    DateTimeOffset.FromUnixTimeSeconds((long)minute * 60),
+                    DateTimeOffset.FromUnixTimeSeconds(Math.Max(
+                        (long)minute * 60,
+                        DateTimeOffset.MinValue.ToUnixTimeSeconds())),
                     requests));
             }
 
@@ -220,6 +235,8 @@ public sealed class RequestStatisticsCollector
 
         private static int GetUnixMinute(DateTimeOffset timestamp) =>
             checked((int)(timestamp.ToUnixTimeSeconds() / 60));
+
+        private static int GetBucketIndex(int minute) => Math.Abs(minute % BucketCount);
     }
 
     private sealed class MinuteBucket
@@ -233,9 +250,7 @@ public sealed class RequestStatisticsCollector
                 var state = Volatile.Read(ref _state);
                 var recordedMinute = (int)(state >> 32);
                 var count = (uint)state;
-                var nextCount = recordedMinute == minute
-                    ? count == uint.MaxValue ? count : count + 1
-                    : 1;
+                var nextCount = GetNextBucketCount(recordedMinute, minute, count);
                 var nextState = ((long)minute << 32) | nextCount;
                 if (Interlocked.CompareExchange(ref _state, nextState, state) == state)
                 {
@@ -243,6 +258,7 @@ public sealed class RequestStatisticsCollector
                 }
             }
         }
+
 
         public long Read(int minute)
         {

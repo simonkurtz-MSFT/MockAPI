@@ -6,58 +6,12 @@ using MockAPI.Management;
 using MockAPI.Runtime;
 
 var builder = WebApplication.CreateBuilder(args);
-var configurationPath = builder.Configuration[$"{MockApiOptions.SectionName}:ConfigurationPath"];
-if (string.IsNullOrWhiteSpace(configurationPath))
-{
-    configurationPath = builder.Environment.IsDevelopment()
-        ? Path.Combine(builder.Environment.ContentRootPath, "mockapi.json")
-        : "/data/mockapi.json";
-}
+var options = MockApiHostConfiguration.CreateOptions(
+    builder.Configuration,
+    builder.Environment.IsDevelopment(),
+    builder.Environment.ContentRootPath);
 
-var allowEmptyValue = builder.Configuration[$"{MockApiOptions.SectionName}:AllowEmptyConfiguration"];
-if (!string.IsNullOrWhiteSpace(allowEmptyValue) && !bool.TryParse(allowEmptyValue, out _))
-{
-    throw new InvalidOperationException("MockApi:AllowEmptyConfiguration must be 'true' or 'false'.");
-}
-
-var enableManagementApiValue = builder.Configuration[$"{MockApiOptions.SectionName}:EnableManagementApi"];
-if (!string.IsNullOrWhiteSpace(enableManagementApiValue) && !bool.TryParse(enableManagementApiValue, out _))
-{
-    throw new InvalidOperationException("MockApi:EnableManagementApi must be 'true' or 'false'.");
-}
-
-var enableDashboardValue = builder.Configuration[$"{MockApiOptions.SectionName}:EnableDashboard"];
-if (!string.IsNullOrWhiteSpace(enableDashboardValue) && !bool.TryParse(enableDashboardValue, out _))
-{
-    throw new InvalidOperationException("MockApi:EnableDashboard must be 'true' or 'false'.");
-}
-
-var enableOpenApiValue = builder.Configuration[$"{MockApiOptions.SectionName}:EnableOpenApi"];
-if (!string.IsNullOrWhiteSpace(enableOpenApiValue) && !bool.TryParse(enableOpenApiValue, out _))
-{
-    throw new InvalidOperationException("MockApi:EnableOpenApi must be 'true' or 'false'.");
-}
-
-var enableSwaggerUiValue = builder.Configuration[$"{MockApiOptions.SectionName}:EnableSwaggerUi"];
-if (!string.IsNullOrWhiteSpace(enableSwaggerUiValue) && !bool.TryParse(enableSwaggerUiValue, out _))
-{
-    throw new InvalidOperationException("MockApi:EnableSwaggerUi must be 'true' or 'false'.");
-}
-
-var options = new MockApiOptions
-{
-    ConfigurationPath = configurationPath,
-    AllowEmptyConfiguration = string.IsNullOrWhiteSpace(allowEmptyValue) || bool.Parse(allowEmptyValue),
-    EnableManagementApi = string.IsNullOrWhiteSpace(enableManagementApiValue) || bool.Parse(enableManagementApiValue),
-    EnableDashboard = string.IsNullOrWhiteSpace(enableDashboardValue) || bool.Parse(enableDashboardValue),
-    EnableOpenApi = string.IsNullOrWhiteSpace(enableOpenApiValue) || bool.Parse(enableOpenApiValue),
-    EnableSwaggerUi = string.IsNullOrWhiteSpace(enableSwaggerUiValue) || bool.Parse(enableSwaggerUiValue)
-};
-
-builder.WebHost.ConfigureKestrel(options =>
-{
-    options.AddServerHeader = false;
-});
+builder.WebHost.ConfigureKestrel(MockApiHostConfiguration.ConfigureKestrel);
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<ConfigurationState>();
 builder.Services.AddSingleton<ConfigurationFileStore>();
@@ -68,10 +22,10 @@ builder.Services.AddRateLimiter(rateLimiter =>
 {
     rateLimiter.AddPolicy(ManagementApiEndpoints.RateLimitPolicyName, context =>
         RateLimitPartition.GetSlidingWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            MockApiHostConfiguration.GetRateLimitPartitionKey(context),
             _ => new SlidingWindowRateLimiterOptions
             {
-                PermitLimit = 120,
+                PermitLimit = options.ManagementPermitLimit,
                 Window = TimeSpan.FromMinutes(1),
                 SegmentsPerWindow = 6,
                 QueueLimit = 0,
@@ -107,11 +61,7 @@ await configurationStore.LoadAsync(configuration, CancellationToken.None);
 
 if (options.EnableDashboard)
 {
-    var informationalVersion = typeof(Program).Assembly
-        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
-        .InformationalVersion ?? throw new InvalidOperationException(
-            "The application informational version is unavailable.");
-    var version = informationalVersion.Split('+', 2)[0];
+    var version = MockApiHostConfiguration.GetVersion(typeof(Program).Assembly);
     var dashboardHtml = (await File.ReadAllTextAsync(
         Path.Combine(app.Environment.WebRootPath, "index.html"),
         CancellationToken.None)).Replace("{{VERSION}}", version, StringComparison.Ordinal);
@@ -130,6 +80,22 @@ if (options.EnableDashboard)
         return Results.File(
             Path.Combine(app.Environment.WebRootPath, "app.js"),
             "text/javascript; charset=utf-8");
+    })
+        .ExcludeFromDescription();
+    app.MapGet("/dashboard-core.js", (HttpContext context) =>
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        return Results.File(
+            Path.Combine(app.Environment.WebRootPath, "dashboard-core.js"),
+            "text/javascript; charset=utf-8");
+    })
+        .ExcludeFromDescription();
+    app.MapGet("/favicon.svg", (HttpContext context) =>
+    {
+        context.Response.Headers.CacheControl = "public, max-age=86400";
+        return Results.File(
+            Path.Combine(app.Environment.WebRootPath, "favicon.svg"),
+            "image/svg+xml");
     })
         .ExcludeFromDescription();
     app.MapMethods("/", [HttpMethods.Get, HttpMethods.Head], (HttpContext context) =>
@@ -184,3 +150,81 @@ app.MapFallback("/{**path}", context =>
 app.Run();
 
 public partial class Program;
+
+internal static class MockApiHostConfiguration
+{
+    internal static MockApiOptions CreateOptions(
+        IConfiguration configuration,
+        bool isDevelopment,
+        string contentRootPath)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contentRootPath);
+        var configurationPath = configuration[$"{MockApiOptions.SectionName}:ConfigurationPath"];
+        if (string.IsNullOrWhiteSpace(configurationPath))
+        {
+            configurationPath = isDevelopment
+                ? Path.Combine(contentRootPath, "mockapi.json")
+                : "/data/mockapi.json";
+        }
+
+        return new MockApiOptions
+        {
+            ConfigurationPath = configurationPath,
+            AllowEmptyConfiguration = ReadBoolean(configuration, "AllowEmptyConfiguration"),
+            EnableManagementApi = ReadBoolean(configuration, "EnableManagementApi"),
+            EnableDashboard = ReadBoolean(configuration, "EnableDashboard"),
+            EnableOpenApi = ReadBoolean(configuration, "EnableOpenApi"),
+            EnableSwaggerUi = ReadBoolean(configuration, "EnableSwaggerUi"),
+            ManagementPermitLimit = ReadPositiveInteger(configuration, "ManagementPermitLimit", 120)
+        };
+    }
+
+    internal static string GetRateLimitPartitionKey(HttpContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    }
+
+    internal static string GetVersion(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+        var informationalVersion = assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion ?? throw new InvalidOperationException(
+                "The application informational version is unavailable.");
+        return informationalVersion.Split('+', 2)[0];
+    }
+
+    internal static void ConfigureKestrel(Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        options.AddServerHeader = false;
+    }
+
+    private static bool ReadBoolean(IConfiguration configuration, string name)
+    {
+        var value = configuration[$"{MockApiOptions.SectionName}:{name}"];
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        return bool.TryParse(value, out var result)
+            ? result
+            : throw new InvalidOperationException($"MockApi:{name} must be 'true' or 'false'.");
+    }
+
+    private static int ReadPositiveInteger(IConfiguration configuration, string name, int defaultValue)
+    {
+        var value = configuration[$"{MockApiOptions.SectionName}:{name}"];
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return defaultValue;
+        }
+
+        return int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var result) && result > 0
+            ? result
+            : throw new InvalidOperationException($"MockApi:{name} must be a positive integer.");
+    }
+}

@@ -23,3 +23,4 @@ applyTo: "**/*.{cs,csproj,sln,props,targets}"
 - Avoid reflection-heavy or dynamic features that undermine full trimming. Treat trim warnings as defects unless a narrowly documented suppression is necessary.
 - Add unit tests for domain behavior and integration tests for HTTP/protocol behavior. Include a test proving runtime-created endpoints work without restart when changing dynamic routing.
 - Format touched C# files and run the narrowest affected tests before the full solution test suite.
+- Collect backend coverage with `tests/coverage.runsettings`, enforce the checked-in line and branch floors, and retain portable symbols for test instrumentation while removing PDBs from publish output.

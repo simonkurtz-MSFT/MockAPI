@@ -6,6 +6,33 @@ namespace MockAPI.Tests.Configuration;
 public sealed class ConfigurationStateTests
 {
     [Fact]
+    public async Task TryReplace_WhenRevisionChangesBeforeWriteLockReturnsConflict()
+    {
+        var firstReachedLock = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        var state = new ConfigurationState(() =>
+        {
+            if (Interlocked.Increment(ref calls) == 1)
+            {
+                firstReachedLock.SetResult();
+                releaseFirst.Task.GetAwaiter().GetResult();
+            }
+        });
+        var firstTask = Task.Run(() => state.TryReplace(
+            CreateDocument(CreateEndpoint("GET", "/first", "first")),
+            0));
+        await firstReachedLock.Task;
+
+        var winner = state.TryReplace(CreateDocument(CreateEndpoint("GET", "/winner", "winner")), 0);
+        releaseFirst.SetResult();
+        var first = await firstTask;
+
+        Assert.Equal(ConfigurationUpdateStatus.Applied, winner.Status);
+        Assert.Equal(ConfigurationUpdateStatus.RevisionConflict, first.Status);
+        Assert.True(state.Current.Endpoints.TryGet("GET", "/winner", out _));
+    }
+    [Fact]
     public void TryReplace_AtomicallyPublishesDocumentRoutesRevisionAndDirtyState()
     {
         var state = new ConfigurationState();
@@ -136,6 +163,18 @@ public sealed class ConfigurationStateTests
         Assert.True(evaluation.IsValid, JsonSerializer.Serialize(evaluation));
         var text = JsonSerializer.Serialize(json.RootElement);
         Assert.True(text.IndexOf("A-First", StringComparison.Ordinal) < text.IndexOf("Z-Last", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void DeserializeDocument_RejectsNullAndReadsValidDocument()
+    {
+        var document = CreateDocument(CreateEndpoint("GET", "/deserialize", "body"));
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(
+            document,
+            MockApiJsonContext.Default.MockApiConfigurationDocument);
+
+        Assert.Single(ConfigurationStateSnapshot.DeserializeDocument(bytes).Endpoints);
+        Assert.Throws<InvalidOperationException>(() => ConfigurationStateSnapshot.DeserializeDocument("null"u8));
     }
 
     [Fact]

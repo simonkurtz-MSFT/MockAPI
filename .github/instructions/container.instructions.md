@@ -13,6 +13,7 @@ applyTo: "**/{Dockerfile,Dockerfile.*,*.Dockerfile,.dockerignore,compose*.yml,co
 - Keep the root `start.ps1` container actions aligned with the Dockerfile and `docs/WSLC.md`; use those actions as the normal local workflow and retain direct WSLC commands for troubleshooting.
 - Treat local WSLC builds on the ARM64 development host as native `linux/arm64` validation only. WSLC `2.9.3.0` does not expose target-platform selection or image-index management; build and test both architecture images and assemble the OCI index in CI.
 - Keep build tools and SDK content out of the final image.
+- Keep Node.js, package-manager files, browser binaries, tests, coverage output, documentation, and debug symbols out of the Docker build context and final image; validate publish contents with `scripts/Assert-PublishContents.ps1`.
 - Run as the built-in non-root `app` user and listen on HTTP port 8080.
 - Keep the root filesystem read-only compatible; `/data` is the only writable application mount.
 - Do not install a shell, package manager, or diagnostic utility in the final image.

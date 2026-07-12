@@ -5,14 +5,24 @@
     "format": "prettier --write . && dotnet format MockAPI.slnx",
     "format:check": "prettier --check . && dotnet format MockAPI.slnx --verify-no-changes",
     "lint:markdown": "markdownlint-cli2 \"**/*.md\" \"#node_modules/**\" \"#artifacts/**\" \"#**/bin/**\" \"#**/obj/**\"",
-    "lint": "pnpm run format:check && pnpm run lint:markdown"
+    "lint": "pnpm run format:check && pnpm run lint:markdown && pnpm run validate:workflow-pins",
+    "test:frontend": "vitest run",
+    "test:frontend:coverage": "vitest run --coverage",
+    "test:browser": "playwright test",
+    "test:browser:smoke": "playwright test --grep @smoke",
+    "validate:dependency-age": "pwsh ./scripts/Test-DependencyAge.ps1",
+    "validate:workflow-pins": "pwsh ./scripts/Test-WorkflowPins.ps1"
   },
   "engines": {
     "node": ">=26"
   },
   "packageManager": "pnpm@11.9.0",
   "devDependencies": {
+    "@axe-core/playwright": "4.10.2",
+    "@playwright/test": "1.54.1",
+    "@vitest/coverage-v8": "3.2.4",
     "markdownlint-cli2": "0.23.0",
-    "prettier": "3.9.5"
+    "prettier": "3.9.4",
+    "vitest": "3.2.4"
   }
 }

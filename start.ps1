@@ -270,6 +270,7 @@ function Invoke-Coverage {
   New-Item -ItemType Directory -Path $coverageDirectory -Force | Out-Null
   Invoke-Tool -Executable 'dotnet' -Operation 'Running tests with XPlat code coverage' -Arguments @(
     'test', $solutionFile, '--configuration', $Configuration,
+    '--settings', (Join-Path $repositoryRoot 'tests/coverage.runsettings'),
     '--collect:XPlat Code Coverage', '--results-directory', $coverageDirectory,
     '-p:TreatWarningsAsErrors=true'
   )
@@ -281,6 +282,13 @@ function Invoke-Coverage {
     throw "Tests passed but no Cobertura coverage file was found under '$coverageDirectory'."
   }
   Write-Field 'Coverage report' $coverageFile.FullName Green
+  & (Join-Path $repositoryRoot 'scripts/Assert-Coverage.ps1') -Report $coverageFile.FullName
+  if (-not $?) {
+    throw 'Backend coverage validation failed.'
+  }
+  Invoke-Tool -Executable 'pnpm' -Operation 'Running frontend tests with coverage' -Arguments @(
+    'run', 'test:frontend:coverage'
+  )
 }
 
 function Invoke-Publish {
@@ -291,6 +299,10 @@ function Invoke-Publish {
       'publish', $projectFile, '--configuration', $Configuration, '--runtime', $runtime,
       '--output', $outputDirectory, '-p:TreatWarningsAsErrors=true'
     )
+    & (Join-Path $repositoryRoot 'scripts/Assert-PublishContents.ps1') -PublishDirectory $outputDirectory
+    if (-not $?) {
+      throw "Publish content validation failed for $runtime."
+    }
   }
 }
 

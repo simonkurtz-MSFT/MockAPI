@@ -1,5 +1,14 @@
 "use strict";
 
+import {
+  filterEndpoints,
+  formatBytes,
+  formatMergeResult,
+  formatProblem,
+  methodSupportsBody,
+  parseHeaderLines,
+} from "./dashboard-core.js";
+
 const API = "/__mockapi/api";
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 const state = {
@@ -187,19 +196,13 @@ function endpointStatistics(id) {
 }
 
 function renderEndpoints() {
-  const query = elements["filter-text"].value.trim().toLocaleLowerCase();
-  const method = elements["filter-method"].value;
-  const enabled = elements["filter-enabled"].value;
-  const statusClass = elements["filter-status"].value;
-  const visible = state.endpoints.filter(
-    (endpoint) =>
-      (!query ||
-        endpoint.name.toLocaleLowerCase().includes(query) ||
-        endpoint.path.toLocaleLowerCase().includes(query)) &&
-      (!method || endpoint.methods.includes(method)) &&
-      (!enabled || String(endpoint.enabled) === enabled) &&
-      (!statusClass || String(Math.floor(endpoint.response.statusCode / 100)) === statusClass)
-  );
+  const focusedEndpointId = document.activeElement?.dataset.testEndpointId;
+  const visible = filterEndpoints(state.endpoints, {
+    query: elements["filter-text"].value,
+    method: elements["filter-method"].value,
+    enabled: elements["filter-enabled"].value,
+    statusClass: elements["filter-status"].value,
+  });
 
   elements["endpoint-count"].textContent = visible.length;
   elements["endpoint-rows"].replaceChildren();
@@ -211,6 +214,9 @@ function renderEndpoints() {
     : "Load working examples or begin with a blank configuration.";
   elements["starter-actions"].hidden = hasEndpoints;
   for (const endpoint of visible) elements["endpoint-rows"].append(createEndpointRow(endpoint));
+  if (focusedEndpointId) {
+    document.querySelector(`[data-test-endpoint-id="${CSS.escape(focusedEndpointId)}"]`)?.focus();
+  }
 }
 
 function createEndpointRow(endpoint) {
@@ -372,14 +378,6 @@ function showFormError(message) {
   elements["form-error"].focus();
 }
 
-function formatProblem(error) {
-  const validation = error.problem?.errors;
-  if (Array.isArray(validation) && validation.length) {
-    return validation.map((item) => `${item.path}: ${item.message}`).join("\n");
-  }
-  return error.message;
-}
-
 async function toggleEndpoint(endpoint, enabled) {
   try {
     await api(`/endpoints/${endpoint.id}/enabled`, {
@@ -489,15 +487,6 @@ async function loadBuiltInConfiguration(name) {
   }
 }
 
-function formatMergeResult(name, result) {
-  if (!result.applied) return `No ${name} changes were needed`;
-  const parts = [];
-  if (result.added) parts.push(`${result.added} added`);
-  if (result.updated) parts.push(`${result.updated} updated`);
-  if (result.skipped) parts.push(`${result.skipped} already present`);
-  return `${name === "example" ? "Examples" : "Template"}: ${parts.join(", ")}`;
-}
-
 async function loadConfiguration(document, title, successMessage) {
   try {
     const validation = await api("/configuration/validate", { method: "POST", body: JSON.stringify(document) });
@@ -580,12 +569,7 @@ function resetTestResponse() {
 
 function parseTestHeaders(value) {
   const headers = new Headers();
-  for (const [index, line] of value.split("\n").entries()) {
-    if (!line.trim()) continue;
-    const separator = line.indexOf(":");
-    if (separator <= 0) throw new Error(`Request header line ${index + 1} must use Name: value.`);
-    headers.append(line.slice(0, separator).trim(), line.slice(separator + 1).trim());
-  }
+  for (const [name, headerValue] of parseHeaderLines(value)) headers.append(name, headerValue);
   return headers;
 }
 
@@ -613,7 +597,7 @@ async function sendTestRequest() {
   const started = performance.now();
   try {
     const options = { method, headers, signal: controller.signal };
-    if (method !== "GET" && method !== "HEAD") options.body = elements["test-request-body"].value;
+    if (methodSupportsBody(method)) options.body = elements["test-request-body"].value;
     const response = await fetch(url, options);
     const body = await response.text();
     const elapsed = performance.now() - started;
@@ -666,11 +650,6 @@ function trapBladeFocus(event) {
 
 function formatNumber(value) {
   return new Intl.NumberFormat().format(value);
-}
-function formatBytes(value) {
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`;
-  return `${(value / (1024 * 1024)).toFixed(1)} MiB`;
 }
 function formatTime(value) {
   if (!value) return "Never";

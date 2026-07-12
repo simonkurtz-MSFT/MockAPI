@@ -118,17 +118,17 @@ public sealed class EndpointManagementService(ConfigurationState state)
 
     private static ManagementOperationResult FromUpdate(
         ConfigurationUpdateResult update,
-        MockEndpointDefinition? endpoint) =>
-        update.Status switch
+        MockEndpointDefinition? endpoint)
+    {
+        if (update.Status == ConfigurationUpdateStatus.Applied)
         {
-            ConfigurationUpdateStatus.Applied =>
-                ManagementOperationResult.Applied(update.Snapshot!, endpoint),
-            ConfigurationUpdateStatus.ValidationFailed =>
-                ManagementOperationResult.ValidationFailed(update.Validation),
-            ConfigurationUpdateStatus.RevisionConflict =>
-                ManagementOperationResult.RevisionConflict(snapshot: null),
-            _ => throw new ArgumentOutOfRangeException(nameof(update), update.Status, null)
-        };
+            return ManagementOperationResult.Applied(update.Snapshot!, endpoint);
+        }
+
+        return update.Status == ConfigurationUpdateStatus.ValidationFailed
+            ? ManagementOperationResult.ValidationFailed(update.Validation)
+            : ManagementOperationResult.RevisionConflict(snapshot: null);
+    }
 
     private static int FindEndpoint(MockApiConfigurationDocument document, Guid endpointId)
     {

@@ -6,6 +6,10 @@ public sealed class ConfigurationFileStore
 {
     private readonly MockApiOptions _options;
     private readonly Func<CancellationToken, ValueTask> _onSnapshotCaptured;
+    private readonly Func<CancellationToken, ValueTask> _onDocumentLoaded;
+    private readonly Func<string, CancellationToken, ValueTask<Stream>> _openRead;
+    private readonly Action<string> _createDirectory;
+    private readonly Action<string> _deleteFile;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
 
     public ConfigurationFileStore(MockApiOptions options)
@@ -15,7 +19,11 @@ public sealed class ConfigurationFileStore
 
     internal ConfigurationFileStore(
         MockApiOptions options,
-        Func<CancellationToken, ValueTask> onSnapshotCaptured)
+        Func<CancellationToken, ValueTask> onSnapshotCaptured,
+        Func<CancellationToken, ValueTask>? onDocumentLoaded = null,
+        Func<string, CancellationToken, ValueTask<Stream>>? openRead = null,
+        Action<string>? createDirectory = null,
+        Action<string>? deleteFile = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.ConfigurationPath);
@@ -23,6 +31,10 @@ public sealed class ConfigurationFileStore
 
         _options = options;
         _onSnapshotCaptured = onSnapshotCaptured;
+        _onDocumentLoaded = onDocumentLoaded ?? (_ => ValueTask.CompletedTask);
+        _openRead = openRead ?? OpenReadAsync;
+        _createDirectory = createDirectory ?? (path => Directory.CreateDirectory(path));
+        _deleteFile = deleteFile ?? File.Delete;
     }
 
     public async Task LoadAsync(ConfigurationState state, CancellationToken cancellationToken)
@@ -45,13 +57,7 @@ public sealed class ConfigurationFileStore
         MockApiConfigurationDocument document;
         try
         {
-            await using var stream = new FileStream(
-                _options.ConfigurationPath,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read,
-                bufferSize: 64 * 1024,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
+            await using var stream = await _openRead(_options.ConfigurationPath, cancellationToken);
             if (stream.Length > ConfigurationLimits.MaximumDocumentBytes)
             {
                 throw new ConfigurationPersistenceException(
@@ -88,6 +94,7 @@ public sealed class ConfigurationFileStore
                 exception);
         }
 
+        await _onDocumentLoaded(cancellationToken);
         var update = state.TryLoadPersisted(document, expectedRevision);
         if (update.Status == ConfigurationUpdateStatus.ValidationFailed)
         {
@@ -144,7 +151,7 @@ public sealed class ConfigurationFileStore
 
             try
             {
-                Directory.CreateDirectory(directory);
+                _createDirectory(directory);
                 await using (var stream = new FileStream(
                     temporaryPath,
                     FileMode.CreateNew,
@@ -178,7 +185,7 @@ public sealed class ConfigurationFileStore
             {
                 try
                 {
-                    File.Delete(temporaryPath);
+                    _deleteFile(temporaryPath);
                 }
                 catch (IOException)
                 {
@@ -197,6 +204,15 @@ public sealed class ConfigurationFileStore
             _saveGate.Release();
         }
     }
+
+    private static ValueTask<Stream> OpenReadAsync(string path, CancellationToken _) =>
+        ValueTask.FromResult<Stream>(new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 64 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan));
 }
 
 public sealed record ConfigurationSaveResult(long Revision, bool IsCurrentRevision);

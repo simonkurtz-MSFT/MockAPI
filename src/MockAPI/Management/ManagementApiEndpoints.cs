@@ -53,9 +53,7 @@ public static class ManagementApiEndpoints
 
     private static async Task WriteBuiltInConfigurationAsync(HttpContext context, string name)
     {
-        await using var resource = typeof(ManagementApiEndpoints).Assembly.GetManifestResourceStream(
-            $"MockAPI.BuiltIns.{name}.json") ?? throw new InvalidOperationException(
-                $"The built-in {name} configuration is unavailable.");
+        await using var resource = OpenBuiltInConfiguration(name);
 
         context.Response.StatusCode = StatusCodes.Status200OK;
         context.Response.ContentType = "application/json; charset=utf-8";
@@ -75,14 +73,8 @@ public static class ManagementApiEndpoints
         }
 
         var force = bool.TryParse(context.Request.Query["force"], out var forceValue) && forceValue;
-        await using var resource = typeof(ManagementApiEndpoints).Assembly.GetManifestResourceStream(
-            $"MockAPI.BuiltIns.{name}.json") ?? throw new InvalidOperationException(
-                $"The built-in {name} configuration is unavailable.");
-        var builtIn = await JsonSerializer.DeserializeAsync(
-            resource,
-            MockApiJsonContext.Default.MockApiConfigurationDocument,
-            context.RequestAborted) ?? throw new InvalidOperationException(
-                $"The built-in {name} configuration could not be read.");
+        await using var resource = OpenBuiltInConfiguration(name);
+        var builtIn = await ReadBuiltInConfigurationAsync(resource, name, context.RequestAborted);
 
         var result = service.MergeBuiltIn(builtIn, expectedRevision.Value, force);
         if (result.Status == BuiltInMergeStatus.RevisionConflict)
@@ -250,7 +242,7 @@ public static class ManagementApiEndpoints
             statistics.GetSnapshot(),
             ManagementJsonContext.Default.RequestStatisticsSnapshot);
 
-    private static async Task StreamStatisticsAsync(
+    internal static async Task StreamStatisticsAsync(
         HttpContext context,
         RequestStatisticsCollector statistics)
     {
@@ -259,22 +251,17 @@ public static class ManagementApiEndpoints
         context.Response.Headers.CacheControl = "no-cache";
         context.Response.Headers.Connection = "keep-alive";
 
-        try
+        while (!context.RequestAborted.IsCancellationRequested)
         {
-            while (!context.RequestAborted.IsCancellationRequested)
-            {
-                var json = JsonSerializer.Serialize(
-                    statistics.GetSnapshot(),
-                    CompactJsonContext.RequestStatisticsSnapshot);
-                await context.Response.WriteAsync("event: statistics\ndata: ", context.RequestAborted);
-                await context.Response.WriteAsync(json, context.RequestAborted);
-                await context.Response.WriteAsync("\n\n", context.RequestAborted);
-                await context.Response.Body.FlushAsync(context.RequestAborted);
-                await Task.Delay(TimeSpan.FromSeconds(2), context.RequestAborted);
-            }
-        }
-        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
-        {
+            var json = JsonSerializer.Serialize(
+                statistics.GetSnapshot(),
+                CompactJsonContext.RequestStatisticsSnapshot);
+            await context.Response.WriteAsync("event: statistics\ndata: ", context.RequestAborted);
+            await context.Response.WriteAsync(json, context.RequestAborted);
+            await context.Response.WriteAsync("\n\n", context.RequestAborted);
+            await context.Response.Body.FlushAsync(context.RequestAborted);
+            await Task.Delay(TimeSpan.FromSeconds(2), context.RequestAborted)
+                .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         }
     }
 
@@ -510,7 +497,7 @@ public static class ManagementApiEndpoints
             "The active configuration changed after the supplied revision was read.",
             snapshot);
 
-    private static async Task<T?> ReadJsonAsync<T>(HttpContext context, JsonTypeInfo<T> typeInfo)
+    internal static async Task<T?> ReadJsonAsync<T>(HttpContext context, JsonTypeInfo<T> typeInfo)
         where T : class
     {
         var mediaType = context.Request.ContentType?.Split(';', 2)[0].Trim();
@@ -564,8 +551,7 @@ public static class ManagementApiEndpoints
                 buffer.Write(bytes, 0, count);
             }
 
-            return JsonSerializer.Deserialize(buffer.GetBuffer().AsSpan(0, checked((int)buffer.Length)), typeInfo) ??
-                throw new JsonException("A JSON request body is required.");
+            return DeserializeRequired(buffer.GetBuffer().AsSpan(0, checked((int)buffer.Length)), typeInfo);
         }
         catch (JsonException)
         {
@@ -579,50 +565,86 @@ public static class ManagementApiEndpoints
         }
     }
 
+    internal static T DeserializeRequired<T>(ReadOnlySpan<byte> json, JsonTypeInfo<T> typeInfo)
+        where T : class =>
+        JsonSerializer.Deserialize(json, typeInfo) ?? throw new JsonException("A JSON request body is required.");
+
+    internal static Stream OpenBuiltInConfiguration(string name) =>
+        typeof(ManagementApiEndpoints).Assembly.GetManifestResourceStream(
+            $"MockAPI.BuiltIns.{name}.json") ?? throw new InvalidOperationException(
+                $"The built-in {name} configuration is unavailable.");
+
+    internal static async Task<MockApiConfigurationDocument> ReadBuiltInConfigurationAsync(
+        Stream resource,
+        string name,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(resource);
+        return await JsonSerializer.DeserializeAsync(
+            resource,
+            MockApiJsonContext.Default.MockApiConfigurationDocument,
+            cancellationToken) ?? throw new InvalidOperationException(
+                $"The built-in {name} configuration could not be read.");
+    }
+
     private static Task WriteOperationProblemAsync(
         HttpContext context,
         ManagementOperationResult result,
-        EndpointManagementService service) =>
-        result.Status switch
+        EndpointManagementService service)
+    {
+        if (result.Status == ManagementOperationStatus.ValidationFailed)
         {
-            ManagementOperationStatus.ValidationFailed => WriteProblemAsync(
+            return WriteProblemAsync(
                 context,
                 StatusCodes.Status422UnprocessableEntity,
                 "validation-failed",
                 "Configuration validation failed",
                 "The endpoint change was rejected and the active configuration was not modified.",
                 service.Current,
-                result.Validation!.Errors),
-            ManagementOperationStatus.RevisionConflict => WriteProblemAsync(
+                result.Validation!.Errors);
+        }
+
+        if (result.Status == ManagementOperationStatus.RevisionConflict)
+        {
+            return WriteProblemAsync(
                 context,
                 StatusCodes.Status412PreconditionFailed,
                 "revision-conflict",
                 "Configuration revision conflict",
                 "The active configuration changed after the supplied revision was read.",
-                service.Current),
-            ManagementOperationStatus.NotFound => WriteProblemAsync(
+                service.Current);
+        }
+
+        if (result.Status == ManagementOperationStatus.NotFound)
+        {
+            return WriteProblemAsync(
                 context,
                 StatusCodes.Status404NotFound,
                 "endpoint-not-found",
                 "Endpoint not found",
                 "No endpoint exists with the requested ID.",
-                result.Snapshot),
-            ManagementOperationStatus.AlreadyExists => WriteProblemAsync(
+                result.Snapshot);
+        }
+
+        if (result.Status == ManagementOperationStatus.AlreadyExists)
+        {
+            return WriteProblemAsync(
                 context,
                 StatusCodes.Status409Conflict,
                 "endpoint-already-exists",
                 "Endpoint already exists",
                 "An endpoint with the supplied ID already exists.",
-                result.Snapshot),
-            ManagementOperationStatus.IdMismatch => WriteProblemAsync(
-                context,
-                StatusCodes.Status400BadRequest,
-                "endpoint-id-mismatch",
-                "Endpoint ID mismatch",
-                "The endpoint ID in the request body must match the route ID.",
-                result.Snapshot),
-            _ => throw new ArgumentOutOfRangeException(nameof(result), result.Status, null)
-        };
+                result.Snapshot);
+        }
+
+        return WriteProblemAsync(
+            context,
+            StatusCodes.Status400BadRequest,
+            "endpoint-id-mismatch",
+            "Endpoint ID mismatch",
+            "The endpoint ID in the request body must match the route ID.",
+            result.Snapshot);
+    }
 
     private static Task WriteProblemAsync(
         HttpContext context,

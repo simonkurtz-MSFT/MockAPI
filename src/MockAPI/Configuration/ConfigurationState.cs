@@ -7,7 +7,17 @@ namespace MockAPI.Configuration;
 public sealed class ConfigurationState
 {
     private readonly object _writeGate = new();
+    private readonly Action? _beforeWriteLock;
     private ConfigurationStateSnapshot _current = ConfigurationStateSnapshot.CreateInitial();
+
+    public ConfigurationState()
+    {
+    }
+
+    internal ConfigurationState(Action beforeWriteLock)
+    {
+        _beforeWriteLock = beforeWriteLock;
+    }
 
     public ConfigurationStateSnapshot Current => Volatile.Read(ref _current);
 
@@ -42,6 +52,7 @@ public sealed class ConfigurationState
         }
 
         var endpoints = EndpointRegistrySnapshot.Create(canonicalDocument);
+        _beforeWriteLock?.Invoke();
         lock (_writeGate)
         {
             var current = _current;
@@ -109,12 +120,15 @@ public sealed class ConfigurationStateSnapshot
     public bool HasUnsavedChanges { get; }
 
     public MockApiConfigurationDocument GetDocument() =>
-        JsonSerializer.Deserialize(
-            _serializedDocument,
-            MockApiJsonContext.Default.MockApiConfigurationDocument) ??
-        throw new InvalidOperationException("The active configuration could not be materialized.");
+        DeserializeDocument(_serializedDocument);
 
     public byte[] ExportUtf8() => [.. _serializedDocument];
+
+    internal static MockApiConfigurationDocument DeserializeDocument(ReadOnlySpan<byte> serializedDocument) =>
+        JsonSerializer.Deserialize(
+            serializedDocument,
+            MockApiJsonContext.Default.MockApiConfigurationDocument) ??
+        throw new InvalidOperationException("The active configuration could not be materialized.");
 
     internal static ConfigurationStateSnapshot CreateInitial()
     {
