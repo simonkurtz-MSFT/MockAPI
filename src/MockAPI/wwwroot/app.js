@@ -1,6 +1,7 @@
 "use strict";
 
 import {
+  explainEndpointStatistics,
   filterEndpoints,
   formatBytes,
   formatMergeResult,
@@ -23,6 +24,9 @@ const state = {
   testAbort: null,
   testTrigger: null,
   testEndpointId: null,
+  statisticsScope: "overall",
+  statisticsView: "graph",
+  statisticsEndpointId: null,
 };
 
 const elements = Object.fromEntries(
@@ -44,6 +48,19 @@ const elements = Object.fromEntries(
     "metric-bytes",
     "metric-rate",
     "rate-bars",
+    "statistics-overall",
+    "statistics-endpoint",
+    "statistics-endpoint-picker",
+    "statistics-endpoint-select",
+    "statistics-table",
+    "statistics-graph",
+    "statistics-table-view",
+    "statistics-graph-view",
+    "statistics-chart-title",
+    "statistics-chart-summary",
+    "statistics-annotation",
+    "statistics-chart",
+    "reset-statistics-scope",
     "endpoint-count",
     "endpoint-rows",
     "empty-state",
@@ -189,6 +206,151 @@ function renderStatistics() {
     bar.style.height = `${Math.max(5, (bucket.requests / maximum) * 100)}%`;
     elements["rate-bars"].append(bar);
   }
+  renderDetailedStatistics();
+}
+
+function renderDetailedStatistics() {
+  const endpointMode = state.statisticsScope === "endpoint";
+  elements["statistics-overall"].setAttribute("aria-pressed", String(!endpointMode));
+  elements["statistics-endpoint"].setAttribute("aria-pressed", String(endpointMode));
+  elements["statistics-table"].setAttribute("aria-pressed", String(state.statisticsView === "table"));
+  elements["statistics-graph"].setAttribute("aria-pressed", String(state.statisticsView === "graph"));
+  elements["statistics-endpoint-picker"].hidden = !endpointMode;
+  elements["statistics-table-view"].hidden = state.statisticsView !== "table";
+  elements["statistics-graph-view"].hidden = state.statisticsView !== "graph";
+
+  populateStatisticsEndpointSelect();
+  const selectedEndpoint = state.endpoints.find((endpoint) => endpoint.id === state.statisticsEndpointId);
+  const selectedStatistics = selectedEndpoint ? endpointStatistics(selectedEndpoint.id) : null;
+  elements["reset-statistics-scope"].textContent = endpointMode ? "Reset endpoint" : "Reset overall";
+  elements["reset-statistics-scope"].disabled = endpointMode && !selectedStatistics;
+
+  renderStatisticsTable(endpointMode);
+  renderStatisticsGraph(endpointMode, selectedEndpoint, selectedStatistics);
+}
+
+function populateStatisticsEndpointSelect() {
+  if (!state.endpoints.some((endpoint) => endpoint.id === state.statisticsEndpointId)) {
+    state.statisticsEndpointId = state.endpoints[0]?.id || null;
+  }
+  const select = elements["statistics-endpoint-select"];
+  const focused = document.activeElement === select;
+  select.replaceChildren(
+    ...state.endpoints.map((endpoint) => {
+      const option = document.createElement("option");
+      option.value = endpoint.id;
+      option.textContent = `${endpoint.name} · ${endpoint.path}`;
+      option.selected = endpoint.id === state.statisticsEndpointId;
+      return option;
+    })
+  );
+  select.disabled = state.endpoints.length === 0;
+  if (focused) select.focus();
+}
+
+function renderStatisticsTable(endpointMode) {
+  const container = elements["statistics-table-view"];
+  const table = document.createElement("table");
+  const head = document.createElement("thead");
+  const body = document.createElement("tbody");
+  const headerRow = document.createElement("tr");
+
+  if (endpointMode) {
+    for (const label of ["Endpoint", "Requests", "Rate", "Last status", "Response bytes", "Why this response"]) {
+      const header = makeElement("th", null, label);
+      header.scope = "col";
+      headerRow.append(header);
+    }
+    for (const endpoint of state.endpoints) {
+      const statistics = endpointStatistics(endpoint.id);
+      const recent = statistics?.recentMinutes || [];
+      const row = document.createElement("tr");
+      const endpointCell = document.createElement("td");
+      endpointCell.append(
+        makeElement("strong", null, endpoint.name),
+        makeElement("small", "statistics-path", endpoint.path)
+      );
+      row.append(
+        endpointCell,
+        makeElement("td", "numeric", formatNumber(statistics?.totalRequests || 0)),
+        makeElement("td", "numeric", `${(sumRequests(recent) / 60).toFixed(1)} req/min`),
+        makeElement("td", "numeric", statistics?.lastStatusCode ? String(statistics.lastStatusCode) : "—"),
+        makeElement("td", "numeric", formatBytes(statistics?.responseBytes || 0)),
+        makeElement("td", "statistics-explanation", explainEndpointStatistics(endpoint, statistics))
+      );
+      body.append(row);
+    }
+  } else {
+    for (const label of ["Measure", "Value", "Meaning"]) {
+      const header = makeElement("th", null, label);
+      header.scope = "col";
+      headerRow.append(header);
+    }
+    const statistics = state.statistics;
+    const rows = [
+      ["Total requests", statistics.totalRequests, "Every request seen by the mock dispatcher"],
+      ["Matched", statistics.matchedRequests, "Requests attributed to a configured endpoint"],
+      ["Unmatched", statistics.unmatchedRequests, "Requests that did not match an enabled endpoint"],
+      ["Failed writes", statistics.failedWrites, "Matched responses that could not be fully written"],
+      ["1xx responses", statistics.informationalResponses, "Informational responses"],
+      ["2xx responses", statistics.successResponses, "Successful responses"],
+      ["3xx responses", statistics.redirectionResponses, "Redirection responses"],
+      ["4xx responses", statistics.clientErrorResponses, "Client-error responses, including configured 429s"],
+      ["5xx responses", statistics.serverErrorResponses, "Server-error responses"],
+      ["Response bytes", formatBytes(statistics.responseBytes), "Response body bytes written by matched endpoints"],
+    ];
+    for (const [label, value, meaning] of rows) {
+      const row = document.createElement("tr");
+      row.append(
+        makeElement("th", null, label),
+        makeElement("td", "numeric", String(value)),
+        makeElement("td", null, meaning)
+      );
+      row.firstChild.scope = "row";
+      body.append(row);
+    }
+  }
+
+  head.append(headerRow);
+  table.append(head, body);
+  container.replaceChildren(table);
+}
+
+function renderStatisticsGraph(endpointMode, endpoint, statistics) {
+  const recent = endpointMode ? statistics?.recentMinutes || [] : state.statistics.recentMinutes || [];
+  const total = sumRequests(recent);
+  elements["statistics-chart-title"].textContent = endpointMode
+    ? endpoint
+      ? `${endpoint.name} request activity`
+      : "Endpoint request activity"
+    : "Overall request activity";
+  elements["statistics-chart-summary"].textContent =
+    `${formatNumber(total)} requests · ${(total / 60).toFixed(1)} req/min`;
+  elements["statistics-annotation"].textContent = endpointMode
+    ? endpoint
+      ? explainEndpointStatistics(endpoint, statistics)
+      : "Create or load an endpoint to inspect its request activity."
+    : `${formatNumber(state.statistics.matchedRequests)} matched and ${formatNumber(state.statistics.unmatchedRequests)} unmatched requests have been observed.`;
+
+  const chart = elements["statistics-chart"];
+  const maximum = Math.max(1, ...recent.map((bucket) => bucket.requests));
+  chart.replaceChildren(
+    ...recent.map((bucket) => {
+      const bar = makeElement("i");
+      bar.style.height = `${(bucket.requests / maximum) * 100}%`;
+      bar.title = `${formatTime(bucket.minuteUtc)}: ${formatNumber(bucket.requests)} requests`;
+      if (bucket.requests > 0) bar.className = "active";
+      return bar;
+    })
+  );
+  chart.setAttribute(
+    "aria-label",
+    `${elements["statistics-chart-title"].textContent}. ${formatNumber(total)} requests over the last 60 minutes; peak ${formatNumber(maximum)} requests in one minute. ${elements["statistics-annotation"].textContent}`
+  );
+}
+
+function sumRequests(buckets) {
+  return buckets.reduce((sum, bucket) => sum + bucket.requests, 0);
 }
 
 function endpointStatistics(id) {
@@ -693,6 +855,15 @@ function bindEvents() {
       await refresh();
     })
   );
+  elements["statistics-overall"].addEventListener("click", () => setStatisticsScope("overall"));
+  elements["statistics-endpoint"].addEventListener("click", () => setStatisticsScope("endpoint"));
+  elements["statistics-table"].addEventListener("click", () => setStatisticsView("table"));
+  elements["statistics-graph"].addEventListener("click", () => setStatisticsView("graph"));
+  elements["statistics-endpoint-select"].addEventListener("change", (event) => {
+    state.statisticsEndpointId = event.currentTarget.value;
+    renderDetailedStatistics();
+  });
+  elements["reset-statistics-scope"].addEventListener("click", requestStatisticsReset);
   elements["confirm-cancel"].addEventListener("click", () => elements["confirm-dialog"].close());
   elements["confirm-accept"].addEventListener("click", acceptConfirmation);
   elements["test-blade-close"].addEventListener("click", closeTestBlade);
@@ -718,6 +889,34 @@ function bindEvents() {
     const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
     document.documentElement.dataset.theme = next;
   });
+}
+
+function setStatisticsScope(scope) {
+  state.statisticsScope = scope;
+  renderDetailedStatistics();
+}
+
+function setStatisticsView(view) {
+  state.statisticsView = view;
+  renderDetailedStatistics();
+}
+
+function requestStatisticsReset() {
+  const endpointMode = state.statisticsScope === "endpoint";
+  const endpoint = state.endpoints.find((candidate) => candidate.id === state.statisticsEndpointId);
+  confirmAction(
+    endpointMode ? "Reset endpoint statistics" : "Reset overall statistics",
+    endpointMode
+      ? `Reset process-local statistics for “${endpoint?.name}”?`
+      : "Reset all process-local request statistics?",
+    async () => {
+      await api(endpointMode ? `/statistics/endpoints/${endpoint.id}/reset` : "/statistics/reset", {
+        method: "POST",
+      });
+      showToast(endpointMode ? "Endpoint statistics reset" : "Statistics reset");
+      await refresh();
+    }
+  );
 }
 
 function connectStatisticsStream() {

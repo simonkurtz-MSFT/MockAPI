@@ -50,7 +50,7 @@ test("@smoke loads examples idempotently and filters by status", async ({ page }
 
   await page.locator("#filter-status").selectOption("4");
   await expect(page.locator("#endpoint-rows tr")).toHaveCount(1);
-  await expect(page.getByText("Rate limited response")).toBeVisible();
+  await expect(page.locator("#endpoint-rows").getByText("Rate limited response", { exact: true })).toBeVisible();
   await expectNoUnreviewedAccessibilityViolations(page);
 });
 
@@ -146,6 +146,29 @@ test("tests a configured non-2xx response and restores focus", async ({ page }) 
   await expectNoUnreviewedAccessibilityViolations(page);
   await page.keyboard.press("Escape");
   await expect(trigger).toBeFocused();
+});
+
+test("shows grounded endpoint statistics as a graph and table", async ({ page, request }) => {
+  await page.getByRole("button", { name: "Load examples" }).first().click();
+  await expect(page.getByRole("row", { name: /Rate limited response/ })).toBeVisible();
+  const response = await request.get("/ex/rate-limited");
+  expect(response.status()).toBe(429);
+
+  await page.getByRole("button", { name: "By endpoint" }).click();
+  await page.getByLabel("Endpoint statistics").selectOption({ label: "Rate limited response · /ex/rate-limited" });
+  await expect(page.locator("#statistics-chart-title")).toHaveText("Rate limited response request activity");
+  await expect(page.locator("#statistics-annotation")).toContainText(
+    "Every matched request is configured to return HTTP 429."
+  );
+  await expect(page.locator("#statistics-annotation")).toContainText("configured Retry-After value is 30");
+  await expect(page.locator("#statistics-annotation")).toContainText(
+    "No request-count or time-window rate-limit condition is configured."
+  );
+
+  await page.getByRole("button", { name: "Table", exact: true }).click();
+  const statisticsRow = page.locator("#statistics-table-view tbody tr").filter({ hasText: "Rate limited response" });
+  await expect(statisticsRow).toContainText("1");
+  await expectNoUnreviewedAccessibilityViolations(page);
 });
 
 test("tests body-bearing and empty-response endpoints", async ({ page }) => {

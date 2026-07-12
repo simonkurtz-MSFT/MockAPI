@@ -48,3 +48,24 @@ export function parseHeaderLines(value) {
 export function methodSupportsBody(method) {
   return method !== "GET" && method !== "HEAD";
 }
+
+export function explainEndpointStatistics(endpoint, statistics) {
+  if (!statistics?.totalRequests) {
+    return `No requests have been observed. This endpoint is configured to return HTTP ${endpoint.response.statusCode} for every matched request.`;
+  }
+
+  const configuredStatus = endpoint.response.statusCode;
+  if (statistics.lastStatusCode !== configuredStatus) {
+    return `The last observed response was HTTP ${statistics.lastStatusCode}, but the endpoint is now configured for HTTP ${configuredStatus}. These statistics include activity from before the latest configuration change.`;
+  }
+
+  if (configuredStatus === 429) {
+    const retryAfter = Object.entries(endpoint.response.headers || {}).find(
+      ([name]) => name.toLocaleLowerCase() === "retry-after"
+    )?.[1]?.[0];
+    const retryExplanation = retryAfter ? ` The configured Retry-After value is ${retryAfter}.` : "";
+    return `Every matched request is configured to return HTTP 429.${retryExplanation} No request-count or time-window rate-limit condition is configured.`;
+  }
+
+  return `Every matched request is configured to return HTTP ${configuredStatus}. The activity graph shows when requests reached this endpoint, not a conditional response rule.`;
+}

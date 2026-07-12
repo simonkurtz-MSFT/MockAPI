@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  explainEndpointStatistics,
   filterEndpoints,
   formatBytes,
   formatMergeResult,
@@ -104,5 +105,29 @@ describe("methodSupportsBody", () => {
     ["PATCH", true],
   ])("returns %s support", (method, expected) => {
     expect(methodSupportsBody(method)).toBe(expected);
+  });
+});
+
+describe("explainEndpointStatistics", () => {
+  const endpoint = {
+    response: { statusCode: 429, headers: { "Retry-After": ["30"] } },
+  };
+
+  it("explains a configured 429 without claiming a runtime rate-limit condition", () => {
+    expect(explainEndpointStatistics(endpoint, { totalRequests: 6, lastStatusCode: 429 })).toBe(
+      "Every matched request is configured to return HTTP 429. The configured Retry-After value is 30. No request-count or time-window rate-limit condition is configured."
+    );
+  });
+
+  it("identifies statistics collected before a configuration change", () => {
+    expect(explainEndpointStatistics(endpoint, { totalRequests: 5, lastStatusCode: 200 })).toBe(
+      "The last observed response was HTTP 200, but the endpoint is now configured for HTTP 429. These statistics include activity from before the latest configuration change."
+    );
+  });
+
+  it("describes the configured response when no requests exist", () => {
+    expect(explainEndpointStatistics(endpoint, null)).toBe(
+      "No requests have been observed. This endpoint is configured to return HTTP 429 for every matched request."
+    );
   });
 });

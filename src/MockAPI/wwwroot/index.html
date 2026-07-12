@@ -76,6 +76,50 @@
         <button id="reset-statistics" class="button quiet" type="button">Reset statistics</button>
       </section>
 
+      <section class="statistics-workspace" aria-labelledby="statistics-heading">
+        <div class="statistics-toolbar">
+          <div>
+            <h2 id="statistics-heading">Statistics</h2>
+            <p>Process-local activity from the last 60 minutes</p>
+          </div>
+          <div class="statistics-controls">
+            <div class="segmented-control" aria-label="Statistics scope">
+              <button id="statistics-overall" type="button" aria-pressed="true">Overall</button>
+              <button id="statistics-endpoint" type="button" aria-pressed="false">By endpoint</button>
+            </div>
+            <label id="statistics-endpoint-picker" hidden>
+              <span class="visually-hidden">Endpoint statistics</span>
+              <select id="statistics-endpoint-select"></select>
+            </label>
+            <div class="segmented-control" aria-label="Statistics presentation">
+              <button id="statistics-table" type="button" aria-pressed="false">Table</button>
+              <button id="statistics-graph" type="button" aria-pressed="true">Graph</button>
+            </div>
+            <button id="reset-statistics-scope" class="button quiet" type="button">Reset overall</button>
+          </div>
+        </div>
+        <div
+          id="statistics-table-view"
+          class="statistics-table"
+          role="region"
+          aria-label="Detailed request statistics"
+          tabindex="0"
+          hidden
+        ></div>
+        <div id="statistics-graph-view" class="statistics-graph">
+          <div class="chart-heading">
+            <div>
+              <strong id="statistics-chart-title">Overall request activity</strong>
+              <span id="statistics-chart-summary">0 requests · 0.0 req/min</span>
+            </div>
+            <span class="chart-legend"><i aria-hidden="true"></i> Requests per minute</span>
+          </div>
+          <div id="statistics-annotation" class="chart-annotation"></div>
+          <div id="statistics-chart" class="activity-chart" role="img" aria-label="No request activity"></div>
+          <div class="chart-axis" aria-hidden="true"><span>60 minutes ago</span><span>Now</span></div>
+        </div>
+      </section>
+
       <section class="workspace" aria-labelledby="endpoints-heading">
         <div class="workspace-toolbar">
           <div>

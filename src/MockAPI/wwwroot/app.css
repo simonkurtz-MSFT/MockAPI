@@ -322,6 +322,152 @@ h2 {
   margin: 0 14px;
 }
 
+.statistics-workspace {
+  margin-bottom: 20px;
+  border: 1px solid var(--cp-border);
+  border-top: 3px solid var(--cp-accent);
+  background: var(--cp-surface);
+}
+.statistics-toolbar {
+  min-height: 70px;
+  padding: 13px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--cp-border);
+}
+.statistics-toolbar p {
+  margin: 4px 0 0;
+  color: var(--cp-text-muted);
+  font-size: 12px;
+}
+.statistics-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 8px;
+}
+.statistics-controls select {
+  max-width: 320px;
+}
+.segmented-control {
+  display: inline-flex;
+  border: 1px solid var(--cp-border-strong);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.segmented-control button {
+  min-height: 36px;
+  padding: 6px 11px;
+  border: 0;
+  border-right: 1px solid var(--cp-border-strong);
+  background: var(--cp-surface);
+  color: var(--cp-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+.segmented-control button:last-child {
+  border-right: 0;
+}
+.segmented-control button[aria-pressed="true"] {
+  background: var(--cp-accent);
+  color: var(--cp-accent-fg);
+}
+.statistics-table {
+  overflow-x: auto;
+}
+.statistics-table table {
+  min-width: 760px;
+}
+.statistics-table tr:last-child > * {
+  border-bottom: 0;
+}
+.statistics-table td:first-child {
+  min-width: 180px;
+}
+.statistics-table td:first-child strong,
+.statistics-path {
+  display: block;
+}
+.statistics-path {
+  margin-top: 3px;
+  color: var(--cp-text-muted);
+  font-family: Consolas, "Courier New", Courier, monospace;
+}
+.statistics-explanation {
+  min-width: 320px;
+  max-width: 560px;
+  color: var(--cp-text-muted);
+  line-height: 1.45;
+}
+.statistics-graph {
+  padding: 18px 20px 14px;
+}
+.chart-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.chart-heading > div {
+  display: grid;
+  gap: 3px;
+}
+.chart-heading strong {
+  font-size: 14px;
+}
+.chart-heading span {
+  color: var(--cp-text-muted);
+  font-size: 12px;
+}
+.chart-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.chart-legend i {
+  width: 10px;
+  height: 10px;
+  background: var(--cp-accent);
+}
+.chart-annotation {
+  margin: 14px 0 10px;
+  min-height: 38px;
+  padding: 9px 11px;
+  border-left: 3px solid var(--cp-warning);
+  background: var(--cp-surface-soft);
+  color: var(--cp-text);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.activity-chart {
+  height: 190px;
+  padding-top: 12px;
+  border-bottom: 1px solid var(--cp-border-strong);
+  display: flex;
+  align-items: end;
+  gap: 3px;
+}
+.activity-chart i {
+  flex: 1 1 0;
+  min-width: 2px;
+  min-height: 1px;
+  background: var(--cp-border);
+}
+.activity-chart i.active {
+  min-height: 4px;
+  background: var(--cp-accent);
+}
+.chart-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  color: var(--cp-text-muted);
+  font-size: 11px;
+}
+
 .workspace {
   border-top: 3px solid var(--cp-accent);
   background: var(--cp-surface);
@@ -886,7 +1032,8 @@ html[data-theme="dark"] button:disabled {
     justify-self: start;
   }
   .workspace-toolbar,
-  .command-bar {
+  .command-bar,
+  .statistics-toolbar {
     align-items: stretch;
     flex-direction: column;
   }
@@ -898,6 +1045,9 @@ html[data-theme="dark"] button:disabled {
   }
   .search-field input {
     width: 100%;
+  }
+  .statistics-controls {
+    justify-content: start;
   }
 }
 @media (max-width: 600px) {
@@ -929,6 +1079,24 @@ html[data-theme="dark"] button:disabled {
   }
   .metric strong {
     font-size: 17px;
+  }
+  .statistics-controls,
+  .statistics-controls > *,
+  .statistics-controls select {
+    width: 100%;
+    max-width: none;
+  }
+  .segmented-control button {
+    flex: 1;
+  }
+  .statistics-graph {
+    padding: 16px 12px 12px;
+  }
+  .chart-heading {
+    display: grid;
+  }
+  .activity-chart {
+    gap: 1px;
   }
   .filters select {
     flex: 1;
