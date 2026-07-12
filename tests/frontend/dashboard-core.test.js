@@ -66,6 +66,7 @@ describe("formatMergeResult", () => {
     expect(formatMergeResult("template", { applied: true, added: 1, updated: 0, skipped: 0 })).toBe(
       "Template: 1 added"
     );
+    expect(formatMergeResult("template", { applied: true })).toBe("Template: ");
   });
 });
 
@@ -116,6 +117,20 @@ describe("explainEndpointStatistics", () => {
   it("explains a configured 429 without claiming a runtime rate-limit condition", () => {
     expect(explainEndpointStatistics(endpoint, { totalRequests: 6, lastStatusCode: 429 })).toBe(
       "Every matched request is configured to return HTTP 429. The configured Retry-After value is 30. No request-count or time-window rate-limit condition is configured."
+    );
+  });
+
+  it("explains a configured 429 without a Retry-After header", () => {
+    const endpointWithoutHeaders = { response: { statusCode: 429 } };
+    expect(explainEndpointStatistics(endpointWithoutHeaders, { totalRequests: 1, lastStatusCode: 429 })).toBe(
+      "Every matched request is configured to return HTTP 429. No request-count or time-window rate-limit condition is configured."
+    );
+  });
+
+  it("explains ordinary configured responses as unconditional", () => {
+    const successfulEndpoint = { response: { statusCode: 204 } };
+    expect(explainEndpointStatistics(successfulEndpoint, { totalRequests: 3, lastStatusCode: 204 })).toBe(
+      "Every matched request is configured to return HTTP 204. The activity graph shows when requests reached this endpoint, not a conditional response rule."
     );
   });
 
