@@ -31,6 +31,7 @@
 - When automation deduplicates against an existing open issue, reapply `simonkurtz-MSFT` to that issue before reporting it as the active review item.
 - Do not use the personal `simonua` account for MockAPI issue or pull-request assignment.
 - Pin every external GitHub Action to a full 40-character immutable commit SHA and retain its release tag in a trailing comment for maintainability. Pin `docker://` workflow actions by `sha256` digest. Never use mutable tags or branches in workflow `uses:` references.
+- Use the latest action release that satisfies the seven-day cooldown. JavaScript actions must declare Node 24 or newer; do not use runtime-forcing environment variables as a substitute for upgrading the action.
 - Run `pnpm run validate:workflow-pins` after changing any workflow and before committing automation changes.
 
 ## Validation

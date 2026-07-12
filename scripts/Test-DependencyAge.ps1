@@ -115,6 +115,29 @@ function Get-WorkflowContainerImages {
   }
 }
 
+function Get-GitHubActionRuntime {
+  param(
+    [Parameter(Mandatory)][string] $Repository,
+    [Parameter(Mandatory)][string] $Reference
+  )
+
+  foreach ($manifestName in 'action.yml', 'action.yaml') {
+    try {
+      $manifest = (Invoke-WebRequest "https://raw.githubusercontent.com/$Repository/$Reference/$manifestName").Content
+      if ($manifest -match '(?m)^\s*using:\s*["'']?(?<runtime>[^\s"'']+)') {
+        return $Matches.runtime
+      }
+      throw "GitHub Action '$Repository@$Reference' does not declare a runtime in $manifestName."
+    }
+    catch {
+      if ($_.Exception.Response.StatusCode -ne 404) {
+        throw
+      }
+    }
+  }
+  throw "GitHub Action '$Repository@$Reference' does not expose action.yml or action.yaml."
+}
+
 $pnpm = Get-Command pnpm -ErrorAction Stop
 & $pnpm.Source install --frozen-lockfile --lockfile-only
 if ($LASTEXITCODE -ne 0) {
@@ -158,6 +181,10 @@ foreach ($actionReference in $actionReferences) {
   $dateLine = ($patch -split "`n" | Where-Object { $_ -like 'Date: *' } | Select-Object -First 1)
   if ([string]::IsNullOrWhiteSpace($dateLine)) {
     throw "GitHub Action '$repository@$ref' did not expose a commit date."
+  }
+  $runtime = Get-GitHubActionRuntime -Repository $repository -Reference $ref
+  if ($runtime -match '^node(?<major>\d+)$' -and [int] $Matches.major -lt 24) {
+    $violations.Add("GitHubActions:${repository}@${ref} declares unsupported runtime '$runtime'; use a Node 24 or newer release.")
   }
   $published = [DateTimeOffset]::Parse($dateLine.Substring(6).Trim())
   Add-Result -Ecosystem GitHubActions -Name $repository -Version $ref -Published $published
