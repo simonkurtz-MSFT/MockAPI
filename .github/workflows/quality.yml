@@ -81,12 +81,7 @@ jobs:
       - run: dotnet build MockAPI.slnx --configuration Release --no-restore -p:TreatWarningsAsErrors=true
       - name: Validate trimmed publications
         shell: pwsh
-        run: |
-          foreach ($runtime in 'linux-musl-x64', 'linux-musl-arm64') {
-            $output = "artifacts/publish/$runtime"
-            dotnet publish src/MockAPI/MockAPI.csproj --configuration Release --runtime $runtime --no-restore --output $output -p:TreatWarningsAsErrors=true
-            ./scripts/Assert-PublishContents.ps1 -PublishDirectory $output
-          }
+        run: ./start.ps1 -Action publish
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm exec playwright test --project chromium-desktop --grep @smoke
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
