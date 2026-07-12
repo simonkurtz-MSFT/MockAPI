@@ -21,6 +21,7 @@ env:
 jobs:
   coverage:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -66,6 +67,7 @@ jobs:
 
   browser-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     container:
       image: mcr.microsoft.com/playwright:v1.54.1-noble@sha256:307ace13c8ba4349f790f4dfbc6eaa9fcafdeb29c218ff36129c7cacebb1e35f
     steps:
@@ -94,6 +96,7 @@ jobs:
   browser-chromium:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     container:
       image: mcr.microsoft.com/playwright:v1.54.1-noble@sha256:307ace13c8ba4349f790f4dfbc6eaa9fcafdeb29c218ff36129c7cacebb1e35f
     steps:

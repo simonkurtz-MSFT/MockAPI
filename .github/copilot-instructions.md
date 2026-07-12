@@ -32,6 +32,7 @@
 - Do not use the personal `simonua` account for MockAPI issue or pull-request assignment.
 - Pin every external GitHub Action to a full 40-character immutable commit SHA and retain its release tag in a trailing comment for maintainability. Pin `docker://` workflow actions by `sha256` digest. Never use mutable tags or branches in workflow `uses:` references.
 - Use the latest action release that satisfies the seven-day cooldown. JavaScript actions must declare Node 24 or newer; do not use runtime-forcing environment variables as a substitute for upgrading the action.
+- Give every workflow job an explicit `timeout-minutes` from 1 through 60, sized to its expected workload rather than relying on GitHub's six-hour default.
 - Run `pnpm run validate:workflow-pins` after changing any workflow and before committing automation changes.
 
 ## Validation
