@@ -30,6 +30,7 @@
 - Keep the issue recipient in one clearly named workflow-level environment variable and use that variable for issue creation and `gh issue edit --add-assignee` calls.
 - When automation deduplicates against an existing open issue, reapply `simonkurtz-MSFT` to that issue before reporting it as the active review item.
 - Do not use the personal `simonua` account for MockAPI issue or pull-request assignment.
+- Pin dependencies, development tools, SDKs, and package managers to the latest compatible stable release that has completed the seven-day cooldown. Keep exact versions in reviewed manifests and lockfiles, preserve package-manager age enforcement, and verify publication age before selecting a release manually.
 - Pin every external GitHub Action to a full 40-character immutable commit SHA and retain its release tag in a trailing comment for maintainability. Pin `docker://` workflow actions by `sha256` digest. Never use mutable tags or branches in workflow `uses:` references.
 - Use the latest action release that satisfies the seven-day cooldown. JavaScript actions must declare Node 24 or newer; do not use runtime-forcing environment variables as a substitute for upgrading the action.
 - Give every workflow job an explicit `timeout-minutes` from 1 through 60, sized to its expected workload rather than relying on GitHub's six-hour default.
