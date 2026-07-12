@@ -18,35 +18,7 @@ builder.Services.AddSingleton<ConfigurationFileStore>();
 builder.Services.AddSingleton<EndpointManagementService>();
 builder.Services.AddSingleton<ConfigurationManagementService>();
 builder.Services.AddSingleton<RequestStatisticsCollector>();
-builder.Services.AddRateLimiter(rateLimiter =>
-{
-    rateLimiter.AddPolicy(ManagementApiEndpoints.RateLimitPolicyName, context =>
-        RateLimitPartition.GetSlidingWindowLimiter(
-            MockApiHostConfiguration.GetRateLimitPartitionKey(context),
-            _ => new SlidingWindowRateLimiterOptions
-            {
-                PermitLimit = options.ManagementPermitLimit,
-                Window = TimeSpan.FromMinutes(1),
-                SegmentsPerWindow = 6,
-                QueueLimit = 0,
-                AutoReplenishment = true
-            }));
-    rateLimiter.OnRejected = async (context, cancellationToken) =>
-    {
-        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-        context.HttpContext.Response.Headers.RetryAfter = "60";
-        await context.HttpContext.Response.WriteAsJsonAsync(
-            new ManagementProblemDetails(
-                "https://mockapi.local/problems/management-rate-limit",
-                "Management API rate limit exceeded",
-                StatusCodes.Status429TooManyRequests,
-                "Too many management requests were received. Retry after the indicated interval.",
-                context.HttpContext.Request.Path),
-            ManagementJsonContext.Default.ManagementProblemDetails,
-            contentType: "application/problem+json",
-            cancellationToken);
-    };
-});
+MockApiHostConfiguration.AddRateLimiting(builder.Services, options);
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
@@ -153,6 +125,41 @@ public partial class Program;
 
 internal static class MockApiHostConfiguration
 {
+    internal static void AddRateLimiting(IServiceCollection services, MockApiOptions options)
+    {
+        Func<HttpContext, RateLimitPartition<string>> partitioner = context =>
+            RateLimitPartition.GetSlidingWindowLimiter(
+                GetRateLimitPartitionKey(context),
+                _ => new SlidingWindowRateLimiterOptions
+                {
+                    PermitLimit = options.ManagementPermitLimit,
+                    Window = TimeSpan.FromMinutes(1),
+                    SegmentsPerWindow = 6,
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                });
+
+        services.AddRateLimiter(rateLimiter =>
+        {
+            rateLimiter.AddPolicy(ManagementApiEndpoints.RateLimitPolicyName, partitioner);
+            rateLimiter.OnRejected = async (context, cancellationToken) =>
+            {
+                context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                context.HttpContext.Response.Headers.RetryAfter = "60";
+                await context.HttpContext.Response.WriteAsJsonAsync(
+                    new ManagementProblemDetails(
+                        "https://mockapi.local/problems/management-rate-limit",
+                        "Management API rate limit exceeded",
+                        StatusCodes.Status429TooManyRequests,
+                        "Too many management requests were received. Retry after the indicated interval.",
+                        context.HttpContext.Request.Path),
+                    ManagementJsonContext.Default.ManagementProblemDetails,
+                    contentType: "application/problem+json",
+                    cancellationToken);
+            };
+        });
+    }
+
     internal static MockApiOptions CreateOptions(
         IConfiguration configuration,
         bool isDevelopment,
