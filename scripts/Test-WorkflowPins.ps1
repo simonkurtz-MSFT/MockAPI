@@ -15,22 +15,60 @@ $referenceCount = 0
 
 foreach ($workflowFile in $workflowFiles) {
   $lineNumber = 0
+  $containerIndent = -1
   foreach ($line in Get-Content -LiteralPath $workflowFile.FullName) {
     $lineNumber++
-    $match = [regex]::Match($line, '^\s*-?\s*uses:\s*["'']?(?<reference>[^\s#"'']+)')
-    if (-not $match.Success) {
+    $indent = $line.Length - $line.TrimStart().Length
+    $containerMatch = [regex]::Match($line, '^\s*container:\s*["'']?(?<reference>[^\s#"'']*)')
+    if ($containerMatch.Success) {
+      $reference = $containerMatch.Groups['reference'].Value
+      if (-not [string]::IsNullOrWhiteSpace($reference)) {
+        $referenceCount++
+        if ($reference -notmatch '^[^@\s]+@sha256:[0-9a-fA-F]{64}$') {
+          $relativePath = [IO.Path]::GetRelativePath((Join-Path $PSScriptRoot '..'), $workflowFile.FullName)
+          $violations.Add("${relativePath}:${lineNumber}: '$reference' must use an immutable image digest.")
+        }
+        continue
+      }
+      $containerIndent = $indent
+      continue
+    }
+    if ($containerIndent -ge 0 -and -not [string]::IsNullOrWhiteSpace($line) -and $indent -le $containerIndent) {
+      $containerIndent = -1
+    }
+
+    $usesMatch = [regex]::Match($line, '^\s*-?\s*uses:\s*["'']?(?<reference>[^\s#"'']+)')
+    $imageMatch = if ($containerIndent -ge 0) {
+      [regex]::Match($line, '^\s*image:\s*["'']?(?<reference>[^\s#"'']+)')
+    }
+    else {
+      [Text.RegularExpressions.Match]::Empty
+    }
+    if ($usesMatch.Success) {
+      $reference = $usesMatch.Groups['reference'].Value
+      $referenceCount++
+      if ($reference.StartsWith('./', [StringComparison]::Ordinal)) {
+        continue
+      }
+
+      $isPinnedAction = $reference -match '^[^/@\s]+/[^@\s]+@[0-9a-fA-F]{40}$'
+      $isPinnedContainer = $reference -match '^docker://[^@\s]+@sha256:[0-9a-fA-F]{64}$'
+      if ($isPinnedAction -or $isPinnedContainer) {
+        continue
+      }
+    }
+    elseif ($imageMatch.Success) {
+      $reference = $imageMatch.Groups['reference'].Value
+      $referenceCount++
+      if ($reference -match '^[^@\s]+@sha256:[0-9a-fA-F]{64}$') {
+        continue
+      }
+    }
+    else {
       continue
     }
 
-    $referenceCount++
-    $reference = $match.Groups['reference'].Value
-    if ($reference.StartsWith('./', [StringComparison]::Ordinal)) {
-      continue
-    }
-
-    $isPinnedAction = $reference -match '^[^/@\s]+/[^@\s]+@[0-9a-fA-F]{40}$'
-    $isPinnedContainer = $reference -match '^docker://[^@\s]+@sha256:[0-9a-fA-F]{64}$'
-    if (-not $isPinnedAction -and -not $isPinnedContainer) {
+    if (-not [string]::IsNullOrWhiteSpace($reference)) {
       $relativePath = [IO.Path]::GetRelativePath((Join-Path $PSScriptRoot '..'), $workflowFile.FullName)
       $violations.Add("${relativePath}:${lineNumber}: '$reference' must use an immutable commit SHA or image digest.")
     }

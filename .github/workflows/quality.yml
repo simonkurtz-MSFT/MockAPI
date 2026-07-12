@@ -53,6 +53,9 @@ jobs:
             -p:TreatWarningsAsErrors=true
           $report = Get-ChildItem artifacts/coverage/backend -Filter coverage.cobertura.xml -Recurse | Select-Object -First 1
           ./scripts/Assert-Coverage.ps1 -Report $report.FullName
+      - name: Validate trimmed publications
+        shell: pwsh
+        run: ./start.ps1 -Action publish
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -64,6 +67,8 @@ jobs:
 
   browser-smoke:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.54.1-noble@sha256:307ace13c8ba4349f790f4dfbc6eaa9fcafdeb29c218ff36129c7cacebb1e35f
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -79,10 +84,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: dotnet restore MockAPI.slnx
       - run: dotnet build MockAPI.slnx --configuration Release --no-restore -p:TreatWarningsAsErrors=true
-      - name: Validate trimmed publications
-        shell: pwsh
-        run: ./start.ps1 -Action publish
-      - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm exec playwright test --project chromium-desktop --grep @smoke
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
@@ -94,6 +95,8 @@ jobs:
   browser-chromium:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.54.1-noble@sha256:307ace13c8ba4349f790f4dfbc6eaa9fcafdeb29c218ff36129c7cacebb1e35f
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -109,7 +112,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: dotnet restore MockAPI.slnx
       - run: dotnet build MockAPI.slnx --configuration Release --no-restore -p:TreatWarningsAsErrors=true
-      - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm run test:browser
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()

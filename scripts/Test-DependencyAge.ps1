@@ -68,6 +68,53 @@ function Add-Result {
   }
 }
 
+function Get-McrImageCreated {
+  param(
+    [Parameter(Mandatory)][string] $Repository,
+    [Parameter(Mandatory)][string] $Reference
+  )
+
+  $headers = @{
+    Accept = 'application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json'
+  }
+  $manifest = Invoke-RestMethod "https://mcr.microsoft.com/v2/$Repository/manifests/$Reference" -Headers $headers
+  if ($null -ne $manifest.PSObject.Properties['manifests']) {
+    $platformManifest = @($manifest.manifests | Where-Object {
+        $_.platform.os -eq 'linux' -and $_.platform.architecture -eq 'amd64'
+      } | Select-Object -First 1)
+    if ($platformManifest.Count -eq 0) {
+      throw "MCR image 'mcr.microsoft.com/$Repository@$Reference' has no linux/amd64 manifest."
+    }
+    $manifest = Invoke-RestMethod "https://mcr.microsoft.com/v2/$Repository/manifests/$($platformManifest[0].digest)" -Headers $headers
+  }
+
+  $config = Invoke-RestMethod "https://mcr.microsoft.com/v2/$Repository/blobs/$($manifest.config.digest)"
+  return [DateTimeOffset]::Parse([string] $config.created)
+}
+
+function Get-WorkflowContainerImages {
+  param([Parameter(Mandatory)][IO.FileInfo] $WorkflowFile)
+
+  $containerIndent = -1
+  foreach ($line in Get-Content -LiteralPath $WorkflowFile.FullName) {
+    $indent = $line.Length - $line.TrimStart().Length
+    if ($line -match '^\s*container:\s*["'']?(?<reference>[^\s#"'']*)') {
+      if (-not [string]::IsNullOrWhiteSpace($Matches.reference)) {
+        $Matches.reference
+        continue
+      }
+      $containerIndent = $indent
+      continue
+    }
+    if ($containerIndent -ge 0 -and -not [string]::IsNullOrWhiteSpace($line) -and $indent -le $containerIndent) {
+      $containerIndent = -1
+    }
+    if ($containerIndent -ge 0 -and $line -match '^\s*image:\s*["'']?(?<reference>[^\s#"'']+)') {
+      $Matches.reference
+    }
+  }
+}
+
 $pnpm = Get-Command pnpm -ErrorAction Stop
 & $pnpm.Source install --frozen-lockfile --lockfile-only
 if ($LASTEXITCODE -ne 0) {
@@ -116,6 +163,26 @@ foreach ($actionReference in $actionReferences) {
   Add-Result -Ecosystem GitHubActions -Name $repository -Version $ref -Published $published
 }
 
+$workflowImages = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+foreach ($workflowFile in $workflowFiles) {
+  foreach ($imageReference in Get-WorkflowContainerImages -WorkflowFile $workflowFile) {
+    $null = $workflowImages.Add($imageReference)
+  }
+}
+foreach ($imageReference in $workflowImages) {
+  if ($imageReference -notmatch '^(?<registry>[^/]+)/(?<repository>[^@]+)@(?<digest>sha256:[0-9a-fA-F]{64})$') {
+    throw "Workflow container image must use an explicit registry and digest: $imageReference"
+  }
+  if ($Matches.registry -ne 'mcr.microsoft.com') {
+    throw "Dependency age validation does not support workflow container registry '$($Matches.registry)'."
+  }
+  $repositoryWithTag = $Matches.repository
+  $digest = $Matches.digest
+  $repository = $repositoryWithTag -replace ':[^/:]+$', ''
+  Add-Result -Ecosystem Docker -Name "mcr.microsoft.com/$repository" -Version $digest `
+    -Published (Get-McrImageCreated -Repository $repository -Reference $digest)
+}
+
 $dockerfile = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../Dockerfile') -Raw
 foreach ($match in [regex]::Matches($dockerfile, '(?m)^FROM\s+(?<image>[^\s]+)')) {
   $imageReference = $match.Groups['image'].Value
@@ -127,10 +194,8 @@ foreach ($match in [regex]::Matches($dockerfile, '(?m)^FROM\s+(?<image>[^\s]+)')
   }
   $repository = $Matches.repository
   $tag = $Matches.tag
-  $headers = @{ Accept = 'application/vnd.docker.distribution.manifest.v2+json' }
-  $manifest = Invoke-RestMethod "https://mcr.microsoft.com/v2/$repository/manifests/$tag" -Headers $headers
-  $config = Invoke-RestMethod "https://mcr.microsoft.com/v2/$repository/blobs/$($manifest.config.digest)"
-  Add-Result -Ecosystem Docker -Name "mcr.microsoft.com/$repository" -Version $tag -Published ([DateTimeOffset]::Parse([string] $config.created))
+  Add-Result -Ecosystem Docker -Name "mcr.microsoft.com/$repository" -Version $tag `
+    -Published (Get-McrImageCreated -Repository $repository -Reference $tag)
 }
 
 $verified | Sort-Object Ecosystem, Dependency | Format-Table -AutoSize | Out-Host
