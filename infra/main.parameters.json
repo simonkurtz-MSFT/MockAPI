@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "value": "${AZURE_ENV_NAME}"
+    },
+    "location": {
+      "value": "${AZURE_LOCATION}"
+    },
+    "resourceGroupName": {
+      "value": "rg-${AZURE_ENV_NAME}-${AZURE_LOCATION}"
+    },
+    "dashboardUsername": {
+      "value": "${AZURE_DASHBOARD_USERNAME}"
+    },
+    "dashboardPasswordHash": {
+      "value": "${AZURE_DASHBOARD_PASSWORD_HASH}"
+    },
+    "customDomainsJson": {
+      "value": "${AZURE_CUSTOM_DOMAINS=[]}"
+    }
+  }
+}

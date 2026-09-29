@@ -1,0 +1,390 @@
+using System.Net;
+using System.Text;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using MockAPI.Configuration;
+using MockAPI.Runtime;
+
+namespace MockAPI.Tests.Runtime;
+
+public sealed class MockDispatcherTests
+{
+    [Fact]
+    public async Task Root_ReturnsDashboardInsteadOfDispatcherResponse()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/", CancellationToken.None);
+        using var headRequest = new HttpRequestMessage(HttpMethod.Head, "/");
+        using var headResponse = await client.SendAsync(headRequest, CancellationToken.None);
+        using var postResponse = await client.PostAsync("/", null, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/html", response.Content.Headers.ContentType!.MediaType);
+        Assert.Contains("MockAPI", await response.Content.ReadAsStringAsync(CancellationToken.None));
+        Assert.Equal(HttpStatusCode.OK, headResponse.StatusCode);
+        Assert.Empty(await headResponse.Content.ReadAsByteArrayAsync(CancellationToken.None));
+        Assert.Equal(HttpStatusCode.NotFound, postResponse.StatusCode);
+        var snapshot = statistics.GetSnapshot();
+        Assert.Equal(1, snapshot.TotalRequests);
+        Assert.Equal(0, snapshot.MatchedRequests);
+        Assert.Equal(1, snapshot.UnmatchedRequests);
+    }
+
+    [Fact]
+    public async Task FaviconRequest_IsServedWithoutAddingARequestLogEntry()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/favicon.ico", CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("image/svg+xml", response.Content.Headers.ContentType!.MediaType);
+        var snapshot = statistics.GetSnapshot();
+        Assert.Equal(0, snapshot.TotalRequests);
+        Assert.Empty(snapshot.RecentRequests);
+    }
+
+    [Fact]
+    public async Task UnconfiguredBrowserResource_IsNotAddedToRequestLog()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            "/.well-known/appspecific/com.chrome.devtools.json",
+            CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var snapshot = statistics.GetSnapshot();
+        Assert.Equal(1, snapshot.TotalRequests);
+        Assert.Equal(1, snapshot.UnmatchedRequests);
+        Assert.Empty(snapshot.RecentRequests);
+    }
+
+    [Fact]
+    public async Task ConfiguredEndpoint_WritesExactResponseAndHeadOmitsBody()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
+        var endpoint = CreateEndpoint(
+            methods: ["GET", "HEAD"],
+            path: "/api/raw",
+            body: "{not-valid-json}\r\n") with
+        {
+            Response = new MockResponseDefinition
+            {
+                StatusCode = 429,
+                ReasonPhrase = "Too Many Requests",
+                Headers = new()
+                {
+                    ["Retry-After"] = ["30"],
+                    ["X-Repeated"] = ["first", "second"]
+                },
+                ContentType = "application/json; charset=utf-8",
+                Body = "{not-valid-json}\r\n"
+            }
+        };
+        Apply(configuration, CreateDocument(endpoint));
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/api/raw?ignored=secret", CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
+        Assert.Equal("Too Many Requests", response.ReasonPhrase);
+        Assert.Equal("30", Assert.Single(response.Headers.GetValues("Retry-After")));
+        Assert.Equal(["first", "second"], response.Headers.GetValues("X-Repeated"));
+        Assert.Equal("application/json; charset=utf-8", response.Content.Headers.ContentType!.ToString());
+        Assert.Equal(
+            Encoding.UTF8.GetBytes("{not-valid-json}\r\n"),
+            await response.Content.ReadAsByteArrayAsync(CancellationToken.None));
+
+        using var headRequest = new HttpRequestMessage(HttpMethod.Head, "/api/raw");
+        using var headResponse = await client.SendAsync(headRequest, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, headResponse.StatusCode);
+        Assert.Empty(await headResponse.Content.ReadAsByteArrayAsync(CancellationToken.None));
+        Assert.Equal("30", Assert.Single(headResponse.Headers.GetValues("Retry-After")));
+        Assert.Equal("application/json; charset=utf-8", headResponse.Content.Headers.ContentType!.ToString());
+        var snapshot = statistics.GetSnapshot();
+        Assert.Equal(2, snapshot.TotalRequests);
+        Assert.Equal(2, snapshot.MatchedRequests);
+        Assert.Equal(Encoding.UTF8.GetByteCount("{not-valid-json}\r\n"), snapshot.ResponseBytes);
+    }
+
+    [Fact]
+    public async Task RateLimitedEndpoint_ReturnsSuccessUntilRequestLimitIsExceeded()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        var endpoint = CreateEndpoint(["GET"], "/api/rate-limited", "{\"error\":\"try later\"}") with
+        {
+            Response = new MockResponseDefinition
+            {
+                StatusCode = 429,
+                Headers = new() { ["Retry-After"] = ["10"] },
+                ContentType = "application/json; charset=utf-8",
+                Body = "{\"error\":\"try later\"}",
+                RateLimit = new MockRateLimitDefinition
+                {
+                    RequestLimit = 2,
+                    WindowSeconds = 10,
+                    SuccessResponse = new MockSuccessResponseDefinition
+                    {
+                        StatusCode = 202,
+                        Headers = [],
+                        ContentType = "application/json; charset=utf-8",
+                        Body = "{\"status\":\"accepted\"}"
+                    }
+                }
+            }
+        };
+        Apply(configuration, CreateDocument(endpoint));
+        using var client = factory.CreateClient();
+
+        using var first = await client.GetAsync("/api/rate-limited", CancellationToken.None);
+        using var second = await client.GetAsync("/api/rate-limited", CancellationToken.None);
+        using var third = await client.GetAsync("/api/rate-limited", CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+        Assert.Equal("{\"status\":\"accepted\"}", await first.Content.ReadAsStringAsync(CancellationToken.None));
+        Assert.Equal(HttpStatusCode.Accepted, second.StatusCode);
+        Assert.Equal("{\"status\":\"accepted\"}", await second.Content.ReadAsStringAsync(CancellationToken.None));
+        Assert.Equal(HttpStatusCode.TooManyRequests, third.StatusCode);
+        Assert.Equal("10", Assert.Single(third.Headers.GetValues("Retry-After")));
+        Assert.Equal("{\"error\":\"try later\"}", await third.Content.ReadAsStringAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RateLimitedEndpoint_ReturnsSuccessAfterWindowExpires()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        var endpoint = CreateEndpoint(["GET"], "/api/rate-window", "limited") with
+        {
+            Response = new MockResponseDefinition
+            {
+                StatusCode = 429,
+                Headers = [],
+                ContentType = "text/plain",
+                Body = "limited",
+                RateLimit = new MockRateLimitDefinition
+                {
+                    RequestLimit = 1,
+                    WindowSeconds = 1,
+                    SuccessResponse = new MockSuccessResponseDefinition
+                    {
+                        StatusCode = 200,
+                        Headers = [],
+                        ContentType = "text/plain",
+                        Body = "success"
+                    }
+                }
+            }
+        };
+        Apply(configuration, CreateDocument(endpoint));
+        using var client = factory.CreateClient();
+
+        using var first = await client.GetAsync("/api/rate-window", CancellationToken.None);
+        using var limited = await client.GetAsync("/api/rate-window", CancellationToken.None);
+        await Task.Delay(TimeSpan.FromMilliseconds(1100), CancellationToken.None);
+        using var replenished = await client.GetAsync("/api/rate-window", CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, replenished.StatusCode);
+    }
+
+    [Fact]
+    public async Task AbortConnectionEndpoint_DropsConnectionWithoutAResponse()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
+        var endpoint = CreateEndpoint(["GET"], "/api/abort", string.Empty) with
+        {
+            Response = new MockResponseDefinition
+            {
+                Behavior = MockResponseBehavior.AbortConnection,
+                Headers = [],
+                Body = string.Empty
+            }
+        };
+        Apply(configuration, CreateDocument(endpoint));
+        using var client = factory.CreateClient();
+
+        var exception = await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            client.GetAsync("/api/abort", HttpCompletionOption.ResponseHeadersRead, CancellationToken.None));
+        Assert.Equal("The application aborted the request.", exception.Message);
+
+        var snapshot = statistics.GetSnapshot();
+        Assert.Equal(1, snapshot.TotalRequests);
+        Assert.Equal(1, snapshot.MatchedRequests);
+        Assert.Equal(1, snapshot.AbortedConnections);
+        Assert.Equal(0, snapshot.FailedWrites);
+        Assert.Equal(0, snapshot.ResponseBytes);
+    }
+
+    [Fact]
+    public async Task Dispatcher_UsesExactPathAndReturnsNotFoundWhenUnmatched()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
+        Apply(configuration, CreateDocument(CreateEndpoint(["GET"], "/case-sensitive", "matched")));
+        using var client = factory.CreateClient();
+
+        using var wrongCase = await client.GetAsync("/Case-Sensitive", CancellationToken.None);
+        using var wrongMethod = await client.PostAsync("/case-sensitive", null, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.NotFound, wrongCase.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, wrongMethod.StatusCode);
+        Assert.Equal(2, statistics.GetSnapshot().UnmatchedRequests);
+    }
+
+    [Fact]
+    public async Task Dispatcher_NullPathIsUnmatched()
+    {
+        var configuration = new ConfigurationState();
+        var statistics = new RequestStatisticsCollector();
+        var context = new DefaultHttpContext();
+        context.Request.Method = "GET";
+        context.Request.Path = default;
+
+        await MockRequestDispatcher.DispatchAsync(context, configuration, statistics);
+
+        Assert.Equal(StatusCodes.Status404NotFound, context.Response.StatusCode);
+        Assert.Equal(1, statistics.GetSnapshot().UnmatchedRequests);
+        Assert.Equal(string.Empty, MockRequestDispatcher.GetPathValue(default));
+        Assert.Equal("/value", MockRequestDispatcher.GetPathValue(new PathString("/value")));
+    }
+
+    [Fact]
+    public async Task Dispatcher_FallbackMatchesPathsWithFileExtensions()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        Apply(configuration, CreateDocument(CreateEndpoint(["GET"], "/response.json", "json path")));
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/response.json", CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("json path", await response.Content.ReadAsStringAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ReplacingRegistry_ChangesRunningRouteWithoutRestart()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        Apply(configuration, CreateDocument(CreateEndpoint(["GET"], "/dynamic", "before")));
+        using var client = factory.CreateClient();
+
+        Assert.Equal("before", await client.GetStringAsync("/dynamic", CancellationToken.None));
+
+        Apply(configuration, CreateDocument(CreateEndpoint(["GET"], "/dynamic", "after")));
+
+        Assert.Equal("after", await client.GetStringAsync("/dynamic", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Dispatcher_RecordsFailedWriteAndRethrows()
+    {
+        var configuration = new ConfigurationState();
+        var statistics = new RequestStatisticsCollector();
+        Apply(configuration, CreateDocument(CreateEndpoint(["GET"], "/fails", "body")));
+        var context = new DefaultHttpContext();
+        context.Request.Method = "GET";
+        context.Request.Path = "/fails";
+        context.Response.Body = new ThrowingWriteStream();
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            MockRequestDispatcher.DispatchAsync(context, configuration, statistics));
+
+        var snapshot = statistics.GetSnapshot();
+        Assert.Equal(1, snapshot.TotalRequests);
+        Assert.Equal(1, snapshot.MatchedRequests);
+        Assert.Equal(1, snapshot.FailedWrites);
+        Assert.Equal(0, snapshot.ResponseBytes);
+    }
+
+    [Fact]
+    public async Task ConcurrentRequestsAndReplacements_ReturnOnlyCompleteResponses()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        var first = CreateDocument(CreateEndpoint(["GET"], "/race", "first-response"));
+        var second = CreateDocument(CreateEndpoint(["GET"], "/race", "second-response"));
+        Apply(configuration, first);
+        using var client = factory.CreateClient();
+
+        var writer = Task.Run(() =>
+        {
+            for (var index = 0; index < 500; index++)
+            {
+                Apply(configuration, index % 2 == 0 ? first : second);
+            }
+        });
+        var readers = Enumerable.Range(0, 8).Select(async _ =>
+        {
+            for (var index = 0; index < 100; index++)
+            {
+                var body = await client.GetStringAsync("/race", CancellationToken.None);
+                Assert.True(body is "first-response" or "second-response", body);
+            }
+        });
+
+        await Task.WhenAll(readers.Append(writer));
+
+        var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>().GetSnapshot();
+        Assert.Equal(800, statistics.TotalRequests);
+        Assert.Equal(800, statistics.MatchedRequests);
+    }
+
+    private static MockApiConfigurationDocument CreateDocument(params MockEndpointDefinition[] endpoints) => new()
+    {
+        SchemaVersion = "1.0",
+        Endpoints = endpoints
+    };
+
+    private static void Apply(ConfigurationState state, MockApiConfigurationDocument document)
+    {
+        var result = state.TryReplace(document, state.Current.Revision);
+        Assert.Equal(ConfigurationUpdateStatus.Applied, result.Status);
+    }
+
+    private static MockEndpointDefinition CreateEndpoint(
+        IReadOnlyList<string> methods,
+        string path,
+        string body) => new()
+        {
+            Id = Guid.NewGuid(),
+            Name = path,
+            Enabled = true,
+            Methods = methods,
+            Path = path,
+            Response = new MockResponseDefinition
+            {
+                StatusCode = 200,
+                Headers = [],
+                ContentType = "text/plain; charset=utf-8",
+                Body = body
+            }
+        };
+
+    private sealed class ThrowingWriteStream : MemoryStream
+    {
+        public override ValueTask WriteAsync(
+            ReadOnlyMemory<byte> buffer,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromException(new IOException("Simulated response write failure."));
+    }
+}

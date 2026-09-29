@@ -1,0 +1,14 @@
+packages:
+  - .
+
+allowBuilds:
+  esbuild: true
+
+overrides:
+  nanoid: 3.3.18
+  postcss: 8.5.23
+  smol-toml: 1.8.0
+
+lockfileIncludeTarballUrl: false
+minimumReleaseAge: 11520
+minimumReleaseAgeIgnoreMissingTime: false

@@ -1,0 +1,261 @@
+{
+  "$schema": "../schemas/mockapi.schema.json",
+  "schemaVersion": "1.0",
+  "endpoints": [
+    {
+      "id": "2dd0ad99-53ed-4d37-a9a3-c94c531d8520",
+      "name": "Inference backend - success",
+      "description": "Returns a healthy Azure OpenAI-style chat completion. APIM should return this response without retrying or tripping the backend circuit breaker.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/200/chat/completions",
+      "response": {
+        "statusCode": 200,
+        "reasonPhrase": "OK",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["success"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"id\":\"chatcmpl-mock-success\",\"object\":\"chat.completion\",\"created\":0,\"model\":\"mock-inference-model\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"Mock inference completed successfully.\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":8,\"completion_tokens\":6,\"total_tokens\":14}}"
+      }
+    },
+    {
+      "id": "99c2c757-5f85-4ee0-83f9-b26e8364946f",
+      "name": "Inference backend - invalid request",
+      "description": "Returns a client error for an invalid inference request. APIM should pass it through unchanged without retrying or tripping the circuit breaker.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/400/chat/completions",
+      "response": {
+        "statusCode": 400,
+        "reasonPhrase": "Bad Request",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["client-error"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"invalid_request_error\",\"message\":\"The request payload is invalid.\",\"type\":\"invalid_request_error\"}}"
+      }
+    },
+    {
+      "id": "d88b6d82-81d4-49e9-8cf1-d0262231750b",
+      "name": "Inference backend - authentication failed",
+      "description": "Returns a backend authentication failure. APIM should pass it through unchanged; operators should correct the backend credential or managed identity configuration.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/401/chat/completions",
+      "response": {
+        "statusCode": 401,
+        "reasonPhrase": "Unauthorized",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["authentication-error"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"Unauthorized\",\"message\":\"Backend authentication failed.\"}}"
+      }
+    },
+    {
+      "id": "1b62446b-eedb-4c9b-a5c7-817fdcad5250",
+      "name": "Inference backend - authorization failed",
+      "description": "Returns a backend authorization failure. APIM should pass it through unchanged; operators should correct the backend role assignment or authorization policy.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/403/chat/completions",
+      "response": {
+        "statusCode": 403,
+        "reasonPhrase": "Forbidden",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["authorization-error"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"Forbidden\",\"message\":\"The backend identity is not authorized to invoke this deployment.\"}}"
+      }
+    },
+    {
+      "id": "e51ab3dd-91a3-4104-a315-16fd40b826d7",
+      "name": "Inference backend - deployment not found",
+      "description": "Returns a missing model deployment error. APIM should pass it through unchanged; operators should correct the backend URL or deployment name.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/404/chat/completions",
+      "response": {
+        "statusCode": 404,
+        "reasonPhrase": "Not Found",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["configuration-error"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"DeploymentNotFound\",\"message\":\"The requested model deployment does not exist.\"}}"
+      }
+    },
+    {
+      "id": "a405ed96-53ea-423c-931f-e688a6bb3667",
+      "name": "Inference backend - request timeout",
+      "description": "Returns an explicit HTTP 408. APIM should trip the responding backend circuit and retry another eligible backend, retaining 408 if the fallback chain is exhausted.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/408/chat/completions",
+      "response": {
+        "statusCode": 408,
+        "reasonPhrase": "Request Timeout",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["timeout"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"RequestTimeout\",\"message\":\"The backend timed out while processing the inference request.\"}}"
+      }
+    },
+    {
+      "id": "a11f58f0-e0da-4a3e-b8fc-418e42dbf2ee",
+      "name": "Inference backend - non-transient conflict",
+      "description": "Returns HTTP 409 without Retry-After. APIM should treat the conflict as non-transient and return it after one backend attempt.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/409/chat/completions",
+      "response": {
+        "statusCode": 409,
+        "reasonPhrase": "Conflict",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["non-transient-conflict"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"Conflict\",\"message\":\"A non-transient backend conflict occurred.\"}}"
+      }
+    },
+    {
+      "id": "f8ab06f1-a428-429e-a71e-2f69cc334d5e",
+      "name": "Inference backend - transient conflict",
+      "description": "Returns HTTP 409 with Retry-After: 1. APIM should retry another backend but should not open the responding backend circuit for this conditional conflict.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/409-retry-after/chat/completions",
+      "response": {
+        "statusCode": 409,
+        "reasonPhrase": "Conflict",
+        "headers": {
+          "Retry-After": ["1"],
+          "X-Mock-Backend-Scenario": ["transient-conflict"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"Conflict\",\"message\":\"A transient backend conflict occurred; retry after one second.\"}}"
+      }
+    },
+    {
+      "id": "7713e516-ac68-4d51-87ed-0fc8caf12387",
+      "name": "Inference backend - capacity exhausted",
+      "description": "Returns HTTP 429 with Retry-After: 10 to model exhausted inference capacity. APIM should trip the backend circuit and retry another eligible backend.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/429/chat/completions",
+      "response": {
+        "statusCode": 429,
+        "reasonPhrase": "Too Many Requests",
+        "headers": {
+          "Retry-After": ["10"],
+          "X-Mock-Backend-Scenario": ["capacity-exhausted"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"RateLimitReached\",\"message\":\"The backend deployment has exhausted its available capacity.\",\"type\":\"tokens\"}}"
+      }
+    },
+    {
+      "id": "c8226f69-d647-4d32-8323-c196c4a52fa7",
+      "name": "Inference backend - transformed PTU exhaustion",
+      "description": "Returns custom HTTP 499 to represent PTU exhaustion transformed from a backend 408. APIM should trip the backend circuit and fail over.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/499/chat/completions",
+      "response": {
+        "statusCode": 499,
+        "reasonPhrase": "PTU Capacity Exhausted",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["transformed-ptu-exhaustion"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"PtuCapacityExhausted\",\"message\":\"PTU exhaustion was transformed to the custom 499 response.\"}}"
+      }
+    },
+    {
+      "id": "e7116d72-9a7e-481c-a41c-678a6dd5c9e8",
+      "name": "Inference backend - internal server error",
+      "description": "Returns HTTP 500. APIM should trip the backend circuit, retry another eligible backend, and normalize an exhausted fallback chain to HTTP 503.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/500/chat/completions",
+      "response": {
+        "statusCode": 500,
+        "reasonPhrase": "Internal Server Error",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["infrastructure-error"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"InternalServerError\",\"message\":\"The inference backend encountered an internal error.\"}}"
+      }
+    },
+    {
+      "id": "8db83525-ac49-4208-a921-c3af70a98c31",
+      "name": "Inference backend - bad gateway",
+      "description": "Returns HTTP 502. APIM should trip the backend circuit, retry another eligible backend, and normalize an exhausted fallback chain to HTTP 503.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/502/chat/completions",
+      "response": {
+        "statusCode": 502,
+        "reasonPhrase": "Bad Gateway",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["gateway-error"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"BadGateway\",\"message\":\"The backend received an invalid response from an upstream dependency.\"}}"
+      }
+    },
+    {
+      "id": "1bd86f8e-e798-4f4b-b809-c67e42cb714b",
+      "name": "Inference backend - unavailable",
+      "description": "Returns HTTP 503 with Retry-After: 5. APIM should trip the backend circuit, fail over immediately, and return a generic 503 if every fallback is exhausted.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/503/chat/completions",
+      "response": {
+        "statusCode": 503,
+        "reasonPhrase": "Service Unavailable",
+        "headers": {
+          "Retry-After": ["5"],
+          "X-Mock-Backend-Scenario": ["service-unavailable"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"ServiceUnavailable\",\"message\":\"The inference backend is temporarily unavailable.\"}}"
+      }
+    },
+    {
+      "id": "9a641750-c727-4e65-991f-a7b45fd84740",
+      "name": "Inference backend - gateway timeout",
+      "description": "Returns explicit HTTP 504. APIM should trip the backend circuit, retry another eligible backend, and normalize an exhausted fallback chain to HTTP 503.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/504/chat/completions",
+      "response": {
+        "statusCode": 504,
+        "reasonPhrase": "Gateway Timeout",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["gateway-timeout"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"GatewayTimeout\",\"message\":\"The backend did not receive a timely response from an upstream dependency.\"}}"
+      }
+    },
+    {
+      "id": "4b408fc0-2eda-4adf-83d4-3d74c308ca41",
+      "name": "Inference backend - transport failure",
+      "description": "Accepts the request and aborts the connection before sending HTTP headers. This approximates a backend transport failure that APIM should retry and normalize to 503 when exhausted.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/transport-failure/chat/completions",
+      "response": {
+        "behavior": "abortConnection",
+        "headers": {},
+        "contentType": null,
+        "body": ""
+      }
+    }
+  ]
+}

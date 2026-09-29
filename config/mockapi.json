@@ -1,0 +1,135 @@
+{
+  "$schema": "../schemas/mockapi.schema.json",
+  "schemaVersion": "1.0",
+  "apiDescriptions": {
+    "/ex": "This API demonstrates some of MockAPI's capabilities."
+  },
+  "endpoints": [
+    {
+      "id": "4cb6e141-5f4f-4a30-9715-ec2c68554ad0",
+      "name": "Hello from MockAPI",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/ex/hello",
+      "response": {
+        "statusCode": 200,
+        "reasonPhrase": "OK",
+        "headers": {
+          "X-Mock-Source": ["MockAPI"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"message\":\"Hello from MockAPI\"}"
+      }
+    },
+    {
+      "id": "17a50c14-e67f-4770-9bf6-afb4a80e4609",
+      "name": "Create an order",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/ex/orders",
+      "response": {
+        "statusCode": 201,
+        "reasonPhrase": "Created",
+        "headers": {
+          "Location": ["/ex/orders/42"],
+          "X-Mock-Source": ["MockAPI"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"id\":42,\"status\":\"created\"}"
+      }
+    },
+    {
+      "id": "7b2d425d-75f1-4ded-a74e-503374a7e99e",
+      "name": "Rate limited response",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/ex/rate-limited",
+      "requestCount": 5,
+      "response": {
+        "statusCode": 429,
+        "reasonPhrase": "Too Many Requests",
+        "headers": {
+          "Retry-After": ["10"],
+          "X-Mock-Source": ["MockAPI", "checked-in-example"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":\"try again later\"}",
+        "rateLimit": {
+          "requestLimit": 4,
+          "windowSeconds": 10,
+          "successResponse": {
+            "statusCode": 200,
+            "reasonPhrase": "OK",
+            "headers": {
+              "X-Mock-Source": ["MockAPI", "checked-in-example"]
+            },
+            "contentType": "application/json; charset=utf-8",
+            "body": "{\"status\":\"accepted\"}"
+          }
+        }
+      }
+    },
+    {
+      "id": "b53545e8-fd25-44cb-940b-0ce175547483",
+      "name": "Delete an order",
+      "enabled": true,
+      "methods": ["DELETE"],
+      "path": "/ex/orders/42",
+      "response": {
+        "statusCode": 204,
+        "reasonPhrase": "No Content",
+        "headers": {
+          "X-Mock-Source": ["MockAPI"]
+        },
+        "contentType": null,
+        "body": ""
+      }
+    },
+    {
+      "id": "ec8d45cb-a095-4d7e-9540-c7d9d81fe426",
+      "name": "Redirect to hello",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/ex/redirect",
+      "response": {
+        "statusCode": 302,
+        "reasonPhrase": "Found",
+        "headers": {
+          "Location": ["/ex/hello"],
+          "X-Mock-Source": ["MockAPI"]
+        },
+        "contentType": null,
+        "body": ""
+      }
+    },
+    {
+      "id": "a276b184-ecf6-4377-bf45-5ef1dc8f7433",
+      "name": "Server error",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/ex/server-error",
+      "response": {
+        "statusCode": 500,
+        "reasonPhrase": "Internal Server Error",
+        "headers": {
+          "X-Mock-Source": ["MockAPI"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":\"internal server error\"}"
+      }
+    },
+    {
+      "id": "5f8c908d-42e1-4af9-952a-35c77c408a26",
+      "name": "Abort the connection",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/ex/abort-connection",
+      "response": {
+        "behavior": "abortConnection",
+        "headers": {},
+        "contentType": null,
+        "body": ""
+      }
+    }
+  ]
+}

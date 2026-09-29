@@ -1,0 +1,222 @@
+name: Quality engineering
+
+on:
+  pull_request:
+    paths:
+      - ".github/dependency-age-exceptions.json"
+      - ".devcontainer/**"
+      - ".github/workflows/**"
+      - ".dockerignore"
+      - "site/**"
+      - "docs/images/01-dashboard-overview.png"
+      - "config/**"
+      - "schemas/**"
+      - "scripts/**"
+      - "src/**"
+      - "tests/**"
+      - ".editorconfig"
+      - ".githooks/**"
+      - ".nvmrc"
+      - ".npmrc"
+      - "global.json"
+      - "MockAPI.slnx"
+      - "package.json"
+      - "playwright.config.js"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "start.ps1"
+      - "start.sh"
+      - "vitest.config.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/dependency-age-exceptions.json"
+      - ".devcontainer/**"
+      - ".github/workflows/**"
+      - ".dockerignore"
+      - "site/**"
+      - "docs/images/01-dashboard-overview.png"
+      - "config/**"
+      - "schemas/**"
+      - "scripts/**"
+      - "src/**"
+      - "tests/**"
+      - ".editorconfig"
+      - ".githooks/**"
+      - ".nvmrc"
+      - ".npmrc"
+      - "global.json"
+      - "MockAPI.slnx"
+      - "package.json"
+      - "playwright.config.js"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "start.ps1"
+      - "start.sh"
+      - "vitest.config.mjs"
+  release:
+    types: [published]
+  schedule:
+    - cron: "31 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: "true"
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          standalone: true
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          dotnet-version: 10.0.x
+      - run: pnpm install --frozen-lockfile
+      - name: Verify dependency release ages
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm run validate:dependency-age
+      - run: dotnet restore MockAPI.slnx
+      - name: Validate application version
+        run: pnpm run validate:version
+      - name: Scan dependency vulnerabilities
+        run: pnpm run validate:dependency-security
+      - name: Frontend coverage
+        shell: pwsh
+        run: |
+          pnpm run test:frontend:coverage
+          ./scripts/Assert-TestResults.ps1 -Report artifacts/coverage/frontend/frontend-tests.xml
+      - name: Backend coverage
+        shell: pwsh
+        run: |
+          dotnet test MockAPI.slnx --configuration Release --no-restore `
+            --settings tests/coverage.runsettings `
+            --collect:"XPlat Code Coverage" `
+            --results-directory artifacts/coverage/backend `
+            --logger "trx;LogFileName=backend-tests.trx" `
+            -p:TreatWarningsAsErrors=true
+          $report = Get-ChildItem artifacts/coverage/backend -Filter coverage.cobertura.xml -Recurse | Select-Object -First 1
+          $testResult = Get-ChildItem artifacts/coverage/backend -Filter backend-tests.trx -Recurse | Select-Object -First 1
+          ./scripts/Assert-Coverage.ps1 -Report $report.FullName
+          ./scripts/Assert-TestResults.ps1 -Report $testResult.FullName
+          ./scripts/Write-CoverageSummary.ps1 `
+            -BackendReport $report.FullName `
+            -FrontendReport artifacts/coverage/frontend/cobertura-coverage.xml `
+            -Output artifacts/coverage/coverage-summary.md
+      - name: Validate diagnostic CoreCLR publications (AOT runs in container CI)
+        shell: pwsh
+        run: ./start.ps1 -Action publish
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: coverage-and-unit-results
+          retention-days: 14
+          path: |
+            artifacts/coverage/**
+            artifacts/coverage/backend/**/backend-tests.trx
+
+  browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          standalone: true
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          dotnet-version: 10.0.x
+      - run: pnpm install --frozen-lockfile
+      - run: dotnet restore MockAPI.slnx
+      - run: dotnet build MockAPI.slnx --configuration Release --no-restore -p:TreatWarningsAsErrors=true
+      - name: Run browser smoke tests
+        # Feature suites share one mutable backend; retain the configured single worker.
+        run: pnpm exec playwright test --project chromium-desktop --grep @smoke
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-smoke-failure
+          retention-days: 14
+          path: artifacts/playwright/**
+
+  version-tag:
+    name: Tag validated version
+    needs: [coverage, browser-smoke, browser-chromium]
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    concurrency:
+      group: application-version-tag
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+      - name: Create immutable tag only for a new version
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: node scripts/release-version.cjs tag
+
+  browser-chromium:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          standalone: true
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          dotnet-version: 10.0.x
+      - run: pnpm install --frozen-lockfile
+      - run: dotnet restore MockAPI.slnx
+      - run: dotnet build MockAPI.slnx --configuration Release --no-restore -p:TreatWarningsAsErrors=true
+      - name: Run complete browser tests
+        run: pnpm run test:browser
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: playwright-chromium-results
+          retention-days: 14
+          path: artifacts/playwright/**

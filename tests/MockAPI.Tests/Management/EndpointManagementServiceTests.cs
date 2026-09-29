@@ -1,0 +1,184 @@
+using MockAPI.Configuration;
+using MockAPI.Management;
+
+namespace MockAPI.Tests.Management;
+
+public sealed class EndpointManagementServiceTests
+{
+    [Fact]
+    public void Operations_ReturnExpectedStatusesAndPreserveEndpointOrder()
+    {
+        var state = new ConfigurationState();
+        var service = new EndpointManagementService(state);
+        var first = CreateEndpoint("/first");
+        var second = CreateEndpoint("/second");
+
+        Assert.Equal(ManagementOperationStatus.Applied, service.Create(first, 0).Status);
+        Assert.Equal(ManagementOperationStatus.Applied, service.Create(second, 1).Status);
+        Assert.Equal(ManagementOperationStatus.AlreadyExists, service.Create(second, 2).Status);
+        Assert.Equal(
+            ManagementOperationStatus.IdMismatch,
+            service.Replace(second.Id, second with { Id = Guid.NewGuid() }, 2).Status);
+        var missingId = Guid.NewGuid();
+        Assert.Equal(
+            ManagementOperationStatus.NotFound,
+            service.Replace(missingId, CreateEndpoint("/missing") with { Id = missingId }, 2).Status);
+
+        var beforeInvalid = state.Current;
+        var invalid = CreateEndpoint("/health");
+        var invalidResult = service.Create(invalid, 2);
+        Assert.Equal(ManagementOperationStatus.ValidationFailed, invalidResult.Status);
+        Assert.NotEmpty(invalidResult.Validation!.Errors);
+        Assert.Same(beforeInvalid, state.Current);
+
+        var replacement = second with { Path = "/second-replaced", Name = "second-replaced" };
+        Assert.Equal(ManagementOperationStatus.Applied, service.Replace(second.Id, replacement, 2).Status);
+        Assert.Equal(ManagementOperationStatus.Applied, service.SetEnabled(second.Id, false, 3).Status);
+        Assert.Equal(ManagementOperationStatus.Applied, service.Delete(first.Id, 4).Status);
+
+        var remaining = Assert.Single(state.Current.GetDocument().Endpoints);
+        Assert.Equal(second.Id, remaining.Id);
+        Assert.Equal("/second-replaced", remaining.Path);
+        Assert.False(remaining.Enabled);
+        Assert.Equal(5, state.Current.Revision);
+        Assert.True(state.Current.HasUnsavedChanges);
+    }
+
+    [Fact]
+    public void ConcurrentCreatesWithSameRevision_HaveExactlyOneWinner()
+    {
+        var state = new ConfigurationState();
+        var service = new EndpointManagementService(state);
+        var results = new ManagementOperationResult[100];
+
+        Parallel.For(0, results.Length, index =>
+        {
+            results[index] = service.Create(CreateEndpoint($"/endpoint-{index}"), expectedRevision: 0);
+        });
+
+        Assert.Single(results, result => result.Status == ManagementOperationStatus.Applied);
+        Assert.Equal(99, results.Count(result => result.Status == ManagementOperationStatus.RevisionConflict));
+        Assert.Equal(1, state.Current.Revision);
+        var endpoint = Assert.Single(state.Current.GetDocument().Endpoints);
+        Assert.True(state.Current.Endpoints.TryGet("GET", endpoint.Path, out _));
+    }
+
+    [Fact]
+    public void SetEnabledAndDelete_RejectStaleRevisionsAndMissingEndpoints()
+    {
+        var state = new ConfigurationState();
+        var service = new EndpointManagementService(state);
+        var endpoint = CreateEndpoint("/stale");
+        Assert.Equal(ManagementOperationStatus.Applied, service.Create(endpoint, 0).Status);
+
+        Assert.Equal(ManagementOperationStatus.RevisionConflict, service.SetEnabled(endpoint.Id, false, 0).Status);
+        Assert.Equal(ManagementOperationStatus.RevisionConflict, service.Delete(endpoint.Id, 0).Status);
+        Assert.Equal(ManagementOperationStatus.NotFound, service.SetEnabled(Guid.NewGuid(), false, 1).Status);
+        Assert.Equal(ManagementOperationStatus.NotFound, service.Delete(Guid.NewGuid(), 1).Status);
+    }
+
+    [Fact]
+    public void ApplyBulk_EnablesDisablesAndDeletesSelectedEndpointsAtomically()
+    {
+        var state = new ConfigurationState();
+        var service = new EndpointManagementService(state);
+        var first = CreateEndpoint("/bulk-first");
+        var second = CreateEndpoint("/bulk-second");
+        var untouched = CreateEndpoint("/bulk-untouched");
+        Assert.Equal(ManagementOperationStatus.Applied, service.Create(first, 0).Status);
+        Assert.Equal(ManagementOperationStatus.Applied, service.Create(second, 1).Status);
+        Assert.Equal(ManagementOperationStatus.Applied, service.Create(untouched, 2).Status);
+
+        Assert.Equal(
+            ManagementOperationStatus.Applied,
+            service.ApplyBulk([first.Id, second.Id], BulkEndpointOperation.Disable, 3).Status);
+        var disabled = state.Current.GetDocument().Endpoints;
+        Assert.False(disabled[0].Enabled);
+        Assert.False(disabled[1].Enabled);
+        Assert.True(disabled[2].Enabled);
+
+        Assert.Equal(
+            ManagementOperationStatus.Applied,
+            service.ApplyBulk([first.Id, second.Id], BulkEndpointOperation.Enable, 4).Status);
+        Assert.All(state.Current.GetDocument().Endpoints, endpoint => Assert.True(endpoint.Enabled));
+
+        Assert.Equal(
+            ManagementOperationStatus.Applied,
+            service.ApplyBulk([first.Id, second.Id], BulkEndpointOperation.Delete, 5).Status);
+        Assert.Equal(6, state.Current.Revision);
+        Assert.Equal(untouched.Id, Assert.Single(state.Current.GetDocument().Endpoints).Id);
+    }
+
+    [Fact]
+    public void ApplyBulk_RejectsStaleOrMissingIdsWithoutChangingSnapshot()
+    {
+        var state = new ConfigurationState();
+        var service = new EndpointManagementService(state);
+        var endpoint = CreateEndpoint("/bulk-preserved");
+        Assert.Equal(ManagementOperationStatus.Applied, service.Create(endpoint, 0).Status);
+        var snapshot = state.Current;
+
+        Assert.Equal(
+            ManagementOperationStatus.RevisionConflict,
+            service.ApplyBulk([endpoint.Id], BulkEndpointOperation.Disable, 0).Status);
+        Assert.Equal(
+            ManagementOperationStatus.NotFound,
+            service.ApplyBulk([endpoint.Id, Guid.NewGuid()], BulkEndpointOperation.Delete, 1).Status);
+        Assert.Equal(
+            ManagementOperationStatus.NotFound,
+            service.ApplyBulk([], BulkEndpointOperation.Delete, 1).Status);
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            service.ApplyBulk([endpoint.Id], (BulkEndpointOperation)int.MaxValue, 1));
+
+        Assert.Same(snapshot, state.Current);
+        Assert.True(Assert.Single(state.Current.GetDocument().Endpoints).Enabled);
+    }
+
+    [Fact]
+    public async Task Create_WhenRevisionChangesDuringApplyReturnsConflict()
+    {
+        var firstReachedLock = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        var state = new ConfigurationState(() =>
+        {
+            if (Interlocked.Increment(ref calls) == 1)
+            {
+                firstReachedLock.SetResult();
+                releaseFirst.Task.GetAwaiter().GetResult();
+            }
+        });
+        var service = new EndpointManagementService(state);
+        var createTask = Task.Run(() => service.Create(CreateEndpoint("/loser"), 0));
+        await firstReachedLock.Task;
+        var winner = state.TryReplace(
+            new MockApiConfigurationDocument
+            {
+                SchemaVersion = "1.0",
+                Endpoints = [CreateEndpoint("/winner")]
+            },
+            0);
+        releaseFirst.SetResult();
+
+        var result = await createTask;
+
+        Assert.Equal(ConfigurationUpdateStatus.Applied, winner.Status);
+        Assert.Equal(ManagementOperationStatus.RevisionConflict, result.Status);
+    }
+
+    private static MockEndpointDefinition CreateEndpoint(string path) => new()
+    {
+        Id = Guid.NewGuid(),
+        Name = path.TrimStart('/'),
+        Enabled = true,
+        Methods = ["GET"],
+        Path = path,
+        Response = new MockResponseDefinition
+        {
+            StatusCode = 200,
+            Headers = [],
+            ContentType = "text/plain; charset=utf-8",
+            Body = path
+        }
+    };
+}

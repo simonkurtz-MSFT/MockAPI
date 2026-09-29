@@ -1,0 +1,257 @@
+:root {
+  color-scheme: light dark;
+  --background: #f5f8fe;
+  --surface: #ffffff;
+  --text: #172c48;
+  --muted: #495d78;
+  --accent: #145bb6;
+  --border: #ced9e9;
+  --wash: #e8f1ff;
+  font:
+    100%/1.65 system-ui,
+    sans-serif;
+  background: var(--background);
+  color: var(--text);
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+a {
+  color: var(--accent);
+  text-underline-offset: 0.2em;
+}
+a:hover {
+  text-decoration-thickness: 0.15em;
+}
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 5px;
+}
+.site-header,
+main,
+footer {
+  width: min(1200px, calc(100% - 3rem));
+  margin-inline: auto;
+}
+.site-header,
+nav,
+.brand,
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+  flex-wrap: wrap;
+}
+.site-header {
+  justify-content: space-between;
+  padding-block: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.brand {
+  color: var(--text);
+  font-size: 1.4rem;
+  font-weight: 750;
+  text-decoration: none;
+  gap: 0.65rem;
+}
+nav a {
+  padding-block: 0.6rem;
+}
+.skip-link {
+  position: absolute;
+  top: -8rem;
+  left: 1rem;
+  padding: 1rem;
+  background: var(--surface);
+  z-index: 1;
+}
+.skip-link:focus {
+  top: 1rem;
+}
+.hero {
+  padding-block: 5rem 3.5rem;
+  max-width: 860px;
+}
+.eyebrow {
+  font-size: 0.85rem;
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+h1,
+h2,
+h3 {
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+h1 {
+  font-size: clamp(2.7rem, 7vw, 5rem);
+  margin-block: 1rem 1.5rem;
+}
+h1 span {
+  color: var(--accent);
+}
+h2 {
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  margin-block: 0.75rem 2rem;
+}
+h3 {
+  font-size: 1.45rem;
+  margin-block: 1rem;
+}
+.lead {
+  max-width: 700px;
+  font-size: 1.25rem;
+  color: var(--muted);
+}
+.muted,
+figcaption {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+.actions {
+  margin-block: 2rem;
+}
+.button {
+  display: inline-block;
+  border: 1px solid var(--accent);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.15rem;
+  text-decoration: none;
+  font-weight: 650;
+}
+.primary {
+  background: #145bb6;
+  border-color: #145bb6;
+  color: #ffffff;
+}
+.preview {
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 0.75rem;
+  box-shadow: 0 18px 50px #17305212;
+}
+.preview img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 0.5rem;
+}
+figcaption {
+  padding: 0.75rem 0.5rem 0;
+}
+section[id] {
+  padding-top: 4.5rem;
+  scroll-margin-top: 1rem;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+.card {
+  min-width: 0;
+  padding: 1.6rem;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: var(--surface);
+}
+.badge {
+  display: inline-block;
+  color: var(--accent);
+  background: var(--wash);
+  font-size: 0.8rem;
+  font-weight: 650;
+  padding: 0.3rem 0.7rem;
+  border-radius: 1rem;
+}
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--wash);
+  padding: 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.83rem;
+}
+code {
+  overflow-wrap: anywhere;
+}
+summary {
+  cursor: pointer;
+  padding-block: 0.5rem;
+  font-weight: 650;
+}
+.first-response {
+  margin-top: 2rem;
+  padding: 1.5rem 2rem;
+  border-left: 4px solid var(--accent);
+  background: var(--wash);
+}
+li {
+  padding-block: 0.3rem;
+}
+.closing {
+  margin-block: 4.5rem;
+  max-width: 800px;
+}
+footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  padding-block: 1.5rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0c1626;
+    --surface: #152338;
+    --text: #edf3fc;
+    --muted: #b6c5db;
+    --accent: #91beff;
+    --border: #354963;
+    --wash: #203551;
+  }
+}
+
+@media (max-width: 950px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .site-header,
+  main,
+  footer {
+    width: calc(100% - 2rem);
+  }
+  .hero {
+    padding-block: 2.5rem;
+  }
+  nav {
+    gap: 1rem;
+  }
+  .card,
+  .first-response {
+    padding: 1.2rem;
+  }
+}
+
+@media (forced-colors: active) {
+  .primary {
+    border: 1px solid ButtonText;
+  }
+}

@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mockapi.local/schemas/mockapi.schema.json",
+  "title": "MockAPI configuration",
+  "description": "Configuration for exact HTTP mock endpoints. The x-maximum*Utf8Bytes annotations are enforced by MockAPI semantic validation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "endpoints"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "apiDescriptions": {
+      "description": "Optional API descriptions keyed by case-sensitive first-segment paths. Metadata survives endpoint deletion.",
+      "type": ["object", "null"],
+      "maxProperties": 25,
+      "propertyNames": {
+        "maxLength": 2048,
+        "pattern": "^/[^/\\\\\\s?#\\u0000-\\u001F\\u007F]*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 4000
+      }
+    },
+    "endpoints": {
+      "type": "array",
+      "maxItems": 25,
+      "items": {
+        "$ref": "#/$defs/endpoint"
+      }
+    }
+  },
+  "x-maximumUtf8Bytes": 4194304,
+  "$defs": {
+    "httpToken": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$"
+    },
+    "headerValue": {
+      "type": "string",
+      "pattern": "^[^\\r\\n]*$",
+      "x-maximumUtf8Bytes": 8192
+    },
+    "endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "enabled", "methods", "path", "response"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "description": {
+          "type": ["string", "null"],
+          "maxLength": 4000
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "methods": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/httpToken"
+          }
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "^/"
+        },
+        "requestCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "default": 1
+        },
+        "response": {
+          "$ref": "#/$defs/response"
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["headers", "body"],
+      "properties": {
+        "behavior": {
+          "type": "string",
+          "enum": ["response", "abortConnection"],
+          "default": "response"
+        },
+        "statusCode": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "reasonPhrase": {
+          "type": ["string", "null"],
+          "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+        },
+        "headers": {
+          "type": "object",
+          "maxProperties": 64,
+          "propertyNames": {
+            "$ref": "#/$defs/httpToken"
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/headerValue"
+            }
+          },
+          "x-maximumCombinedUtf8Bytes": 32768
+        },
+        "contentType": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "pattern": "^[^\\r\\n]*$"
+        },
+        "body": {
+          "type": "string",
+          "x-maximumUtf8Bytes": 1048576
+        },
+        "rateLimit": {
+          "$ref": "#/$defs/rateLimit"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["behavior"],
+            "properties": {
+              "behavior": {
+                "const": "abortConnection"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "statusCode": false,
+              "reasonPhrase": false,
+              "headers": {
+                "maxProperties": 0
+              },
+              "contentType": {
+                "type": "null"
+              },
+              "body": {
+                "const": ""
+              }
+            }
+          },
+          "else": {
+            "required": ["statusCode"]
+          }
+        }
+      ]
+    },
+    "rateLimit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestLimit", "windowSeconds", "successResponse"],
+      "properties": {
+        "requestLimit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "windowSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "successResponse": {
+          "$ref": "#/$defs/successResponse"
+        }
+      }
+    },
+    "successResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["statusCode", "headers", "body"],
+      "properties": {
+        "statusCode": {
+          "type": "integer",
+          "minimum": 200,
+          "maximum": 299
+        },
+        "reasonPhrase": {
+          "type": ["string", "null"],
+          "pattern": "^[^\\u0000-\\u001F\\u007F]*$"
+        },
+        "headers": {
+          "type": "object",
+          "maxProperties": 64,
+          "propertyNames": {
+            "$ref": "#/$defs/httpToken"
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/headerValue"
+            }
+          },
+          "x-maximumCombinedUtf8Bytes": 32768
+        },
+        "contentType": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "pattern": "^[^\\r\\n]*$"
+        },
+        "body": {
+          "type": "string",
+          "x-maximumUtf8Bytes": 1048576
+        }
+      }
+    }
+  }
+}

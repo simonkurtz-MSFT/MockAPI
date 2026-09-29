@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+node -e "require('./scripts/lib/pnpm-lock-registry.cjs').normalizeStagedLockfile()"

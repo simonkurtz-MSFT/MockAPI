@@ -1,0 +1,34 @@
+{
+  "name": "MockAPI (.NET 10)",
+  "image": "mcr.microsoft.com/devcontainers/dotnet:2.2.3-10.0-noble@sha256:9eb314432a5fa67773a53ab754cdc381cae614906162f9fc44cdb7f7837b91c7",
+  "remoteUser": "vscode",
+  "containerEnv": {
+    "MOCKAPI_NODE_VERSION": "26.9.0"
+  },
+  "remoteEnv": {
+    "ASPNETCORE_URLS": "http://0.0.0.0:5080",
+    "MockApi__ConfigurationPath": "${containerWorkspaceFolder}/artifacts/local-data/mockapi.json",
+    "MockApi__AllowEmptyConfiguration": "true"
+  },
+  "forwardPorts": [5080],
+  "portsAttributes": {
+    "5080": {
+      "label": "MockAPI dashboard (private)",
+      "onAutoForward": "notify"
+    }
+  },
+  "otherPortsAttributes": {
+    "onAutoForward": "ignore"
+  },
+  "customizations": {
+    "codespaces": {
+      "openFiles": ["README.md"]
+    },
+    "vscode": {
+      "settings": {
+        "remote.autoForwardPorts": false
+      }
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh"
+}

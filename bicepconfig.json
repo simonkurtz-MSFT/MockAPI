@@ -1,0 +1,44 @@
+{
+  "$schema": "https://aka.ms/bicepconfig.json",
+  "analyzers": {
+    "core": {
+      "enabled": true,
+      "verbose": false,
+      "rules": {
+        "no-unnecessary-dependson": {
+          "level": "error"
+        },
+        "no-unused-existing-resources": {
+          "level": "error"
+        },
+        "no-unused-params": {
+          "level": "error"
+        },
+        "no-unused-vars": {
+          "level": "error"
+        },
+        "outputs-should-not-contain-secrets": {
+          "level": "error"
+        },
+        "secure-parameter-default": {
+          "level": "error"
+        },
+        "secure-params-in-nested-deploy": {
+          "level": "error"
+        },
+        "use-parent-property": {
+          "level": "error"
+        },
+        "use-resource-id-functions": {
+          "level": "error"
+        },
+        "use-resource-symbol-reference": {
+          "level": "error"
+        },
+        "use-stable-resource-identifiers": {
+          "level": "error"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="MockAPI: predictable HTTP responses, live editing, and one small container. Get started locally, in Codespaces, or on your container platform."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <title>MockAPI | Real HTTP. Predictable responses.</title>
+    <link rel="icon" href="./brand-mark.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./site.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="MockAPI home"
+        ><img src="./brand-mark.svg" width="40" height="40" alt="" />MockAPI</a
+      >
+      <nav aria-label="Main navigation">
+        <a href="#start">Get started</a>
+        <a href="#examples">Examples</a>
+        <a href="https://github.com/simonkurtz-MSFT/MockAPI">GitHub</a>
+      </nav>
+    </header>
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <p class="eyebrow">Built for developers. Ready for the unexpected.</p>
+        <h1 id="hero-title">Real HTTP.<br /><span>Predictable responses.</span></h1>
+        <p class="lead">
+          A clean 200. A stubborn 429. A broken connection. Define the response your app needs to handle, then change it
+          live. No stub code. No restart.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="#start">Start mocking</a>
+          <a class="button" href="https://github.com/simonkurtz-MSFT/MockAPI#readme">Read the docs</a>
+        </div>
+        <p class="muted">Open source &middot; .NET 10 &middot; Linux AMD64 + ARM64 &middot; Pre-1.0</p>
+      </section>
+      <figure class="preview">
+        <img
+          src="./dashboard.png"
+          width="1920"
+          height="1080"
+          alt="MockAPI dashboard with endpoint management, live request statistics, and response testing."
+        />
+        <figcaption>Define, test, and observe your mock endpoints in one dashboard.</figcaption>
+      </figure>
+      <section id="start" aria-labelledby="start-title">
+        <p class="eyebrow">Your first response, in minutes</p>
+        <h2 id="start-title">Choose your starting point</h2>
+        <div class="cards">
+          <article class="card">
+            <span class="badge">Recommended &middot; Current source</span>
+            <h3>Run locally</h3>
+            <p>Install the stable .NET 10 SDK, then clone and run. No Node.js tooling is needed just to use MockAPI.</p>
+            <pre><code>git clone https://github.com/simonkurtz-MSFT/MockAPI.git
+cd MockAPI</code></pre>
+            <details open>
+              <summary>PowerShell 7</summary>
+              <pre><code>$env:ASPNETCORE_URLS = 'http://localhost:5080'
+.\start.ps1 -Action run-tutorial</code></pre>
+            </details>
+            <details>
+              <summary>Bash</summary>
+              <pre><code>export ASPNETCORE_URLS='http://localhost:5080'
+./start.sh --action run-tutorial</code></pre>
+            </details>
+            <p>Open <a href="http://localhost:5080/__mockapi/">localhost:5080/__mockapi/</a>.</p>
+          </article>
+          <article class="card">
+            <span class="badge">No local toolchain</span>
+            <h3>Open in Codespaces</h3>
+            <p>
+              Get a configured development workspace with .NET, Node.js, and the repository's pinned pnpm. Repository
+              access and Codespaces quota are required.
+            </p>
+            <a class="button" href="https://codespaces.new/simonkurtz-MSFT/MockAPI">Create a codespace</a>
+            <p>After setup, run:</p>
+            <pre><code>./start.sh --action run-tutorial</code></pre>
+            <p>Open port <strong>5080</strong> in the Ports panel. Keep its visibility <strong>Private</strong>.</p>
+          </article>
+          <article class="card">
+            <span class="badge">Isolated runtime</span>
+            <h3>Use a container</h3>
+            <p>
+              Choose an existing version from Docker Hub. Published previews can lag behind this documentation; never
+              assume an unpublished beta or a <code>latest</code> tag exists.
+            </p>
+            <a class="button" href="https://hub.docker.com/r/simonkurtzmsft/mockapi/tags">Browse published images</a>
+            <p>For current source, build with Docker:</p>
+            <details open>
+              <summary>PowerShell 7</summary>
+              <pre><code>.\start.ps1 -Action container-build -ContainerEngine docker
+.\start.ps1 -Action container-run -ContainerEngine docker</code></pre>
+            </details>
+            <details>
+              <summary>Bash</summary>
+              <pre><code>./start.sh --action container-build --container-engine docker
+./start.sh --action container-run --container-engine docker</code></pre>
+            </details>
+            <p>
+              <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/CONTAINERS.md"
+                >WSLC, persistence, and platform guide</a
+              >
+            </p>
+          </article>
+        </div>
+        <div class="first-response">
+          <h3>Make your first request</h3>
+          <ol>
+            <li>Open the dashboard and select <strong>Load examples</strong>.</li>
+            <li>Visit <code>/ex/hello</code> on your running MockAPI instance.</li>
+            <li>Edit the response, call it again, and watch the statistics change.</li>
+            <li>Select <strong>Save</strong> to keep changes in your configured writable file or volume.</li>
+          </ol>
+          <p>
+            <strong>Keep administration private.</strong> Localhost or a protected network is the default. Before
+            sharing a deployment, configure administrative authentication and HTTPS.
+          </p>
+        </div>
+      </section>
+      <section id="examples" aria-labelledby="examples-title">
+        <p class="eyebrow">Build confidence before production</p>
+        <h2 id="examples-title">Small mocks. Useful experiments.</h2>
+        <div class="cards">
+          <article class="card">
+            <h3>Unblock development</h3>
+            <p>
+              Give your app a real HTTP dependency while the upstream API is still being built. Exact method and path
+              matching keeps every response predictable.
+            </p>
+            <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/config/mockapi.json"
+              >Explore the built-in examples</a
+            >
+          </article>
+          <article class="card">
+            <h3>Exercise retry behavior</h3>
+            <p>
+              Return 429s with Retry-After, configure server errors, or deliberately drop a connection. Verify the
+              unhappy path without disrupting a real service.
+            </p>
+            <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/CONFIGURATION.md"
+              >Configure a response</a
+            >
+          </article>
+          <article class="card">
+            <h3>Share a repeatable contract</h3>
+            <p>
+              Version JSON configurations, automate management calls, and export mock definitions for your API workflow.
+            </p>
+            <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/MANAGEMENT_API.md"
+              >Use the management API</a
+            >
+          </article>
+        </div>
+      </section>
+      <section class="closing" aria-labelledby="closing-title">
+        <h2 id="closing-title">One app. One container. Your test scenarios.</h2>
+        <p>
+          No hosted service, account, telemetry SDK, or frontend runtime to add to your application. This page is
+          documentation, not a running MockAPI instance.
+        </p>
+        <a class="button primary" href="https://github.com/simonkurtz-MSFT/MockAPI">Explore MockAPI on GitHub</a>
+      </section>
+    </main>
+    <footer>
+      <p>
+        MockAPI &middot;
+        <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/LICENSE">MIT licensed</a> &middot; Built for
+        developers
+      </p>
+      <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/RELEASING.md">Release process and readiness</a>
+    </footer>
+  </body>
+</html>

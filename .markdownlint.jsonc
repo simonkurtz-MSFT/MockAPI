@@ -1,0 +1,8 @@
+{
+  "default": true,
+  "MD013": false,
+  // GitHub-native shell selectors use disclosure controls because GFM has no tab primitive.
+  // Keep raw HTML prohibited except for the three elements required by that pattern.
+  "MD033": { "allowed_elements": ["details", "summary", "strong"] },
+  "MD060": { "style": "aligned" },
+}

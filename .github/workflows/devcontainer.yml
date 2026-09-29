@@ -1,0 +1,58 @@
+name: Development container
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/devcontainer.yml"
+      - ".devcontainer/**"
+      - ".nvmrc"
+      - ".npmrc"
+      - ".githooks/**"
+      - "global.json"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "MockAPI.slnx"
+      - "src/**"
+      - "tests/MockAPI.Tests/**"
+      - "config/mockapi.json"
+      - "scripts/install-git-hooks.cjs"
+      - "scripts/lib/pnpm-lock-registry.cjs"
+      - "start.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Exercise the pinned development image and setup command
+        run: |
+          set -euo pipefail
+          image=$(jq --raw-output .image .devcontainer/devcontainer.json)
+          node_version=$(jq --raw-output .containerEnv.MOCKAPI_NODE_VERSION .devcontainer/devcontainer.json)
+          docker run --detach --name mockapi-devcontainer --publish 127.0.0.1:5080:5080 \
+            --env MOCKAPI_NODE_VERSION="$node_version" \
+            --env ASPNETCORE_URLS=http://0.0.0.0:5080 \
+            --env MockApi__ConfigurationPath=/workspace/artifacts/local-data/mockapi.json \
+            --env MockApi__AllowEmptyConfiguration=true \
+            --workdir /workspace "$image" sleep infinity
+          docker cp . mockapi-devcontainer:/workspace
+          docker exec --user root mockapi-devcontainer chown -R vscode:vscode /workspace
+          docker exec --user vscode mockapi-devcontainer bash .devcontainer/setup.sh
+          docker exec --user vscode mockapi-devcontainer bash -lc 'node --version; pnpm --version; pwsh --version; dotnet --version'
+          docker exec --detach --user vscode mockapi-devcontainer bash -lc './start.sh --action run > /tmp/mockapi.log 2>&1'
+          curl --retry 60 --retry-connrefused --retry-delay 1 --fail http://127.0.0.1:5080/health/ready
+          curl --fail http://127.0.0.1:5080/__mockapi/ > /dev/null
+      - name: Capture startup diagnostics
+        if: failure()
+        run: docker exec mockapi-devcontainer cat /tmp/mockapi.log
+      - name: Remove the test container
+        if: always()
+        run: docker rm --force mockapi-devcontainer

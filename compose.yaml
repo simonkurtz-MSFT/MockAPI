@@ -1,0 +1,23 @@
+services:
+  mockapi:
+    image: mockapi:dev
+    container_name: mockapi
+    restart: unless-stopped
+    read_only: true
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - mockapi-data:/data
+    cpus: 0.5
+    mem_limit: 256m
+    pids_limit: 128
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      MockApi__ConfigurationPath: /data/mockapi.json
+      MockApi__AllowEmptyConfiguration: "true"
+
+volumes:
+  mockapi-data:

@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script>
+      (() => {
+        const param = new URLSearchParams(window.location.search).get("scoutTheme");
+        let storedTheme = null;
+        let storedPreferences = null;
+        try {
+          const stored = JSON.parse(window.localStorage.getItem("mockapi.preferences"));
+          const supported = stored && (stored.version === undefined || stored.version === 1);
+          if (supported && (stored.theme === "dark" || stored.theme === "light")) storedTheme = stored.theme;
+          const layout =
+            supported && ["auto", "columns", "stacked"].includes(stored.dashboardLayout)
+              ? stored.dashboardLayout
+              : "auto";
+          // Start conservatively; dashboard-layout.js checks actual command widths after layout.
+          const columnsAllowed = window.matchMedia("(min-width: 1760px)").matches;
+          const columnsPreferred =
+            layout === "columns" || (layout === "auto" && window.matchMedia("(min-width: 1400px)").matches);
+          document.documentElement.dataset.dashboardLayout = columnsAllowed && columnsPreferred ? "columns" : "stacked";
+          if (!storedTheme) storedTheme = window.localStorage.getItem("mockapi.theme");
+          storedPreferences = supported ? stored : null;
+        } catch {
+          document.documentElement.dataset.dashboardLayout = "stacked";
+        }
+        // CSS needs the saved collapse state before deferred dashboard modules can initialize the controls.
+        for (const key of ["endpointsCollapsed", "statisticsCollapsed", "requestLogCollapsed"]) {
+          document.documentElement.dataset[key] = String(storedPreferences?.[key] === true);
+        }
+        const preference = storedTheme === "dark" || storedTheme === "light" ? storedTheme : null;
+        const theme =
+          param || preference || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
+    <title>MockAPI Console</title>
+    <meta name="theme-color" content="#075ea8" />
+    <link rel="icon" href="/favicon.svg?v={{ASSET_VERSION}}" type="image/svg+xml" />
+    <link rel="stylesheet" href="/app.css?v={{ASSET_VERSION}}" />
+    <script src="/app.js?v={{ASSET_VERSION}}" type="module"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to endpoint configuration</a>
+    <header class="app-header">
+      <div class="brand-lockup">
+        <img class="brand-mark" src="/brand-mark.svg?v={{ASSET_VERSION}}" alt="" width="42" height="34" />
+        <div>
+          <strong>MockAPI</strong>
+          <span>Operations console</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span id="connection-status" class="connection-status" title="Connecting to the MockAPI management service."
+          ><span aria-hidden="true"></span>Connecting</span
+        >
+        <div class="help-menu-shell">
+          <button
+            id="help-menu-button"
+            class="icon-button icon-help"
+            data-icon="help"
+            type="button"
+            title="Help"
+            aria-label="Help"
+            aria-haspopup="menu"
+            aria-expanded="false"
+            aria-controls="help-menu"
+          ></button>
+          <div id="help-menu" class="help-menu" role="menu" hidden>
+            <button id="how-it-works-button" type="button" role="menuitem">How MockAPI works</button>
+            <button id="start-tutorial-button" type="button" role="menuitem">Take dashboard tour</button>
+          </div>
+        </div>
+        <button
+          id="settings-button"
+          class="icon-button icon-settings"
+          data-icon="settings"
+          type="button"
+          title="Settings"
+          aria-label="Settings"
+        ></button>
+        <button
+          id="theme-toggle"
+          class="icon-button icon-theme"
+          data-icon="theme"
+          type="button"
+          title="Toggle color theme"
+          aria-label="Toggle color theme"
+        ></button>
+      </div>
+    </header>
+
+    <main id="main">
+      <h1 class="visually-hidden">MockAPI operations console</h1>
+      <div class="dashboard-layout">
+        <section class="command-bar" aria-label="Configuration commands">
+          <div class="command-actions">
+            <input id="import-file" type="file" accept="application/json,.json" hidden />
+            <div class="command-group" role="group" aria-labelledby="load-command-label">
+              <span id="load-command-label" class="command-group-label">Load</span>
+              <div class="command-group-controls">
+                <button id="load-example-button" class="button secondary" type="button">Load examples</button>
+                <button id="import-button" class="button secondary" type="button">Import</button>
+              </div>
+            </div>
+            <div class="command-group" role="group" aria-labelledby="save-command-label">
+              <span id="save-command-label" class="command-group-label">Save</span>
+              <div class="command-group-controls">
+                <label class="export-format">
+                  <span class="visually-hidden">Export format</span>
+                  <select id="export-format" aria-label="Export format">
+                    <option value="native">MockAPI JSON</option>
+                    <option value="postman">Postman</option>
+                    <option value="insomnia">Insomnia</option>
+                    <option value="curl">cURL</option>
+                    <option value="jmeter">JMeter</option>
+                    <option value="openapi">OpenAPI</option>
+                    <option value="k6">k6</option>
+                    <option value="http">HTTP file</option>
+                  </select>
+                </label>
+                <a id="export-button" class="button secondary" href="/__mockapi/api/configuration/export">Export</a>
+                <button id="save-button" class="button secondary" type="button" disabled>Save</button>
+              </div>
+            </div>
+            <div class="command-group" role="group" aria-labelledby="create-command-label">
+              <span id="create-command-label" class="command-group-label">Create</span>
+              <div class="command-group-controls">
+                <button id="create-button" class="button primary" type="button">New endpoint</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="dashboard-insights">
+          <section class="statistics-workspace" aria-labelledby="statistics-heading">
+            <div class="statistics-toolbar">
+              <div>
+                <h2 id="statistics-heading">Statistics</h2>
+                <p>Process-local activity from the last 60 minutes</p>
+              </div>
+              <div class="statistics-toolbar-actions">
+                <div id="statistics-controls" class="statistics-controls">
+                  <div class="segmented-control" aria-label="Statistics scope">
+                    <button id="statistics-overall" type="button" aria-pressed="true">Overall</button>
+                    <button id="statistics-endpoint" type="button" aria-pressed="false">By endpoint</button>
+                  </div>
+                  <label
+                    id="statistics-endpoint-picker"
+                    class="statistics-endpoint-picker-placeholder"
+                    aria-hidden="true"
+                  >
+                    <span class="visually-hidden">Endpoint statistics</span>
+                    <select id="statistics-endpoint-select"></select>
+                  </label>
+                  <div class="segmented-control" aria-label="Statistics presentation">
+                    <button id="statistics-table" type="button" aria-pressed="false">Table</button>
+                    <button id="statistics-graph" type="button" aria-pressed="true">Graph</button>
+                  </div>
+                  <button id="reset-statistics-scope" class="button quiet" type="button">Reset statistics</button>
+                </div>
+                <button
+                  id="statistics-toggle"
+                  class="icon-button statistics-toggle"
+                  type="button"
+                  title="Collapse statistics"
+                  aria-label="Collapse statistics"
+                  aria-expanded="true"
+                  aria-controls="statistics-body"
+                  data-icon="chevron"
+                ></button>
+              </div>
+            </div>
+            <div id="statistics-body">
+              <div class="metric-strip" role="group" aria-label="Overall attempt statistics">
+                <div class="metric"><span>Total attempts</span><strong id="metric-total">0</strong></div>
+                <div class="metric"><span>Matched</span><strong id="metric-matched">0</strong></div>
+                <div class="metric"><span>Unmatched</span><strong id="metric-unmatched">0</strong></div>
+                <div class="metric"><span>Response bytes</span><strong id="metric-bytes">0 B</strong></div>
+                <div class="metric rate-metric">
+                  <span>Last 60 minutes</span>
+                  <strong id="metric-rate">0 attempts/min</strong>
+                </div>
+              </div>
+              <div
+                id="statistics-table-view"
+                class="statistics-table"
+                role="region"
+                aria-label="Detailed attempt statistics"
+                tabindex="0"
+                hidden
+              ></div>
+              <div id="statistics-graph-view" class="statistics-graph">
+                <div class="chart-heading">
+                  <div>
+                    <strong id="statistics-chart-title">Overall attempt activity</strong>
+                    <span id="statistics-chart-summary">0 attempts · 0.0 attempts/min</span>
+                  </div>
+                  <div class="chart-legend" aria-label="Response status colors">
+                    <span><i class="status-1xx" aria-hidden="true"></i>1xx</span>
+                    <span><i class="status-2xx" aria-hidden="true"></i>2xx</span>
+                    <span><i class="status-3xx" aria-hidden="true"></i>3xx</span>
+                    <span><i class="status-4xx" aria-hidden="true"></i>4xx</span>
+                    <span><i class="status-5xx" aria-hidden="true"></i>5xx</span>
+                    <span><i class="status-other" aria-hidden="true"></i>Other</span>
+                  </div>
+                </div>
+                <div
+                  id="statistics-chart-scroll"
+                  class="statistics-chart-scroll"
+                  role="region"
+                  aria-label="Attempt activity timeline. The newest 30 minutes are shown initially; scroll horizontally for older activity."
+                  tabindex="0"
+                >
+                  <div id="statistics-chart-timeline" class="statistics-chart-timeline">
+                    <div
+                      id="statistics-chart"
+                      class="activity-chart"
+                      role="group"
+                      aria-label="No attempt activity"
+                    ></div>
+                    <div class="chart-axis" aria-hidden="true">
+                      <span>60 minutes ago</span><span>30 minutes ago</span><span>Now</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="request-log-workspace" aria-labelledby="request-log-heading">
+            <div class="request-log-toolbar">
+              <div>
+                <h2 id="request-log-heading">Request log <span id="request-log-count" class="count">0</span></h2>
+                <p>Most recent process-local request outcomes</p>
+              </div>
+              <button
+                id="request-log-toggle"
+                class="icon-button section-toggle"
+                type="button"
+                title="Collapse request log"
+                aria-label="Collapse request log"
+                aria-expanded="true"
+                aria-controls="request-log-body"
+                data-icon="chevron"
+              ></button>
+            </div>
+            <div id="request-log-body">
+              <div class="request-log-bucket-actions">
+                <button
+                  id="request-log-toggle-buckets"
+                  class="button quiet"
+                  type="button"
+                  aria-controls="request-log-rows"
+                  disabled
+                >
+                  Collapse all buckets
+                </button>
+              </div>
+              <p id="request-log-insight" class="request-log-insight" role="note" hidden></p>
+              <div class="request-log-table" role="region" aria-label="Recent request log" tabindex="0">
+                <table>
+                  <colgroup>
+                    <col class="request-log-time-column" />
+                    <col class="request-log-time-column" />
+                    <col class="request-log-method-column" />
+                    <col class="request-log-endpoint-column" />
+                    <col class="request-log-path-column" />
+                    <col class="request-log-result-column" />
+                    <col class="request-log-number-column" />
+                    <col class="request-log-number-column" />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th scope="col">Local time</th>
+                      <th scope="col">UTC</th>
+                      <th scope="col">Method</th>
+                      <th scope="col">Endpoint</th>
+                      <th scope="col">Path</th>
+                      <th scope="col" class="request-log-result">Result</th>
+                      <th scope="col" class="numeric">Attempts</th>
+                      <th scope="col" class="numeric">Bytes</th>
+                    </tr>
+                  </thead>
+                  <tbody id="request-log-rows">
+                    <tr>
+                      <td class="request-log-empty" colspan="8">No requests recorded</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <section class="workspace" aria-labelledby="endpoints-heading">
+          <div class="workspace-toolbar">
+            <div class="endpoint-heading">
+              <h2 id="endpoints-heading">Endpoints <span id="endpoint-count" class="count">0</span></h2>
+              <a
+                class="icon-button openapi-link"
+                href="/__mockapi/api/configuration/export/openapi?download=false"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Live OpenAPI JSON (opens in a new tab)"
+                title="OpenAPI 3.1.0 JSON. Updated automatically from enabled mock endpoints on every request, without saving, rebuilding, or restarting. Opens in a new tab."
+              >
+                <!-- Use the official symbol without lettering, as permitted by the OpenAPI style guide. -->
+                <img
+                  src="/__mockapi/openapi-logo.svg?v={{ASSET_VERSION}}#svgView(viewBox(44,123,115,115))"
+                  alt=""
+                  width="22"
+                  height="22"
+                />
+              </a>
+            </div>
+            <div class="endpoint-toolbar-actions">
+              <div id="endpoint-controls" class="filters" role="search">
+                <label class="search-field">
+                  <span class="visually-hidden">Filter endpoints</span>
+                  <span aria-hidden="true">⌕</span>
+                  <input
+                    id="filter-text"
+                    type="search"
+                    placeholder="Filter endpoints"
+                    title="Filter by name, description, or path"
+                  />
+                </label>
+                <label>
+                  <span class="visually-hidden">Filter by method</span>
+                  <select id="filter-method">
+                    <option value="">All methods</option>
+                    <option>GET</option>
+                    <option>POST</option>
+                    <option>PUT</option>
+                    <option>PATCH</option>
+                    <option>DELETE</option>
+                    <option>HEAD</option>
+                    <option>OPTIONS</option>
+                  </select>
+                </label>
+                <label>
+                  <span class="visually-hidden">Filter by enabled state</span>
+                  <select id="filter-enabled">
+                    <option value="">Any state</option>
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </label>
+                <label>
+                  <span class="visually-hidden">Filter by response status</span>
+                  <select id="filter-status">
+                    <option value="">Any status</option>
+                    <option value="1">1xx</option>
+                    <option value="2">2xx</option>
+                    <option value="3">3xx</option>
+                    <option value="4">4xx</option>
+                    <option value="5">5xx</option>
+                  </select>
+                </label>
+              </div>
+              <button
+                id="endpoint-toggle"
+                class="icon-button section-toggle"
+                type="button"
+                title="Collapse endpoints"
+                aria-label="Collapse endpoints"
+                aria-expanded="true"
+                aria-controls="endpoint-body"
+                data-icon="chevron"
+              ></button>
+            </div>
+          </div>
+
+          <div id="endpoint-body">
+            <div id="bulk-actions" class="bulk-actions" aria-label="Selected endpoint actions">
+              <span><strong id="selection-count">0</strong> selected</span>
+              <div>
+                <button id="bulk-enable" class="button quiet" type="button" disabled>Enable</button>
+                <button id="bulk-disable" class="button quiet" type="button" disabled>Disable</button>
+                <button id="bulk-delete" class="button quiet bulk-delete" type="button" disabled>Delete</button>
+              </div>
+            </div>
+
+            <div class="table-wrap" role="region" aria-label="Endpoint registry" tabindex="0">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="centered selection-column" scope="col">
+                      <input
+                        id="select-all-endpoints"
+                        class="selection-checkbox"
+                        type="checkbox"
+                        aria-label="Select all visible endpoints"
+                      />
+                    </th>
+                    <th class="sortable-header" scope="col" aria-sort="ascending">
+                      <button class="sort-button" type="button" data-sort-key="name">
+                        Endpoint<span class="sort-indicator" aria-hidden="true"></span>
+                      </button>
+                    </th>
+                    <th class="sortable-header" scope="col" aria-sort="none">
+                      <button class="sort-button" type="button" data-sort-key="methods">
+                        Methods<span class="sort-indicator" aria-hidden="true"></span>
+                      </button>
+                    </th>
+                    <th class="sortable-header" scope="col" aria-sort="none">
+                      <button class="sort-button" type="button" data-sort-key="path">
+                        Path<span class="sort-indicator" aria-hidden="true"></span>
+                      </button>
+                    </th>
+                    <th class="centered sortable-header" scope="col" aria-sort="none">
+                      <button class="sort-button" type="button" data-sort-key="response">
+                        Response<span class="sort-indicator" aria-hidden="true"></span>
+                      </button>
+                    </th>
+                    <th class="centered sortable-header" scope="col" aria-sort="none">
+                      <button class="sort-button" type="button" data-sort-key="requests">
+                        Attempts<span class="sort-indicator" aria-hidden="true"></span>
+                      </button>
+                    </th>
+                    <th class="sortable-header" scope="col" aria-sort="none">
+                      <button class="sort-button" type="button" data-sort-key="lastRequest">
+                        Last attempt<span class="sort-indicator" aria-hidden="true"></span>
+                      </button>
+                    </th>
+                    <th class="centered sortable-header" scope="col" aria-sort="none">
+                      <button class="sort-button" type="button" data-sort-key="enabled">
+                        Enabled<span class="sort-indicator" aria-hidden="true"></span>
+                      </button>
+                    </th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody id="endpoint-rows"></tbody>
+              </table>
+              <div id="empty-state" class="empty-state" hidden>
+                <strong id="empty-state-title">No endpoints yet</strong>
+                <p id="empty-state-description">Load working examples or begin with a blank configuration.</p>
+                <div id="starter-actions" class="starter-actions">
+                  <button id="empty-load-example-button" class="button primary" type="button">Load examples</button>
+                </div>
+              </div>
+            </div>
+            <nav id="endpoint-pagination" class="pagination" aria-label="Endpoint pages" hidden>
+              <label class="page-size">
+                Rows per page
+                <select id="endpoint-page-size">
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <span id="endpoint-page-status" class="page-status" aria-live="polite"></span>
+              <div class="page-buttons">
+                <button id="endpoint-page-previous" class="button quiet" type="button">Previous</button>
+                <button id="endpoint-page-next" class="button quiet" type="button">Next</button>
+              </div>
+            </nav>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      <div class="footer-links">
+        <a href="https://github.com/simonkurtz-MSFT/MockAPI" target="_blank" rel="noopener noreferrer"
+          >MockAPI on GitHub</a
+        >
+        {{LOG_ANALYTICS_WORKSPACE_LINK}}
+        <span aria-hidden="true">·</span>
+        <a href="https://www.linkedin.com/in/simonkurtz" target="_blank" rel="noopener noreferrer">Simon Kurtz</a>
+      </div>
+      <span>Version {{VERSION}}</span>
+    </footer>
+
+    <div id="tutorial-backdrop" class="tutorial-backdrop" hidden></div>
+    <section
+      id="tutorial-card"
+      class="tutorial-card"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tutorial-title"
+      aria-describedby="tutorial-description"
+      hidden
+    >
+      <div class="tutorial-heading">
+        <span id="tutorial-progress" class="eyebrow">Step 1 of 4</span>
+        <button
+          id="tutorial-close"
+          class="icon-button"
+          data-icon="close"
+          type="button"
+          title="Dismiss tour"
+          aria-label="Dismiss dashboard tour"
+        ></button>
+      </div>
+      <h2 id="tutorial-title">Configure your workspace</h2>
+      <p id="tutorial-description"></p>
+      <div class="tutorial-actions">
+        <button id="tutorial-back" class="button quiet" type="button">Back</button>
+        <button id="tutorial-next" class="button primary" type="button">Next</button>
+      </div>
+    </section>
+
+    <dialog id="how-it-works-dialog" aria-labelledby="how-it-works-title">
+      <div class="how-it-works-content">
+        <header class="dialog-header">
+          <div>
+            <span class="eyebrow">Request lifecycle</span>
+            <h2 id="how-it-works-title">How MockAPI works</h2>
+          </div>
+          <button
+            id="how-it-works-close"
+            class="icon-button"
+            data-icon="close"
+            type="button"
+            title="Close"
+            aria-label="Close how MockAPI works"
+          ></button>
+        </header>
+        <div class="how-it-works-body" role="region" aria-label="How MockAPI works details" tabindex="0">
+          <p class="how-it-works-intro">
+            Define the response you need, call its URL, and change it while the application keeps running.
+          </p>
+          <ol class="how-it-works-steps">
+            <li>
+              <span aria-hidden="true">1</span>
+              <div>
+                <h3>Define</h3>
+                <p>Choose methods, an exact path, and the status, headers, content type, and body to return.</p>
+              </div>
+            </li>
+            <li>
+              <span aria-hidden="true">2</span>
+              <div>
+                <h3>Match</h3>
+                <p>
+                  Each request is matched to an enabled endpoint by method and normalized path. Query strings do not
+                  affect matching; unmatched requests return <code>404</code>.
+                </p>
+              </div>
+            </li>
+            <li>
+              <span aria-hidden="true">3</span>
+              <div>
+                <h3>Respond and observe</h3>
+                <p>
+                  MockAPI returns the configured response and updates process-local statistics without storing request
+                  or response content.
+                </p>
+              </div>
+            </li>
+          </ol>
+          <dl class="how-it-works-facts">
+            <div>
+              <dt>Edits</dt>
+              <dd>Valid changes become active atomically, with no restart.</dd>
+            </div>
+            <div>
+              <dt>Persistence</dt>
+              <dd>
+                Select <strong>Save</strong> to write changes to disk. Containers persist them in <code>/data</code>.
+              </dd>
+            </div>
+            <div>
+              <dt>First run</dt>
+              <dd>Load the examples, test an endpoint, edit its response, then save when ready.</dd>
+            </div>
+          </dl>
+        </div>
+        <footer class="dialog-footer how-it-works-actions">
+          <button id="how-it-works-load-examples" class="button secondary" type="button">Load examples</button>
+          <button id="how-it-works-new-endpoint" class="button primary" type="button">New endpoint</button>
+        </footer>
+      </div>
+    </dialog>
+
+    <dialog id="settings-dialog" aria-labelledby="settings-title">
+      <form method="dialog">
+        <header class="dialog-header">
+          <div>
+            <span class="eyebrow">Dashboard preferences</span>
+            <h2 id="settings-title">Settings</h2>
+          </div>
+          <button
+            id="settings-close"
+            class="icon-button"
+            data-icon="close"
+            type="button"
+            title="Close"
+            aria-label="Close settings"
+          ></button>
+        </header>
+        <div class="settings-body">
+          <div class="settings-field">
+            <label for="settings-dashboard-layout">Workspace layout</label>
+            <select id="settings-dashboard-layout" aria-describedby="settings-dashboard-layout-description">
+              <option value="auto">Automatic</option>
+              <option value="columns">Columns when space allows</option>
+              <option value="stacked">Always stacked</option>
+            </select>
+            <p id="settings-dashboard-layout-description">
+              Columns are used only when the command groups fit on one row. Otherwise the dashboard stays stacked.
+            </p>
+          </div>
+          <div class="settings-field">
+            <label for="settings-endpoint-test-dialog-alignment">Endpoint test dialog position</label>
+            <select
+              id="settings-endpoint-test-dialog-alignment"
+              aria-describedby="settings-endpoint-test-dialog-alignment-description"
+            >
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+            </select>
+            <p id="settings-endpoint-test-dialog-alignment-description">
+              Center adds space above and below the dialog. Left and right use the full available height.
+            </p>
+          </div>
+        </div>
+        <footer class="dialog-footer">
+          <span>Preferences are saved in this browser only.</span>
+          <button class="button primary" type="submit">Done</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="endpoint-dialog" aria-labelledby="dialog-title">
+      <form id="endpoint-form" method="dialog">
+        <header class="dialog-header">
+          <div>
+            <span class="eyebrow">Endpoint definition</span>
+            <h2 id="dialog-title">New endpoint</h2>
+          </div>
+          <button
+            class="icon-button"
+            type="button"
+            data-close
+            data-icon="close"
+            title="Close"
+            aria-label="Close"
+          ></button>
+        </header>
+        <div id="form-error" class="error-summary" role="alert" hidden></div>
+        <div class="form-grid">
+          <label class="wide">Name<input id="field-name" name="name" maxlength="200" required /></label>
+          <label class="wide"
+            >Description<textarea id="field-description" name="description" maxlength="4000" rows="3"></textarea>
+          </label>
+          <fieldset class="wide method-fieldset">
+            <legend>Methods</legend>
+            <div id="method-options" class="method-options"></div>
+          </fieldset>
+          <label class="wide"
+            >Path
+            <div class="input-with-action">
+              <input id="field-path" name="path" maxlength="2048" placeholder="/example" required /><button
+                id="copy-url"
+                class="icon-button icon-copy"
+                data-icon="copy"
+                type="button"
+                title="Copy endpoint URL"
+                aria-label="Copy endpoint URL"
+              ></button></div
+          ></label>
+          <label class="wide behavior-field"
+            >Behavior<select id="field-behavior" name="behavior">
+              <option value="response">Return an HTTP response</option>
+              <option value="abortConnection">Abort the connection without a response</option>
+            </select></label
+          >
+          <label
+            >Status code
+            <span class="status-controls">
+              <select id="field-status" name="status" required></select>
+              <input
+                id="field-status-other"
+                name="customStatus"
+                type="number"
+                min="100"
+                max="599"
+                inputmode="numeric"
+                aria-label="Other status code"
+                hidden
+              />
+            </span>
+          </label>
+          <label
+            >Reason phrase <span class="hint">HTTP/1.1 only</span
+            ><input id="field-reason" name="reason" maxlength="128"
+          /></label>
+          <label class="wide"
+            >Content type<input
+              id="field-content-type"
+              name="contentType"
+              placeholder="application/json; charset=utf-8"
+          /></label>
+          <fieldset class="wide headers-fieldset">
+            <div class="fieldset-heading">
+              <legend>Response headers</legend>
+              <button id="add-header" class="button quiet compact" type="button">Add header</button>
+            </div>
+            <div id="header-rows" class="header-rows"></div>
+          </fieldset>
+          <div class="wide json-field">
+            <div class="json-field-heading">
+              <label for="field-body">Response body</label>
+              <button id="check-field-body" class="button quiet compact" type="button">Check JSON</button>
+            </div>
+            <textarea
+              id="field-body"
+              name="body"
+              rows="10"
+              spellcheck="false"
+              aria-describedby="field-body-json-status"
+            ></textarea>
+            <p id="field-body-json-status" class="json-status" role="status" aria-live="polite"></p>
+          </div>
+          <label class="wide toggle-label"
+            ><input id="field-rate-limit-enabled" name="rateLimitEnabled" type="checkbox" /><span
+              >Return this response only after a request limit is exceeded</span
+            ></label
+          >
+          <fieldset id="rate-limit-fields" class="wide" hidden>
+            <legend>Rate limit</legend>
+            <div class="form-grid">
+              <label
+                >Allowed requests<input
+                  id="field-request-limit"
+                  name="requestLimit"
+                  type="number"
+                  min="1"
+                  inputmode="numeric"
+                  value="10"
+              /></label>
+              <label
+                >Window in seconds<input
+                  id="field-window-seconds"
+                  name="windowSeconds"
+                  type="number"
+                  min="1"
+                  max="86400"
+                  inputmode="numeric"
+                  value="60"
+              /></label>
+              <label
+                >Success status<input
+                  id="field-success-status"
+                  name="successStatus"
+                  type="number"
+                  min="200"
+                  max="299"
+                  inputmode="numeric"
+                  value="200"
+              /></label>
+              <label class="wide"
+                >Success content type<input
+                  id="field-success-content-type"
+                  name="successContentType"
+                  value="application/json; charset=utf-8"
+              /></label>
+              <div class="wide json-field">
+                <div class="json-field-heading">
+                  <label for="field-success-body">Success response body</label>
+                  <button id="check-field-success-body" class="button quiet compact" type="button">Check JSON</button>
+                </div>
+                <textarea
+                  id="field-success-body"
+                  name="successBody"
+                  rows="6"
+                  spellcheck="false"
+                  aria-describedby="field-success-body-json-status"
+                ></textarea>
+                <p id="field-success-body-json-status" class="json-status" role="status" aria-live="polite"></p>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+        <footer class="dialog-footer">
+          <label class="toggle-label"
+            ><input id="field-enabled" name="enabled" type="checkbox" checked /><span>Enabled</span></label
+          >
+          <div>
+            <button class="button secondary" type="button" data-close>Cancel</button>
+            <button class="button primary" type="submit">Apply endpoint</button>
+          </div>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="api-description-dialog" aria-labelledby="api-description-title">
+      <form id="api-description-form" class="confirm-content">
+        <h2 id="api-description-title">API description</h2>
+        <div id="api-description-error" class="error-summary" role="alert" tabindex="-1" hidden></div>
+        <label for="api-description-text">Description</label>
+        <textarea
+          id="api-description-text"
+          maxlength="4000"
+          rows="8"
+          aria-describedby="api-description-help"
+        ></textarea>
+        <p id="api-description-help">
+          Plain text, up to 4,000 characters. Applies to this API group, not its individual endpoints. Leave blank to
+          clear the displayed description.
+        </p>
+        <div class="confirm-actions">
+          <button id="api-description-cancel" class="button secondary" type="button">Cancel</button>
+          <button id="api-description-apply" class="button primary" type="submit">Apply description</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="confirm-dialog" aria-labelledby="confirm-title">
+      <div class="confirm-content">
+        <h2 id="confirm-title">Confirm action</h2>
+        <p id="confirm-message"></p>
+        <div class="confirm-actions">
+          <button id="confirm-cancel" class="button secondary" type="button">Cancel</button>
+          <button id="confirm-accept" class="button danger" type="button">Confirm</button>
+        </div>
+      </div>
+    </dialog>
+
+    <div id="test-blade-shell" class="blade-shell" data-alignment="right" hidden>
+      <button id="test-blade-backdrop" class="blade-backdrop" type="button" aria-label="Close endpoint test"></button>
+      <aside id="test-blade" class="test-blade" aria-labelledby="test-blade-title" aria-modal="true" role="dialog">
+        <div class="blade-header">
+          <div>
+            <span class="eyebrow">Endpoint test</span>
+            <h2 id="test-blade-title">Test endpoint</h2>
+            <p id="test-blade-context"></p>
+          </div>
+          <button
+            id="test-blade-close"
+            class="icon-button"
+            data-icon="close"
+            type="button"
+            title="Close"
+            aria-label="Close endpoint test"
+          ></button>
+        </div>
+        <div class="blade-body">
+          <section aria-labelledby="test-request-heading">
+            <div class="section-heading">
+              <h3 id="test-request-heading">Request</h3>
+              <button
+                id="test-copy-url"
+                class="icon-button icon-copy"
+                data-icon="copy"
+                type="button"
+                title="Copy request URL"
+                aria-label="Copy request URL"
+              ></button>
+            </div>
+            <div class="request-target">
+              <label>Method<select id="test-method"></select></label>
+              <label>Path and query<input id="test-path" spellcheck="false" /></label>
+              <label
+                >Number of requests<input
+                  id="test-request-count"
+                  type="number"
+                  min="1"
+                  max="5"
+                  step="1"
+                  value="1"
+                  required
+              /></label>
+            </div>
+            <label
+              >Request headers <span class="hint">One Name: value pair per line</span
+              ><textarea id="test-request-headers" rows="5" spellcheck="false"></textarea>
+            </label>
+            <label>Request body<textarea id="test-request-body" rows="7" spellcheck="false"></textarea></label>
+            <div class="test-actions">
+              <button id="test-cancel" class="button secondary" type="button" disabled>Cancel</button>
+              <button id="test-send" class="button primary" type="button">Send request</button>
+            </div>
+          </section>
+          <section class="test-response" aria-labelledby="test-response-heading">
+            <div class="section-heading">
+              <h3 id="test-response-heading">Response</h3>
+              <button
+                id="test-copy-response"
+                class="icon-button icon-copy"
+                data-icon="copy"
+                type="button"
+                title="Copy response details"
+                aria-label="Copy response details"
+                disabled
+              ></button>
+            </div>
+            <p id="test-status" class="test-status" role="status" aria-live="polite">
+              Send a request to inspect its response.
+            </p>
+            <dl class="response-summary">
+              <div>
+                <dt>Status</dt>
+                <dd id="test-response-status">—</dd>
+              </div>
+              <div>
+                <dt>Elapsed</dt>
+                <dd id="test-response-time">—</dd>
+              </div>
+              <div>
+                <dt>Effective URL</dt>
+                <dd id="test-response-url">—</dd>
+              </div>
+            </dl>
+            <label
+              >Response headers
+              <pre id="test-response-headers" tabindex="0">No response yet.</pre>
+            </label>
+            <label
+              >Raw response body
+              <pre id="test-response-body" tabindex="0">No response yet.</pre>
+            </label>
+          </section>
+        </div>
+      </aside>
+    </div>
+
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+  </body>
+</html>
