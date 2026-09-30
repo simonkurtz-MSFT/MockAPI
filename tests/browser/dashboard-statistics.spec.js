@@ -99,6 +99,12 @@ test("shows only configured endpoint requests without retaining query values", a
   await expect(rows).toHaveCount(1);
   await expect(log.getByRole("columnheader", { name: "Local time" })).toBeVisible();
   await expect(log.getByRole("columnheader", { name: "UTC" })).toBeVisible();
+  await page.setViewportSize({ width: 1200, height: 1000 });
+  expect(
+    await log.locator("thead th").evaluateAll((headers) =>
+      headers.every((header) => getComputedStyle(header).whiteSpace === "nowrap")
+    )
+  ).toBe(true);
   await expect(log.locator(".request-log-bucket")).toHaveCount(1);
   await expect(log.locator(".request-log-bucket")).toContainText("Bucket:");
   const bucketToggle = log.locator(".request-log-bucket-toggle");

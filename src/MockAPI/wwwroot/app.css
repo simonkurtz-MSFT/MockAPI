@@ -582,6 +582,12 @@ html[data-request-log-collapsed="true"] #request-log-body {
 .request-log-entry td {
   overflow-wrap: anywhere;
 }
+@container (min-width: 900px) {
+  .request-log-table th {
+    overflow-wrap: normal;
+    white-space: nowrap;
+  }
+}
 .request-log-table .method-badge {
   max-width: 100%;
   white-space: normal;
