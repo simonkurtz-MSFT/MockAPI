@@ -12,6 +12,7 @@
           const stored = JSON.parse(window.localStorage.getItem("mockapi.preferences"));
           const supported = stored && (stored.version === undefined || stored.version === 1);
           if (supported && (stored.theme === "dark" || stored.theme === "light")) storedTheme = stored.theme;
+          document.documentElement.dataset.kjUiStyle = String(Boolean(supported && stored.kjUiStyle === true));
           const layout =
             supported && ["auto", "columns", "stacked"].includes(stored.dashboardLayout)
               ? stored.dashboardLayout
@@ -25,6 +26,7 @@
           storedPreferences = supported ? stored : null;
         } catch {
           document.documentElement.dataset.dashboardLayout = "stacked";
+          document.documentElement.dataset.kjUiStyle = "false";
         }
         // CSS needs the saved collapse state before deferred dashboard modules can initialize the controls.
         for (const key of ["endpointsCollapsed", "statisticsCollapsed", "requestLogCollapsed"]) {
@@ -683,10 +685,17 @@
                 Center adds space above and below the dialog. Left and right use the full available height.
               </p>
             </div>
+            <div class="settings-field">
+              <label class="settings-checkbox-control" for="settings-kj-ui-style">
+                <input id="settings-kj-ui-style" type="checkbox" aria-describedby="settings-kj-ui-style-description" />
+                <span>KJ UI Style</span>
+              </label>
+              <p id="settings-kj-ui-style-description">Uses hard corners throughout the dashboard.</p>
+            </div>
           </section>
         </div>
         <footer class="dialog-footer">
-          <span>Layout preferences are browser-local. API protection is saved on the server.</span>
+          <span>Workspace preferences are browser-local. API protection is saved on the server.</span>
           <button class="button primary" type="submit">Done</button>
         </footer>
       </form>

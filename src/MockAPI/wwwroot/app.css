@@ -1558,6 +1558,18 @@ dialog::backdrop {
 .settings-field label {
   font-weight: 700;
 }
+.settings-checkbox-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.settings-checkbox-control input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
 .settings-body select {
   width: 100%;
 }
@@ -2163,6 +2175,13 @@ fieldset {
 .app-footer a {
   color: var(--cp-link);
   font-weight: 600;
+}
+
+/* Optional hard-corner presentation */
+html[data-kj-ui-style="true"] *,
+html[data-kj-ui-style="true"] *::before,
+html[data-kj-ui-style="true"] *::after {
+  border-radius: 0 !important;
 }
 
 /* Theme-specific contrast and forced-color overrides */

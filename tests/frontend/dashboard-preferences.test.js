@@ -10,6 +10,7 @@ const defaults = {
   endpointTestDialogAlignment: "right",
   endpointPageSize: 10,
   endpointsCollapsed: false,
+  kjUiStyle: false,
   requestLogCollapsed: false,
   statisticsView: "graph",
   statisticsCollapsed: false,
@@ -42,6 +43,7 @@ describe("createDashboardPreferencesStore", () => {
         endpointTestDialogAlignment: "left",
         endpointPageSize: 50,
         endpointsCollapsed: true,
+        kjUiStyle: true,
         requestLogCollapsed: true,
         statisticsView: "table",
         statisticsCollapsed: true,
@@ -55,6 +57,7 @@ describe("createDashboardPreferencesStore", () => {
       endpointTestDialogAlignment: "left",
       endpointPageSize: 50,
       endpointsCollapsed: true,
+      kjUiStyle: true,
       requestLogCollapsed: true,
       statisticsView: "table",
       statisticsCollapsed: true,
@@ -99,6 +102,7 @@ describe("createDashboardPreferencesStore", () => {
         endpointTestDialogAlignment: "top",
         endpointPageSize: 50,
         endpointsCollapsed: "true",
+        kjUiStyle: "true",
         requestLogCollapsed: "true",
         statisticsView: "cards",
         statisticsCollapsed: "false",
@@ -128,6 +132,7 @@ describe("createDashboardPreferencesStore", () => {
       dashboardLayout: "stacked",
       endpointTestDialogAlignment: "center",
       endpointPageSize: 100,
+      kjUiStyle: true,
       statisticsView: "table",
       tutorialDismissed: true,
     });
@@ -138,6 +143,7 @@ describe("createDashboardPreferencesStore", () => {
       dashboardLayout: "stacked",
       endpointTestDialogAlignment: "center",
       endpointPageSize: 100,
+      kjUiStyle: true,
       statisticsView: "table",
       tutorialDismissed: true,
     });
@@ -150,6 +156,7 @@ describe("createDashboardPreferencesStore", () => {
         dashboardLayout: "sideways",
         endpointTestDialogAlignment: "bottom",
         endpointPageSize: 75,
+        kjUiStyle: "true",
         statisticsView: "cards",
       })
     ).toEqual({

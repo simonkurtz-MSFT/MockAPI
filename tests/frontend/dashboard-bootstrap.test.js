@@ -45,7 +45,13 @@ describe("first-paint and runtime preference agreement", () => {
     '"text"',
     "[]",
     JSON.stringify({ version: 1 }),
-    JSON.stringify({ statisticsCollapsed: true, endpointsCollapsed: false, requestLogCollapsed: true, theme: "dark" }),
+    JSON.stringify({
+      statisticsCollapsed: true,
+      endpointsCollapsed: false,
+      kjUiStyle: true,
+      requestLogCollapsed: true,
+      theme: "dark",
+    }),
     JSON.stringify({
       version: 1,
       statisticsCollapsed: true,
@@ -72,6 +78,7 @@ describe("first-paint and runtime preference agreement", () => {
     for (const key of ["statisticsCollapsed", "endpointsCollapsed", "requestLogCollapsed"]) {
       expect(root.dataset[key]).toBe(String(preferences[key]));
     }
+    expect(root.dataset.kjUiStyle).toBe(String(preferences.kjUiStyle));
     expect(root["data-theme"]).toBe(preferences.theme ?? "light");
     expect(storage.setItem).not.toHaveBeenCalled();
   });
@@ -80,6 +87,7 @@ describe("first-paint and runtime preference agreement", () => {
     const { root, preferences } = boot({ blocked: true, dark: true });
     expect(root["data-theme"]).toBe("dark");
     expect(root.dataset.dashboardLayout).toBe("stacked");
+    expect(root.dataset.kjUiStyle).toBe("false");
     expect(preferences.theme).toBeNull();
     for (const key of ["statisticsCollapsed", "endpointsCollapsed", "requestLogCollapsed"]) {
       expect(root.dataset[key]).toBe("false");

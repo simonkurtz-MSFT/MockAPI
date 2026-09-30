@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { assets, buildSite, output, readApplicationVersion } = require("../../scripts/build-site.cjs");
+const { assets, buildSite, output, readApplicationVersion, renderSiteStyles } = require("../../scripts/build-site.cjs");
 const root = path.resolve(import.meta.dirname, "../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
@@ -24,10 +24,11 @@ describe("public onboarding boundaries", () => {
       "sitemap.xml",
     ]);
     for (const [destination, source] of Object.entries(assets)) {
-      if (destination !== "index.html") {
+      if (destination !== "index.html" && destination !== "site.css") {
         expect(fs.readFileSync(path.join(output, destination))).toEqual(fs.readFileSync(path.join(root, source)));
       }
     }
+    expect(fs.readFileSync(path.join(output, "site.css"), "utf8")).toBe(renderSiteStyles());
     const index = fs.readFileSync(path.join(output, "index.html"), "utf8");
     expect(index).toContain(`Version ${readApplicationVersion()}`);
     expect(index).toContain('<time datetime="2026-09-30T15:52:05.000Z">2026-09-30 15:52:05 UTC</time>');

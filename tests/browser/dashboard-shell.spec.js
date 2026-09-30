@@ -246,6 +246,26 @@ test("persists the selected color theme across reloads", async ({ page }) => {
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });
 
+test("applies and persists KJ UI Style hard corners", async ({ page }) => {
+  await page.getByRole("button", { name: "Settings" }).click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  const kjUiStyle = settings.getByRole("checkbox", { name: "KJ UI Style" });
+
+  await expect(kjUiStyle).not.toBeChecked();
+  await kjUiStyle.check();
+  await expect(page.locator("html")).toHaveAttribute("data-kj-ui-style", "true");
+  await expect(settings).toHaveCSS("border-radius", "0px");
+  await expect(settings.getByRole("button", { name: "Done" })).toHaveCSS("border-radius", "0px");
+  await settings.getByRole("button", { name: "Done" }).click();
+
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-kj-ui-style", "true");
+  await expect(page.getByRole("button", { name: "Settings" })).toHaveCSS("border-radius", "0px");
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(window.localStorage.getItem("mockapi.preferences")).kjUiStyle))
+    .toBe(true);
+});
+
 test("persists dashboard view preferences across reloads", async ({ page }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
   await expect(page.getByLabel("Rows per page").locator("option")).toHaveText(["10", "25", "50", "100"]);

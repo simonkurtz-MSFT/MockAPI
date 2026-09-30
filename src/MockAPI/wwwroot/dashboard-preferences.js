@@ -17,6 +17,7 @@ const VERSION = 1;
  * @property {TestBladeAlignment} endpointTestDialogAlignment Preferred endpoint test dialog alignment.
  * @property {EndpointPageSize} endpointPageSize Endpoint rows per page.
  * @property {boolean} endpointsCollapsed Whether the endpoint section is collapsed.
+ * @property {boolean} kjUiStyle Whether the dashboard uses hard corners throughout.
  * @property {boolean} requestLogCollapsed Whether the request log section is collapsed.
  * @property {StatisticsView} statisticsView Selected statistics presentation.
  * @property {boolean} statisticsCollapsed Whether the statistics section is collapsed.
@@ -44,6 +45,7 @@ function normalizePreferences(value, legacyTheme = null) {
       : "right",
     endpointPageSize: [10, 25, 50, 100].includes(supported.endpointPageSize) ? supported.endpointPageSize : 10,
     endpointsCollapsed: typeof supported.endpointsCollapsed === "boolean" ? supported.endpointsCollapsed : false,
+    kjUiStyle: supported.kjUiStyle === true,
     requestLogCollapsed: typeof supported.requestLogCollapsed === "boolean" ? supported.requestLogCollapsed : false,
     statisticsView: ["graph", "table"].includes(supported.statisticsView) ? supported.statisticsView : "graph",
     statisticsCollapsed: typeof supported.statisticsCollapsed === "boolean" ? supported.statisticsCollapsed : false,
