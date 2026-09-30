@@ -7,6 +7,43 @@ namespace MockAPI.Tests.Management;
 
 public sealed class ConfigurationExportServiceTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("Endpoint description\nSecond line")]
+    public void PostmanExport_PreservesNonNullEndpointDescriptions(string? description)
+    {
+        var endpoint = new MockEndpointDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = "Hello",
+            Description = description,
+            Enabled = true,
+            Methods = ["GET", "POST"],
+            Path = "/hello",
+            Response = new() { StatusCode = 200, Headers = [], Body = "hello" }
+        };
+        var document = new MockApiConfigurationDocument
+        {
+            SchemaVersion = "1.0",
+            Endpoints = [endpoint]
+        };
+
+        Assert.True(ConfigurationExportService.TryExport("postman", document, out var export));
+        var collection = JsonNode.Parse(export!.Content)!;
+        var items = collection["item"]!.AsArray();
+
+        Assert.Equal(endpoint.Methods.Count, items.Count);
+        for (var index = 0; index < items.Count; index++)
+        {
+            var item = items[index]!.AsObject();
+            Assert.Equal(description is not null, item.ContainsKey("description"));
+            Assert.Equal(description, item["description"]?.GetValue<string>());
+            Assert.Equal(endpoint.Methods[index], item["request"]!["method"]!.GetValue<string>());
+            Assert.Equal("{{baseUrl}}/hello", item["request"]!["url"]!["raw"]!.GetValue<string>());
+        }
+    }
+
     [Fact]
     public void OpenApiExport_EmptyApiMetadataOmitsTags()
     {
