@@ -911,7 +911,7 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Contains("id=\"filter-status\"", html, StringComparison.Ordinal);
         Assert.Contains("href=\"https://github.com/simonkurtz-MSFT/MockAPI\" target=\"_blank\" rel=\"noopener noreferrer\"", html, StringComparison.Ordinal);
         Assert.Contains("href=\"https://www.linkedin.com/in/simonkurtz\" target=\"_blank\" rel=\"noopener noreferrer\"", html, StringComparison.Ordinal);
-        Assert.Contains("Version 1.0.0", html, StringComparison.Ordinal);
+        Assert.Contains("Version 1.0.1", html, StringComparison.Ordinal);
         Assert.Matches(
             "Built\\s+<time datetime=\"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{7}\\+00:00\">\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2} UTC</time>",
             html);
@@ -981,7 +981,7 @@ public sealed class RemainingManagementApiTests : IDisposable
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
             .InformationalVersion;
 
-        Assert.Equal("1.0.0", informationalVersion.Split('+', 2)[0]);
+        Assert.Equal("1.0.1", informationalVersion.Split('+', 2)[0]);
     }
 
     [Fact]

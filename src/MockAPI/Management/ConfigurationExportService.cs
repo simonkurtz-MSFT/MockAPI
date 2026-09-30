@@ -221,7 +221,7 @@ internal static class ConfigurationExportService
         {
             ["openapi"] = "3.1.0",
             ["jsonSchemaDialect"] = "https://json-schema.org/draft/2020-12/schema",
-            ["info"] = new JsonObject { ["title"] = "MockAPI", ["version"] = "1.0.0" },
+            ["info"] = new JsonObject { ["title"] = "MockAPI", ["version"] = "1.0.1" },
             ["servers"] = new JsonArray(new JsonObject { ["url"] = "http://localhost:8080" }),
             ["paths"] = paths
         };

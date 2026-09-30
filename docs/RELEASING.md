@@ -1,6 +1,6 @@
 # Versioning and Releases
 
-MockAPI's stable 1.0.0 application version is approved. This version decision does not publish a
+MockAPI's stable 1.0.1 application version is approved. This version decision does not publish a
 release or replace the quality, public-release audit, native image validation, and publication
 approval gates below.
 
@@ -30,7 +30,7 @@ Do not use this to replace an already tagged version.
 
 Use the [versioning skill](../.github/skills/versioning/SKILL.md) and
 [versioning agent](../.github/agents/versioning.agent.md) for compatibility decisions.
-Creating the final `v1.0.0` tag still requires an approved application-version bump.
+Creating the `v1.0.1` tag still requires the approved application-version bump to reach `main`.
 
 ## Repository setup (once, by an administrator)
 
