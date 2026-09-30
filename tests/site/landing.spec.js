@@ -40,10 +40,8 @@ test("quick starts, assets and accessibility work under the Pages repository pre
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Configure the response.");
   await page.getByRole("link", { name: "Get started", exact: true }).last().click();
   await expect(page).toHaveURL(/#start$/);
-  await expect(page.getByRole("link", { name: "Create a codespace" })).toHaveAttribute(
-    "href",
-    "https://codespaces.new/simonkurtz-MSFT/MockAPI"
-  );
+  await expect(page.locator("body")).not.toContainText("Codespaces");
+  await expect(page.locator('a[href*="codespaces"]')).toHaveCount(0);
   expect(
     await page.locator("img").evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0))
   ).toBe(true);

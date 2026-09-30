@@ -113,25 +113,26 @@ describe("application release versions", () => {
         git(author, "remote", "add", "origin", remote);
         fs.mkdirSync(path.dirname(project), { recursive: true });
         fs.writeFileSync(path.join(author, "package.json"), '{"private":true}');
-        saveVersion("1.0.0-beta.2");
+        saveVersion("1.0.0-beta.1");
         git(author, "add", ".");
-        git(author, "commit", "-m", "Original tip");
-        git(author, "push", "origin", "main");
-        const previous = git(author, "rev-parse", "HEAD");
+        git(author, "commit", "-m", "Common parent");
+        const base = git(author, "rev-parse", "HEAD");
         if (existingTag) {
           git(author, "-c", "tag.gpgsign=false", "tag", `v${version}`);
           git(author, "push", "origin", `refs/tags/v${version}`);
         }
+        saveVersion("1.0.0-beta.2");
+        git(author, "commit", "-am", "Original tip");
+        git(author, "push", "origin", "main");
+        const previous = git(author, "rev-parse", "HEAD");
         saveVersion(version);
-        git(author, "commit", "-am", "Replacement tip", "--amend");
+        git(author, "commit", "-am", "Replacement tip", "--amend", "--allow-empty");
         git(author, "push", "--force", "origin", "main");
         git(author, "clone", "--no-local", remote, runner);
         git(runner, "config", "tag.gpgsign", "false");
         git(runner, "config", "core.hooksPath", path.join(fixture, "no-hooks"));
         const before = missingCommit ? "f".repeat(40) : previous;
-        if (!existingTag) {
-          expect(spawnSync("git", ["cat-file", "-e", `${before}^{commit}`], { cwd: runner }).status).not.toBe(0);
-        }
+        expect(spawnSync("git", ["cat-file", "-e", `${before}^{commit}`], { cwd: runner }).status).not.toBe(0);
         const result = spawnSync(process.execPath, [script, "tag"], {
           cwd: runner,
           encoding: "utf8",
@@ -139,12 +140,12 @@ describe("application release versions", () => {
         });
         expect(result.status).toBe(status);
         expect(status === 0 ? result.stdout : result.stderr).toContain(message);
-        if (!existingTag) expect(result.stdout).toContain(`Fetching previous push commit ${before}`);
+        expect(result.stdout).toContain(`Fetching previous push commit ${before}`);
         const remoteTag = git(runner, "ls-remote", "origin", `refs/tags/v${version}^{}`);
         if (message === "decision=create") {
           expect(remoteTag).toContain(git(runner, "rev-parse", "HEAD"));
         } else if (existingTag) {
-          expect(git(runner, "ls-remote", "origin", `refs/tags/v${version}`)).toContain(previous);
+          expect(git(runner, "ls-remote", "origin", `refs/tags/v${version}`)).toContain(base);
         } else {
           expect(git(runner, "ls-remote", "origin", `refs/tags/v${version}`)).toBe("");
         }
