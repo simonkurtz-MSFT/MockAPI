@@ -204,9 +204,18 @@ test("endpoints without descriptions still offer information and filter by hidde
   await info.focus();
   await expect(page.getByRole("tooltip")).toContainText("No endpoint description yet.");
   await page.keyboard.press("Space");
+  const dialog = page.locator("#endpoint-dialog");
+  await expect(dialog).toBeVisible();
   await page.locator("#field-description").fill("Searchable hidden information");
   await page.getByRole("button", { name: "Apply endpoint", exact: true }).click();
-  await page.locator("#filter-text").fill("Searchable hidden information");
+  await expect(dialog).toBeHidden();
+  // Wait for the dialog's asynchronous close handler to restore focus before moving to the filter.
+  await expect(info).toBeFocused();
+  const filter = page.locator("#filter-text");
+  await filter.fill("Searchable hidden information");
+  await expect(filter).toBeFocused();
   await expect(page.locator(".endpoint-row")).toHaveCount(1);
   await expect(page.locator(".endpoint-row .api-description-tooltip")).toBeHidden();
+  await filter.fill("Description that does not match");
+  await expect(page.locator(".endpoint-row")).toHaveCount(0);
 });
