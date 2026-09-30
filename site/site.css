@@ -317,6 +317,12 @@ figcaption {
   color: var(--muted);
   font-size: 0.9rem;
 }
+.footer-details {
+  display: grid;
+  justify-items: end;
+  gap: 0.4rem;
+  text-align: right;
+}
 figcaption {
   padding: 0.75rem 0.5rem 0;
 }
@@ -443,6 +449,10 @@ footer {
   main,
   footer {
     width: calc(100% - 2rem);
+  }
+  .footer-details {
+    justify-items: start;
+    text-align: left;
   }
   .hero {
     padding-block: 2.5rem;

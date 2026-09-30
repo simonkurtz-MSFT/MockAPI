@@ -4,13 +4,14 @@ import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { assets, buildSite, output } = require("../../scripts/build-site.cjs");
+const { assets, buildSite, output, readApplicationVersion } = require("../../scripts/build-site.cjs");
 const root = path.resolve(import.meta.dirname, "../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 describe("public onboarding boundaries", () => {
   it("stages only the explicit site assets and rejects unexpected publication content", () => {
-    buildSite();
+    const buildDate = new Date("2026-09-30T15:52:05.000Z");
+    buildSite({ buildDate });
     expect(fs.readdirSync(output).sort()).toEqual([
       "brand-mark.svg",
       "dashboard-endpoints.png",
@@ -23,12 +24,18 @@ describe("public onboarding boundaries", () => {
       "sitemap.xml",
     ]);
     for (const [destination, source] of Object.entries(assets)) {
-      expect(fs.readFileSync(path.join(output, destination))).toEqual(fs.readFileSync(path.join(root, source)));
+      if (destination !== "index.html") {
+        expect(fs.readFileSync(path.join(output, destination))).toEqual(fs.readFileSync(path.join(root, source)));
+      }
     }
+    const index = fs.readFileSync(path.join(output, "index.html"), "utf8");
+    expect(index).toContain(`Version ${readApplicationVersion()}`);
+    expect(index).toContain('<time datetime="2026-09-30T15:52:05.000Z">2026-09-30 15:52:05 UTC</time>');
+    expect(index).not.toMatch(/\{\{(?:VERSION|BUILD_DATE_(?:ISO|DISPLAY))\}\}/);
     const unexpected = path.join(output, "unexpected-test-fixture.txt");
     fs.writeFileSync(unexpected, "Not approved for publication");
     try {
-      expect(() => buildSite()).toThrow("Unexpected file in Pages output");
+      expect(() => buildSite({ buildDate })).toThrow("Unexpected file in Pages output");
     } finally {
       fs.unlinkSync(unexpected);
     }

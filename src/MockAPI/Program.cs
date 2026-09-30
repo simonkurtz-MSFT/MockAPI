@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using System.Text.Encodings.Web;
 using System.Threading.RateLimiting;
@@ -47,6 +48,7 @@ await apiSecurity.LoadAsync(CancellationToken.None);
 if (options.EnableDashboard)
 {
     var version = MockApiHostConfiguration.GetVersion(typeof(Program).Assembly);
+    var buildDate = MockApiHostConfiguration.GetBuildDate(typeof(Program).Assembly);
     string[] dashboardAssetNames =
     [
         "app.css",
@@ -77,6 +79,11 @@ if (options.EnableDashboard)
         Path.Combine(app.Environment.WebRootPath, "index.html"),
         CancellationToken.None))
         .Replace("{{VERSION}}", version, StringComparison.Ordinal)
+        .Replace("{{BUILD_DATE_ISO}}", buildDate.ToString("O", CultureInfo.InvariantCulture), StringComparison.Ordinal)
+        .Replace(
+            "{{BUILD_DATE_DISPLAY}}",
+            buildDate.ToString("yyyy-MM-dd HH:mm:ss 'UTC'", CultureInfo.InvariantCulture),
+            StringComparison.Ordinal)
         .Replace("{{ASSET_VERSION}}", assetVersion, StringComparison.Ordinal)
         .Replace("{{SECURITY_ADMINISTRATION}}", string.IsNullOrWhiteSpace(options.DashboardUsername) ? "false" : "true", StringComparison.Ordinal)
         .Replace("{{LOG_ANALYTICS_WORKSPACE_LINK}}", logAnalyticsWorkspaceLink, StringComparison.Ordinal);
@@ -283,6 +290,26 @@ internal static class MockApiHostConfiguration
             .InformationalVersion ?? throw new InvalidOperationException(
                 "The application informational version is unavailable.");
         return informationalVersion.Split('+', 2)[0];
+    }
+
+    internal static DateTimeOffset GetBuildDate(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+        var value = assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .SingleOrDefault(attribute => attribute.Key == "BuildDateUtc")?
+            .Value;
+        if (!DateTimeOffset.TryParseExact(
+            value,
+            "O",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var buildDate))
+        {
+            throw new InvalidOperationException("The application UTC build date is unavailable or invalid.");
+        }
+
+        return buildDate;
     }
 
     internal static void ConfigureKestrel(Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions options)

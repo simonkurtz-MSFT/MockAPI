@@ -2,9 +2,10 @@ const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
 const { spawn } = require("node:child_process");
-const { assets, buildSite } = require("./build-site.cjs");
+const { assets, buildSite, renderIndex } = require("./build-site.cjs");
 
-buildSite();
+const buildDate = new Date();
+buildSite({ buildDate });
 const root = path.resolve(__dirname, "..");
 const previewUrl = "http://127.0.0.1:4173/MockAPI/";
 const types = {
@@ -24,6 +25,10 @@ const server = http.createServer((request, response) => {
     return;
   }
   response.writeHead(200, { "Content-Type": types[path.extname(name)], "Cache-Control": "no-store" });
+  if (name === "index.html") {
+    response.end(renderIndex(buildDate));
+    return;
+  }
   // Serve only allowlisted sources so a browser refresh picks up edits without restarting.
   fs.createReadStream(path.join(root, assets[name]))
     .on("error", (error) => {

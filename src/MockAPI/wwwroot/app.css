@@ -2028,6 +2028,9 @@ fieldset {
   flex-wrap: wrap;
   gap: 7px;
 }
+.build-metadata {
+  text-align: right;
+}
 .app-footer a {
   color: var(--cp-link);
   font-weight: 600;
@@ -2316,7 +2319,12 @@ html[data-theme="dark"] button:disabled {
     padding: 18px 16px;
   }
   .app-footer {
+    align-items: flex-start;
+    flex-direction: column;
     padding: 16px;
+  }
+  .build-metadata {
+    text-align: left;
   }
   .command-actions {
     display: grid;

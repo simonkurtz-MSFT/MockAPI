@@ -912,7 +912,11 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Contains("href=\"https://github.com/simonkurtz-MSFT/MockAPI\" target=\"_blank\" rel=\"noopener noreferrer\"", html, StringComparison.Ordinal);
         Assert.Contains("href=\"https://www.linkedin.com/in/simonkurtz\" target=\"_blank\" rel=\"noopener noreferrer\"", html, StringComparison.Ordinal);
         Assert.Contains("Version 1.0.0", html, StringComparison.Ordinal);
+        Assert.Matches(
+            "Built\\s+<time datetime=\"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{7}\\+00:00\">\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2} UTC</time>",
+            html);
         Assert.DoesNotContain("{{VERSION}}", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("{{BUILD_DATE_", html, StringComparison.Ordinal);
         Assert.DoesNotContain("{{LOG_ANALYTICS_WORKSPACE_LINK}}", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Log Analytics workspace", html, StringComparison.Ordinal);
         Assert.DoesNotContain("loadBuiltInConfiguration(\"template\")", javascript, StringComparison.Ordinal);

@@ -188,6 +188,10 @@ test("light and dark theme tokens and button states exactly match the dashboard"
           await toggle.focus();
         }
         await expect(referenceToggle).toHaveCSS("transform", state === "hover" ? "matrix(1, 0, 0, 1, 0, -1)" : "none");
+        // A settled transform does not guarantee that color and shadow transitions have finished.
+        for (const button of [referenceToggle, toggle]) {
+          await expect.poll(() => button.evaluate((element) => element.getAnimations().length)).toBe(0);
+        }
         for (const property of properties) {
           const expected = await referenceToggle.evaluate(
             (button, name) => getComputedStyle(button).getPropertyValue(name),
