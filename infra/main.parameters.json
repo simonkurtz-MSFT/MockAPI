@@ -17,7 +17,7 @@
     "dashboardPasswordHash": {
       "value": "${AZURE_DASHBOARD_PASSWORD_HASH}"
     },
-    "customDomainsJson": {
+    "customDomains": {
       "value": "${AZURE_CUSTOM_DOMAINS=[]}"
     }
   }

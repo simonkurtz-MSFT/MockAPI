@@ -373,7 +373,33 @@ esac
   $pushDefinition = [regex]::Match($bashSource, '(?ms)^invoke_azure_push\(\) \{.*?^\}').Value
   Assert-True ($pushDefinition -notmatch 'complete_azure_deployment|set_azure_custom_domain') 'Bash registry-only push must not configure domains.'
   $parameters = Get-Content (Join-Path $repositoryRoot 'infra/main.parameters.json') -Raw | ConvertFrom-Json
-  Assert-True ($parameters.parameters.customDomainsJson.value -ceq '${AZURE_CUSTOM_DOMAINS=[]}') 'Infrastructure must default preserved bindings to an empty JSON array.'
+  Assert-True ($parameters.parameters.customDomains.value -ceq '${AZURE_CUSTOM_DOMAINS=[]}') 'Infrastructure must default preserved bindings to an empty JSON array.'
+  $mainBicep = Get-Content (Join-Path $repositoryRoot 'infra/main.bicep') -Raw
+  Assert-True ($mainBicep -match '(?m)^param customDomains array = \[\]$') 'Preserved bindings must use an array parameter so azd parses substituted JSON without interpolating nested quotes into a serialized string.'
+  Assert-True ($mainBicep -match '(?m)^\s+customDomains: customDomains$') 'The resources module must receive the preserved array directly.'
+  foreach ($case in @(
+      @{ Name = 'unset'; Value = $null; Expected = '[]' },
+      @{ Name = 'empty'; Value = '[]'; Expected = '[]' },
+      @{
+        Name = 'existing'
+        Value = '[{"bindingType":"SniEnabled","name":"old.example.com","certificateId":"/managedCertificates/old"}]'
+        Expected = '[{"bindingType":"SniEnabled","name":"old.example.com","certificateId":"/managedCertificates/old"}]'
+      },
+      @{
+        Name = 'multiple'
+        Value = '[{"bindingType":"SniEnabled","name":"old.example.com","certificateId":"/managedCertificates/old"},{"bindingType":"Disabled","name":"pending.example.com","certificateId":null}]'
+        Expected = '[{"bindingType":"SniEnabled","name":"old.example.com","certificateId":"/managedCertificates/old"},{"bindingType":"Disabled","name":"pending.example.com","certificateId":null}]'
+      }
+    )) {
+    # Match azd's array-parameter path: substitute the value, then parse it as JSON.
+    $resolvedValue = $parameters.parameters.customDomains.value.Replace(
+      '${AZURE_CUSTOM_DOMAINS=[]}', $(if ($null -eq $case.Value) { '[]' } else { $case.Value })
+    )
+    $bindings = ConvertFrom-Json -InputObject $resolvedValue -NoEnumerate
+    Assert-True ($bindings -is [Array]) "$($case.Name) bindings must resolve to an array."
+    $roundTrip = ConvertTo-Json -InputObject $bindings -Depth 10 -Compress
+    Assert-True ($roundTrip -ceq $case.Expected) "$($case.Name) bindings must preserve every hostname, binding type, and certificate reference."
+  }
 
   & {
     $definition = $ast.Find({ param($node)

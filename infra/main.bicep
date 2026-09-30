@@ -24,7 +24,7 @@ param dashboardUsername string = ''
 param dashboardPasswordHash string = ''
 
 @description('Existing ingress domain bindings preserved by the developer CLI before reprovisioning. New managed certificates are bound after deployment and DNS validation.')
-param customDomainsJson string = '[]'
+param customDomains array = []
 
 // ------------------------------
 //   RESOURCES
@@ -48,7 +48,7 @@ module resources 'resources.bicep' = {
     location: location
     dashboardUsername: dashboardUsername
     dashboardPasswordHash: dashboardPasswordHash
-    customDomains: json(customDomainsJson)
+    customDomains: customDomains
   }
 }
 

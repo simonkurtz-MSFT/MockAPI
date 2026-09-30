@@ -124,6 +124,8 @@ These operations require Azure CLI authentication (`az login`) as well as azd au
 
 Use the developer CLI for provisioning: before `azure-up` previews or provisions infrastructure, it reads and preserves all existing ingress domain bindings in the internal azd value `AZURE_CUSTOM_DOMAINS`. Do not add this internal value to your root environment file or edit it manually. Direct `azd up` bypasses this refresh and the post-deployment certificate workflow. Existing managed bindings are reused; non-managed certificate bindings are not silently replaced. A failed state read stops provisioning.
 
+The infrastructure receives this snapshot through a typed `customDomains` array parameter. This lets azd parse the JSON bindings without inserting their nested quotation marks into a serialized string parameter, which can otherwise cause `error unmarshalling Bicep template parameters` during preview. An unset snapshot defaults to an empty array.
+
 Leaving `AZURE_CUSTOM_DOMAIN` empty disables domain automation and retains the generated Azure URL as the reported endpoint. Clearing or changing the setting does **not** delete old bindings or certificates. Remove obsolete bindings explicitly in Azure and update your DNS provider; unrelated bindings are preserved.
 
 ### Azure Files migration
