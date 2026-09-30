@@ -14,6 +14,8 @@
 - Keep configuration models, registry, dispatcher, persistence, statistics, management API, and dashboard responsibilities distinct.
 - Preserve stable endpoint IDs across edits and use them for statistics attribution.
 - Keep statistics bounded and process-local; do not retain sensitive request or response content.
+- Keep the approved Google Analytics tag confined to the public documentation site. Do not add
+  analytics to the runtime dashboard or mock endpoints; stub the tag in site browser tests.
 
 ## Engineering Practices
 

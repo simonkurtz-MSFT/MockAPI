@@ -3,12 +3,85 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="author" content="Simon Kurtz" />
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XQZ0DQP020"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+      gtag("config", "G-XQZ0DQP020");
+    </script>
     <meta
       name="description"
-      content="MockAPI: predictable HTTP responses, live editing, and one small container. Get started locally, in Codespaces, or on your container platform."
+      content="MockAPI is an open-source, self-hosted mock API server. Configure HTTP responses, test retries and failures, and edit endpoints live in a lightweight container."
     />
     <meta name="color-scheme" content="light dark" />
-    <title>MockAPI | Real HTTP. Predictable responses.</title>
+    <title>MockAPI | Open-Source, Self-Hosted Mock API Server</title>
+    <link rel="canonical" href="https://mockapi.simondoescloud.com/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="MockAPI" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://mockapi.simondoescloud.com/" />
+    <meta property="og:title" content="MockAPI | Open-Source, Self-Hosted Mock API Server" />
+    <meta
+      property="og:description"
+      content="MockAPI is an open-source, self-hosted mock API server. Configure HTTP responses, test retries and failures, and edit endpoints live in a lightweight container."
+    />
+    <meta property="og:image" content="https://mockapi.simondoescloud.com/dashboard.png" />
+    <meta
+      property="og:image:alt"
+      content="MockAPI dashboard with endpoint management, live request statistics, and response testing."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MockAPI | Open-Source, Self-Hosted Mock API Server" />
+    <meta
+      name="twitter:description"
+      content="MockAPI is an open-source, self-hosted mock API server. Configure HTTP responses, test retries and failures, and edit endpoints live in a lightweight container."
+    />
+    <meta name="twitter:image" content="https://mockapi.simondoescloud.com/dashboard.png" />
+    <meta
+      name="twitter:image:alt"
+      content="MockAPI dashboard with endpoint management, live request statistics, and response testing."
+    />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://mockapi.simondoescloud.com/#website",
+            "url": "https://mockapi.simondoescloud.com/",
+            "name": "MockAPI",
+            "author": { "@type": "Person", "name": "Simon Kurtz" },
+            "inLanguage": "en",
+            "description": "Open-source, self-hosted HTTP API mocking for development and testing."
+          },
+          {
+            "@type": ["SoftwareApplication", "SoftwareSourceCode"],
+            "@id": "https://mockapi.simondoescloud.com/#software",
+            "name": "MockAPI",
+            "author": { "@type": "Person", "name": "Simon Kurtz" },
+            "url": "https://mockapi.simondoescloud.com/",
+            "description": "MockAPI is an open-source, self-hosted mock API server. Configure HTTP responses, test retries and failures, and edit endpoints live in a lightweight container.",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "Windows, macOS, Linux",
+            "license": "https://github.com/simonkurtz-MSFT/MockAPI/blob/main/LICENSE",
+            "codeRepository": "https://github.com/simonkurtz-MSFT/MockAPI",
+            "screenshot": "https://mockapi.simondoescloud.com/dashboard.png",
+            "featureList": [
+              "Live endpoint editing without a restart",
+              "Exact HTTP method and path matching",
+              "Configurable status codes, headers, and response bodies",
+              "Rate limiting and intentional connection aborts",
+              "JSON configuration import and export",
+              "Dashboard with process-local request statistics"
+            ]
+          }
+        ]
+      }
+    </script>
     <link rel="icon" href="./brand-mark.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./site.css" />
   </head>
@@ -27,10 +100,10 @@
     <main id="main">
       <section class="hero" aria-labelledby="hero-title">
         <p class="eyebrow">Built for developers. Ready for the unexpected.</p>
-        <h1 id="hero-title">Real HTTP.<br /><span>Predictable responses.</span></h1>
+        <h1 id="hero-title">MockAPI: real HTTP.<br /><span>Predictable responses.</span></h1>
         <p class="lead">
-          A clean 200. A stubborn 429. A broken connection. Define the response your app needs to handle, then change it
-          live. No stub code. No restart.
+          An open-source, self-hosted mock API server for development and testing. A clean 200. A stubborn 429. A broken
+          connection. Define the HTTP response your app needs to handle, then change it live. No stub code. No restart.
         </p>
         <div class="actions">
           <a class="button primary" href="#start">Start mocking</a>
@@ -49,7 +122,7 @@
       </figure>
       <section id="start" aria-labelledby="start-title">
         <p class="eyebrow">Your first response, in minutes</p>
-        <h2 id="start-title">Choose your starting point</h2>
+        <h2 id="start-title">Run your mock API locally or in a container</h2>
         <div class="cards">
           <article class="card">
             <span class="badge">Recommended &middot; Current source</span>
@@ -123,7 +196,7 @@ cd MockAPI</code></pre>
       </section>
       <section id="examples" aria-labelledby="examples-title">
         <p class="eyebrow">Build confidence before production</p>
-        <h2 id="examples-title">Small mocks. Useful experiments.</h2>
+        <h2 id="examples-title">Mock API examples for development and testing</h2>
         <div class="cards">
           <article class="card">
             <h3>Unblock development</h3>

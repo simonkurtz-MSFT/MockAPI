@@ -6,6 +6,8 @@ const output = path.join(root, "artifacts", "site");
 const assets = {
   "index.html": "site/index.html",
   "site.css": "site/site.css",
+  "robots.txt": "site/robots.txt",
+  "sitemap.xml": "site/sitemap.xml",
   "brand-mark.svg": "src/MockAPI/wwwroot/brand-mark.svg",
   "dashboard.png": "docs/images/01-dashboard-overview.png",
 };

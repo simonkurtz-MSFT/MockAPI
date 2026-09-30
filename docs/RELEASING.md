@@ -111,8 +111,13 @@ budget, or SBOM disclosure review: those remain human release gates.
 ## Pages publication
 
 The [landing page](../site/index.html) is static documentation, not a public MockAPI service.
-It uses no analytics, CDN scripts, or externally loaded fonts.
-[The build](../scripts/build-site.cjs) copies only four approved assets to `artifacts/site`;
+It uses Google Analytics with measurement ID `G-XQZ0DQP020` through Google's asynchronous `gtag.js`.
+This tag loads automatically on the documentation page, including local previews unless blocked;
+it is not included in the runtime dashboard or mock endpoints.
+All other assets are self-hosted, with no externally loaded fonts.
+Before publishing, review applicable privacy-disclosure and consent requirements; the supplied tag
+does not implement a consent banner or consent gating.
+[The build](../scripts/build-site.cjs) copies only six approved assets to `artifacts/site`;
 unknown output files fail the build. Never upload the repository root or the whole `docs` directory.
 
 ```text
@@ -122,7 +127,18 @@ node scripts/serve-site.cjs
 ```
 
 Preview at `http://127.0.0.1:4173/MockAPI/`. The tests exercise this repository prefix, asset loading,
-keyboard navigation, desktop/mobile layouts, and light/dark automated accessibility.
+keyboard navigation, desktop/mobile layouts, light/dark automated accessibility, and SEO metadata
+without JavaScript. Browser tests stub the Google tag to verify initialization without sending
+test traffic to Google. The allowlisted `robots.txt` and `sitemap.xml` provide crawler discovery.
+HTML and structured-data author metadata credit Simon Kurtz.
 After enabling Pages and its opt-in variable, dispatch **Documentation site** or push a site change
-to `main`. The intended address is `https://simonkurtz-MSFT.github.io/MockAPI/`; it is not live merely
-because the files exist. PRs build and test but never deploy.
+to `main`. The canonical public address is `https://mockapi.simondoescloud.com/`; keep this custom
+domain configured in Settings > Pages so the repository's Pages URL redirects to it.
+Keep the canonical link, Open Graph and Twitter metadata, JSON-LD, robots sitemap directive,
+and sitemap URLs aligned when changing the domain. Relative assets still support repository-prefix previews.
+PRs build and test but never deploy. Local changes are not live until the approved Pages deployment completes.
+
+After deployment, verify `/robots.txt` and `/sitemap.xml` return `200` on the custom domain, then submit
+`https://mockapi.simondoescloud.com/sitemap.xml` through Google Search Console and Bing Webmaster Tools
+using a verified domain owner account. Structured data describes the website and software without
+inventing ratings or reviews; it does not guarantee a rich result or search ranking.

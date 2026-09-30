@@ -4,7 +4,14 @@ const http = require("node:http");
 const { assets, output, buildSite } = require("./build-site.cjs");
 
 buildSite();
-const types = { ".html": "text/html", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png" };
+const types = {
+  ".html": "text/html",
+  ".css": "text/css",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".txt": "text/plain",
+  ".xml": "application/xml",
+};
 const server = http.createServer((request, response) => {
   const pathname = new URL(request.url, "http://localhost").pathname;
   const name = pathname === "/MockAPI/" ? "index.html" : pathname.slice("/MockAPI/".length);

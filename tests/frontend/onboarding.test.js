@@ -11,7 +11,14 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 describe("public onboarding boundaries", () => {
   it("stages only the explicit site assets and rejects unexpected publication content", () => {
     buildSite();
-    expect(fs.readdirSync(output).sort()).toEqual(["brand-mark.svg", "dashboard.png", "index.html", "site.css"]);
+    expect(fs.readdirSync(output).sort()).toEqual([
+      "brand-mark.svg",
+      "dashboard.png",
+      "index.html",
+      "robots.txt",
+      "site.css",
+      "sitemap.xml",
+    ]);
     for (const [destination, source] of Object.entries(assets)) {
       expect(fs.readFileSync(path.join(output, destination))).toEqual(fs.readFileSync(path.join(root, source)));
     }
@@ -48,5 +55,13 @@ describe("public onboarding boundaries", () => {
     expect(workflow).toContain("github.event_name != 'pull_request'");
     expect(workflow).toContain("path: artifacts/site");
     expect(workflow).not.toContain("path: .\n");
+  });
+
+  it("keeps Google Analytics on the documentation site, not the runtime dashboard", () => {
+    expect(read("site/index.html")).toContain("https://www.googletagmanager.com/gtag/js?id=G-XQZ0DQP020");
+    const dashboard = read("src/MockAPI/wwwroot/index.html");
+    expect(dashboard).not.toContain("googletagmanager.com");
+    expect(dashboard).not.toContain("G-XQZ0DQP020");
+    expect(dashboard).not.toContain("gtag(");
   });
 });
