@@ -598,55 +598,92 @@
           ></button>
         </header>
         <div class="settings-body">
-          <div class="settings-field">
-            <h3>Mock API security</h3>
-            <p id="settings-api-security-status" role="status" aria-live="polite"></p>
-            <label for="settings-api-security-enabled">
-              <input id="settings-api-security-enabled" type="checkbox" />
-              Require X-MockAPI-Key on mock requests
-            </label>
-            <button id="settings-api-security-apply" class="button" type="button">Apply protection setting</button>
-            <label for="settings-api-key">API key for dashboard tests</label>
-            <input
-              id="settings-api-key"
-              type="password"
-              autocomplete="off"
-              spellcheck="false"
-              aria-describedby="settings-api-key-description"
-            />
-            <p id="settings-api-key-description">
-              Keys are held in memory only. Copy a generated key before reloading. Exports use placeholders, never
-              secrets. Generating a replacement revokes the old key immediately. Security changes require administrator
-              credentials.
-            </p>
-            <button id="settings-api-key-generate" class="button" type="button">Generate / rotate key</button>
-            <button id="settings-api-key-copy" class="button" type="button">Copy key</button>
-          </div>
-          <div class="settings-field">
-            <label for="settings-dashboard-layout">Workspace layout</label>
-            <select id="settings-dashboard-layout" aria-describedby="settings-dashboard-layout-description">
-              <option value="auto">Automatic</option>
-              <option value="columns">Columns when space allows</option>
-              <option value="stacked">Always stacked</option>
-            </select>
-            <p id="settings-dashboard-layout-description">
-              Columns are used only when the command groups fit on one row. Otherwise the dashboard stays stacked.
-            </p>
-          </div>
-          <div class="settings-field">
-            <label for="settings-endpoint-test-dialog-alignment">Endpoint test dialog position</label>
-            <select
-              id="settings-endpoint-test-dialog-alignment"
-              aria-describedby="settings-endpoint-test-dialog-alignment-description"
-            >
-              <option value="left">Left</option>
-              <option value="center">Center</option>
-              <option value="right">Right</option>
-            </select>
-            <p id="settings-endpoint-test-dialog-alignment-description">
-              Center adds space above and below the dialog. Left and right use the full available height.
-            </p>
-          </div>
+          <section class="settings-security" aria-labelledby="settings-security-title">
+            <div class="settings-section-heading">
+              <h3 id="settings-security-title">Mock API security</h3>
+              <span id="settings-api-security-summary" class="security-status-badge" data-state="loading">
+                Loading
+              </span>
+            </div>
+            <p id="settings-api-security-status" class="security-status-message" role="status" aria-live="polite"></p>
+            <div class="security-card">
+              <h4>Request protection</h4>
+              <label class="security-protection-control" for="settings-api-security-enabled">
+                <input
+                  id="settings-api-security-enabled"
+                  type="checkbox"
+                  aria-describedby="settings-api-protection-description"
+                />
+                <span>Require <code>X-MockAPI-Key</code> on mock requests</span>
+              </label>
+              <p id="settings-api-protection-description">
+                When enabled, only callers with the instance key can invoke mock endpoints. Changes require
+                administrator credentials.
+              </p>
+              <div class="security-actions">
+                <button id="settings-api-security-apply" class="button" type="button">Apply protection setting</button>
+                <span class="settings-scope-note">Saved on this instance</span>
+              </div>
+            </div>
+            <div class="security-card">
+              <div class="settings-section-heading">
+                <h4>Dashboard test key</h4>
+                <span class="settings-scope-note">Memory only</span>
+              </div>
+              <label for="settings-api-key">API key for dashboard tests</label>
+              <div class="security-key-control">
+                <input
+                  id="settings-api-key"
+                  type="password"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="Paste an existing key"
+                  aria-describedby="settings-api-key-description settings-api-key-error"
+                />
+                <button id="settings-api-key-copy" class="button" type="button">Copy key</button>
+              </div>
+              <p id="settings-api-key-error" class="security-key-error" role="status" hidden></p>
+              <p id="settings-api-key-description">
+                Used automatically for dashboard tests. Kept only in this page's memory and cleared on reload.
+              </p>
+              <div class="security-key-generation">
+                <button id="settings-api-key-generate" class="button primary" type="button">Generate key</button>
+                <p>Copy a new key before reloading. Rotating immediately revokes the previous key.</p>
+              </div>
+              <p class="security-export-note">Request exports use placeholders, never your key.</p>
+            </div>
+          </section>
+          <section class="settings-preferences" aria-labelledby="settings-preferences-title">
+            <div class="settings-section-heading">
+              <h3 id="settings-preferences-title">Workspace preferences</h3>
+              <span class="settings-scope-note">This browser only</span>
+            </div>
+            <div class="settings-field">
+              <label for="settings-dashboard-layout">Workspace layout</label>
+              <select id="settings-dashboard-layout" aria-describedby="settings-dashboard-layout-description">
+                <option value="auto">Automatic</option>
+                <option value="columns">Columns when space allows</option>
+                <option value="stacked">Always stacked</option>
+              </select>
+              <p id="settings-dashboard-layout-description">
+                Columns are used only when the command groups fit on one row. Otherwise the dashboard stays stacked.
+              </p>
+            </div>
+            <div class="settings-field">
+              <label for="settings-endpoint-test-dialog-alignment">Endpoint test dialog position</label>
+              <select
+                id="settings-endpoint-test-dialog-alignment"
+                aria-describedby="settings-endpoint-test-dialog-alignment-description"
+              >
+                <option value="left">Left</option>
+                <option value="center">Center</option>
+                <option value="right">Right</option>
+              </select>
+              <p id="settings-endpoint-test-dialog-alignment-description">
+                Center adds space above and below the dialog. Left and right use the full available height.
+              </p>
+            </div>
+          </section>
         </div>
         <footer class="dialog-footer">
           <span>Layout preferences are browser-local. API protection is saved on the server.</span>

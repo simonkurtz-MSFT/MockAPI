@@ -20,10 +20,17 @@ Mock calls require `X-MockAPI-Key`. With no key generated, they return `401` bef
 connection aborts, rate limiting, or mock statistics. Administrative credentials do not authorize mock calls.
 
 1. Configure the dashboard administrator username and password hash using the existing deployment workflow.
-2. Open **Settings > Mock API security > Generate / rotate key**.
+2. Open **Settings > Mock API security > Dashboard test key > Generate key**.
 3. Copy the generated key immediately. The server stores only its SHA-256 hash and cannot show it again.
 4. Supply `X-MockAPI-Key` on external mock calls. Dashboard tests automatically use the key held in memory.
    After a reload, enter the existing key in Settings or generate a replacement.
+
+Settings separates instance-wide **Request protection** from the memory-only **Dashboard test key**.
+Select **Apply protection setting** to save a protection change; changing the checkbox alone does not apply it.
+When a key already exists, **Rotate key** replaces it after confirmation. **Copy key** is available only
+when this page holds a valid key; the dashboard never retrieves an existing key from the server.
+The status badge explains whether protection is on, off, awaiting a key, or unavailable without administrator setup.
+Workspace preferences are separate and apply only to the current browser.
 
 Security Settings require configured administrator credentials even when the rest of management is anonymous.
 Without administrator credentials, security management returns `403`; ordinary mock calls still fail closed.

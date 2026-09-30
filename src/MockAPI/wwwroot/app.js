@@ -411,7 +411,7 @@ function bindEvents() {
     elements["settings-dashboard-layout"].value = preferences.dashboardLayout;
     elements["settings-endpoint-test-dialog-alignment"].value = preferences.endpointTestDialogAlignment;
     elements["settings-dialog"].showModal();
-    elements["settings-dashboard-layout"].focus();
+    elements["settings-close"].focus();
     void apiSecurity.open();
   });
   pageEvents.listen(elements["settings-dialog"], "close", () => {

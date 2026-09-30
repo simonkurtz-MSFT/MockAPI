@@ -1,22 +1,4 @@
 :root {
-  color-scheme: light;
-  /* Match the dashboard theme tokens; browser tests guard their visual parity. */
-  --cp-bg: #eef5ff;
-  --cp-bg-elevated: #f7faff;
-  --cp-surface: #ffffff;
-  --cp-surface-soft: #e5effc;
-  --cp-text: #10243e;
-  --cp-text-muted: #435d7b;
-  --cp-accent: #075ea8;
-  --cp-accent-hover: #004a87;
-  --cp-accent-fg: #ffffff;
-  --cp-link: #075ea8;
-  --cp-border: #b7cbe4;
-  --cp-border-strong: #536f91;
-  --cp-shadow-control: 0 2px 5px rgba(16, 36, 62, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.72);
-  --cp-sheen: rgba(255, 255, 255, 0.55);
-  --cp-icon-gold: #8a5a00;
-  --cp-icon-gold-soft: #fff4d6;
   --background: var(--cp-bg);
   --surface: var(--cp-surface);
   --text: var(--cp-text);
@@ -24,9 +6,7 @@
   --accent: var(--cp-link);
   --border: var(--cp-border);
   --wash: var(--cp-surface-soft);
-  font:
-    100%/1.65 system-ui,
-    sans-serif;
+  font: 100%/1.65 var(--cp-font-sans);
   background: var(--background);
   color: var(--text);
 }
@@ -394,48 +374,6 @@ footer {
   padding-block: 1.5rem;
   color: var(--muted);
   font-size: 0.9rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    color-scheme: dark;
-    --cp-bg: #0d1b2d;
-    --cp-bg-elevated: #12243b;
-    --cp-surface: #182f4b;
-    --cp-surface-soft: #213d5e;
-    --cp-text: #f4f8ff;
-    --cp-text-muted: #b6c9df;
-    --cp-accent: #69b8ff;
-    --cp-accent-hover: #91ccff;
-    --cp-accent-fg: #08213b;
-    --cp-link: #8ac8ff;
-    --cp-border: #385b82;
-    --cp-border-strong: #7898bd;
-    --cp-shadow-control: 0 2px 5px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-    --cp-sheen: rgba(255, 255, 255, 0.04);
-    --cp-icon-gold: #ffd166;
-    --cp-icon-gold-soft: #4b3b1c;
-  }
-}
-
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --cp-bg: #0d1b2d;
-  --cp-bg-elevated: #12243b;
-  --cp-surface: #182f4b;
-  --cp-surface-soft: #213d5e;
-  --cp-text: #f4f8ff;
-  --cp-text-muted: #b6c9df;
-  --cp-accent: #69b8ff;
-  --cp-accent-hover: #91ccff;
-  --cp-accent-fg: #08213b;
-  --cp-link: #8ac8ff;
-  --cp-border: #385b82;
-  --cp-border-strong: #7898bd;
-  --cp-shadow-control: 0 2px 5px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --cp-sheen: rgba(255, 255, 255, 0.04);
-  --cp-icon-gold: #ffd166;
-  --cp-icon-gold-soft: #4b3b1c;
 }
 
 @media (max-width: 950px) {

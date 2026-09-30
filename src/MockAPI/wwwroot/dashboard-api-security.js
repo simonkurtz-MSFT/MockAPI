@@ -24,17 +24,21 @@ export function createDashboardApiSecurity({
 }) {
   const elements = getDashboardElements(documentRoot, {
     "settings-api-security-status": "p",
+    "settings-api-security-summary": "span",
     "settings-api-security-enabled": "input",
     "settings-api-security-apply": "button",
     "settings-api-key": "input",
+    "settings-api-key-error": "p",
     "settings-api-key-generate": "button",
     "settings-api-key-copy": "button",
   });
   const events = createDashboardEventScope();
   const status = elements["settings-api-security-status"];
+  const summary = elements["settings-api-security-summary"];
   const enabled = elements["settings-api-security-enabled"];
   const apply = elements["settings-api-security-apply"];
   const input = elements["settings-api-key"];
+  const keyError = elements["settings-api-key-error"];
   const generate = elements["settings-api-key-generate"];
   const copy = elements["settings-api-key-copy"];
   /** @type {import("./dashboard-core.js").ApiSecurityStatus|null} */
@@ -44,12 +48,26 @@ export function createDashboardApiSecurity({
   let busy = false;
   let disposed = false;
 
+  function setStatus(title, state, message) {
+    summary.textContent = title;
+    summary.dataset.state = state;
+    status.textContent = message;
+  }
+
+  function setKeyError(message) {
+    input.setCustomValidity(message);
+    input.setAttribute("aria-invalid", String(Boolean(message)));
+    keyError.textContent = message;
+    keyError.hidden = !message;
+  }
+
   function setControls() {
     enabled.disabled = busy || settings === null;
     apply.disabled = busy || settings === null;
     generate.disabled = busy || settings === null;
     input.disabled = busy;
     copy.disabled = busy || !key;
+    generate.textContent = settings?.configured ? "Rotate key" : "Generate key";
   }
 
   async function open() {
@@ -57,11 +75,15 @@ export function createDashboardApiSecurity({
     const capturedGeneration = ++generation;
     settings = null;
     input.value = key;
-    status.textContent = "Loading API security settings...";
+    setKeyError("");
+    setStatus("Loading", "loading", "Loading API security settings...");
     setControls();
     if (!administratorConfigured) {
-      status.textContent =
-        "Configure dashboard administrator credentials to generate keys or change protection. You can enter an existing key for dashboard tests.";
+      setStatus(
+        "Admin required",
+        "warning",
+        "Configure dashboard administrator credentials to generate keys or change protection. You can enter an existing key for dashboard tests."
+      );
       return;
     }
     try {
@@ -70,14 +92,24 @@ export function createDashboardApiSecurity({
       if (disposed || capturedGeneration !== generation) return;
       settings = result;
       enabled.checked = result.enabled;
-      status.textContent = result.enabled
-        ? result.configured
-          ? "API key required. Enter the existing key for dashboard tests, or generate a replacement."
-          : "API key required. Mock calls are blocked until an administrator generates a key."
-        : "Protection disabled. Mock endpoints accept unauthenticated calls.";
+      if (!result.enabled) {
+        setStatus("Protection off", "warning", "Protection disabled. Mock endpoints accept unauthenticated calls.");
+      } else if (!result.configured) {
+        setStatus(
+          "Key needed",
+          "warning",
+          "API key required. Mock calls are blocked until an administrator generates a key."
+        );
+      } else {
+        setStatus(
+          "Protection on",
+          "protected",
+          "API key required. Enter the existing key for dashboard tests, or generate a replacement."
+        );
+      }
     } catch (error) {
       if (disposed || capturedGeneration !== generation) return;
-      status.textContent = error.message;
+      setStatus("Unable to load", "error", error.message);
       if (error.status !== 403) showError(error.message);
     } finally {
       if (!disposed && capturedGeneration === generation) setControls();
@@ -122,11 +154,14 @@ export function createDashboardApiSecurity({
       const refreshedGeneration = generation + 1;
       await open();
       if (rotate && settings !== null && !disposed && refreshedGeneration === generation)
-        status.textContent =
-          "New key generated. Copy it now; the server cannot show it again. Dashboard tests use it automatically.";
+        setStatus(
+          "Key generated",
+          "protected",
+          "New key generated. Copy it now; the server cannot show it again. Dashboard tests use it automatically."
+        );
     } catch (error) {
       if (!disposed && capturedGeneration === generation) {
-        status.textContent = error.message;
+        setStatus("Update failed", "error", error.message);
         showError(error.message);
       }
     } finally {
@@ -139,10 +174,10 @@ export function createDashboardApiSecurity({
     const candidate = input.value.trim();
     if (candidate && !/^[A-Za-z0-9_-]{43}$/.test(candidate)) {
       key = "";
-      input.setCustomValidity("Enter a generated 43-character MockAPI key.");
+      setKeyError("Enter a generated 43-character MockAPI key.");
     } else {
       key = candidate;
-      input.setCustomValidity("");
+      setKeyError("");
     }
     setControls();
   });
@@ -154,7 +189,7 @@ export function createDashboardApiSecurity({
   function close() {
     generation += 1;
     input.value = "";
-    input.setCustomValidity("");
+    setKeyError("");
   }
 
   return {

@@ -2,7 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
 const { spawn } = require("node:child_process");
-const { assets, buildSite, renderIndex } = require("./build-site.cjs");
+const { assets, buildSite, renderIndex, renderSiteStyles } = require("./build-site.cjs");
 
 const buildDate = new Date();
 buildSite({ buildDate });
@@ -27,6 +27,10 @@ const server = http.createServer((request, response) => {
   response.writeHead(200, { "Content-Type": types[path.extname(name)], "Cache-Control": "no-store" });
   if (name === "index.html") {
     response.end(renderIndex(buildDate));
+    return;
+  }
+  if (name === "site.css") {
+    response.end(renderSiteStyles());
     return;
   }
   // Serve only allowlisted sources so a browser refresh picks up edits without restarting.

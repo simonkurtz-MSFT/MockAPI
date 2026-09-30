@@ -45,6 +45,7 @@
   --status-4xx: #bd1e2c;
   --status-5xx: #7d1020;
   --status-other: #506a87;
+  --cp-font-sans: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
   --cp-font-mono: Consolas, "Courier New", Courier, monospace;
 }
 html[data-theme="dark"] {
@@ -104,13 +105,7 @@ body {
   flex-direction: column;
   background: var(--cp-bg);
   color: var(--cp-text);
-  font-family:
-    "Segoe UI",
-    Aptos,
-    Calibri,
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
+  font-family: var(--cp-font-sans);
   letter-spacing: 0;
 }
 button,
@@ -1573,6 +1568,134 @@ dialog::backdrop {
   font-size: 13px;
   line-height: 1.5;
 }
+.settings-security,
+.settings-preferences {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.settings-preferences {
+  border-top: 1px solid var(--cp-border);
+  padding-top: 20px;
+}
+.settings-section-heading,
+.security-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.settings-section-heading h3,
+.security-card h4 {
+  margin: 0;
+}
+.settings-section-heading h3 {
+  font-size: 16px;
+}
+.security-card h4 {
+  font-size: 14px;
+}
+.settings-scope-note {
+  color: var(--cp-text-muted);
+  font-size: 12px;
+}
+.security-status-badge {
+  padding: 4px 9px;
+  border: 1px solid var(--cp-border);
+  border-radius: 999px;
+  background: var(--cp-bg-elevated);
+  color: var(--cp-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.security-status-badge[data-state="protected"] {
+  border-color: var(--cp-accent);
+  background: var(--cp-accent-soft);
+  color: var(--cp-accent);
+}
+.security-status-badge[data-state="warning"] {
+  border-color: var(--cp-warning);
+  color: var(--cp-warning);
+}
+.security-status-badge[data-state="error"] {
+  border-color: var(--cp-danger);
+  color: var(--cp-danger);
+}
+.settings-body .security-status-message {
+  padding: 12px 14px;
+  border-left: 3px solid var(--cp-accent);
+  border-radius: 0 8px 8px 0;
+  background: var(--cp-bg-elevated);
+}
+.security-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--cp-border);
+  border-radius: 10px;
+}
+.security-card label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.security-protection-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.security-protection-control input {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--cp-accent);
+  box-shadow: none;
+}
+.security-protection-control:has(input:disabled) {
+  color: var(--cp-text-muted);
+  cursor: not-allowed;
+}
+.security-key-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.security-key-control input {
+  min-width: 0;
+  font-family: var(--cp-font-mono);
+}
+.security-key-control input::placeholder {
+  font-family: "Segoe UI", sans-serif;
+}
+.security-key-control input[aria-invalid="true"] {
+  border-color: var(--cp-danger);
+}
+.settings-body .security-key-error {
+  color: var(--cp-danger);
+}
+.security-key-generation {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-top: 4px;
+}
+.security-key-generation .button {
+  flex-shrink: 0;
+}
+.security-card .button {
+  min-height: 40px;
+}
+.settings-body .security-export-note {
+  padding-top: 12px;
+  border-top: 1px solid var(--cp-border);
+  font-size: 12px;
+}
 .how-it-works-body {
   max-height: calc(100vh - 190px);
   overflow-y: auto;
@@ -2424,6 +2547,17 @@ html[data-theme="dark"] button:disabled {
   .dialog-footer > div {
     display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+  .settings-body {
+    padding: 16px;
+  }
+  .security-card {
+    padding: 14px;
+  }
+  .security-key-generation {
+    align-items: start;
+    flex-direction: column;
+    gap: 10px;
   }
   .how-it-works-facts {
     grid-template-columns: 1fr;

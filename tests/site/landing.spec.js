@@ -2,6 +2,7 @@ const { test, expect } = require("@playwright/test");
 const AxeBuilder = require("@axe-core/playwright").default;
 const fs = require("node:fs");
 const path = require("node:path");
+const { renderSiteStyles } = require("../../scripts/build-site.cjs");
 
 const dashboardRoot = path.join(__dirname, "..", "..", "src", "MockAPI", "wwwroot");
 const dashboardStyles = fs.readFileSync(path.join(dashboardRoot, "app.css"), "utf8");
@@ -160,7 +161,7 @@ test("light and dark theme tokens and button states exactly match the dashboard"
       "outline-offset",
       "transform",
     ];
-    const siteStyles = fs.readFileSync(path.join(__dirname, "..", "..", "site", "site.css"), "utf8");
+    const siteStyles = renderSiteStyles();
     const tokens = [...new Set([...siteStyles.matchAll(/(--cp-[a-z-]+):/g)].map((match) => match[1]))];
     for (const mode of ["light", "dark"]) {
       if ((await page.locator("html").getAttribute("data-theme")) !== mode) await toggle.click();
@@ -209,6 +210,20 @@ test("light and dark theme tokens and button states exactly match the dashboard"
   } finally {
     await reference.close();
   }
+});
+
+test("bundles the dashboard theme tokens as the documentation theme source", () => {
+  const siteSource = fs.readFileSync(path.join(__dirname, "..", "..", "site", "site.css"), "utf8");
+  const sharedTheme = dashboardStyles.slice(
+    dashboardStyles.indexOf("/* Theme tokens */"),
+    dashboardStyles.indexOf("/* Foundations and keyboard navigation */")
+  );
+  const bundledStyles = renderSiteStyles();
+
+  expect(siteSource).not.toMatch(/--cp-(?:bg|surface|text|accent|border|link):\s*#/);
+  expect(bundledStyles).toContain(sharedTheme.trim());
+  expect(bundledStyles).toContain("@media (prefers-color-scheme: dark) {\n  :root:not([data-theme])");
+  expect(bundledStyles).toContain("font: 100%/1.65 var(--cp-font-sans);");
 });
 
 test("preview rejects assets outside the publication allowlist", async ({ request }) => {

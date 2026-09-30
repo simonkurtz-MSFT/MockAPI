@@ -38,6 +38,10 @@ test("API security controller generates once, uses captured revisions, and ignor
     await window.security.open();
   });
   await expect(frame.locator("#settings-api-security-status")).toContainText("blocked");
+  await expect(frame.locator("#settings-api-security-summary")).toHaveText("Key needed");
+  await expect(frame.locator("#settings-api-key-generate")).toHaveText("Generate key");
+  await frame.locator("#settings-api-key").fill("invalid");
+  await expect(frame.locator("#settings-api-key-error")).toBeVisible();
   await frame.locator("#settings-api-key-generate").click();
   await expect(frame.locator("#settings-api-key-generate")).toBeDisabled();
   expect(await frame.evaluate(() => window.securityCalls[1].options.etag)).toBe('"0"');
@@ -48,6 +52,10 @@ test("API security controller generates once, uses captured revisions, and ignor
     })
   );
   await expect(frame.locator("#settings-api-key-copy")).toBeEnabled();
+  await expect(frame.locator("#settings-api-security-summary")).toHaveText("Key generated");
+  await expect(frame.locator("#settings-api-key-generate")).toHaveText("Rotate key");
+  await expect(frame.locator("#settings-api-key-error")).toBeHidden();
+  expect(await frame.locator("#settings-api-key").evaluate((input) => input.validity.valid)).toBe(true);
   await frame.locator("#settings-api-key-copy").click();
   expect(await frame.evaluate(() => window.copiedKey)).toBe("a".repeat(43));
   await frame.locator("#settings-api-key-generate").click();
@@ -57,6 +65,7 @@ test("API security controller generates once, uses captured revisions, and ignor
     document.getElementById("settings-dialog").close();
     window.pendingSecurity[1]({ key: "b".repeat(43), status: { enabled: true, configured: true, etag: '"2"' } });
   });
+  await expect(frame.locator("#settings-api-security-summary")).toHaveText("Key generated");
   expect(await frame.evaluate(() => window.security.getKey())).toBe("a".repeat(43));
   await frame.evaluate(() => window.security.dispose());
   expect(await frame.evaluate(() => window.security.getKey())).toBe("");
@@ -85,6 +94,7 @@ test("API security controller reports write failures and confirms explicit opt-o
     document.getElementById("settings-dialog").showModal();
     await window.security.open();
   });
+  await expect(frame.locator("#settings-api-security-summary")).toHaveText("Protection on");
   await frame.locator("#settings-api-security-enabled").uncheck();
   await frame.locator("#settings-api-security-apply").click();
   expect(await frame.evaluate(() => window.calls.length)).toBe(1);
@@ -93,12 +103,53 @@ test("API security controller reports write failures and confirms explicit opt-o
   });
   await frame.locator("#settings-api-security-apply").click();
   await expect(frame.locator("#settings-api-security-status")).toContainText("changed");
+  await expect(frame.locator("#settings-api-security-summary")).toHaveText("Update failed");
   expect(await frame.evaluate(() => window.calls[1].options.etag)).toBe('"3"');
   expect(await frame.evaluate(() => JSON.parse(window.calls[1].options.body))).toEqual({ enabled: false });
   await expect(frame.locator("#settings-api-security-apply")).toBeEnabled();
   await frame.locator("#settings-api-key").fill("invalid");
   await expect(frame.locator("#settings-api-key-copy")).toBeDisabled();
+  await expect(frame.locator("#settings-api-key")).toHaveAttribute("aria-invalid", "true");
+  await expect(frame.locator("#settings-api-key-error")).toBeVisible();
   expect(await frame.evaluate(() => window.security.getKey())).toBe("");
+});
+
+test("API security controller distinguishes saved protection from an unapplied checkbox change", async ({
+  page,
+  request,
+}) => {
+  const frame = await createFixture(page, request);
+  await frame.evaluate(async () => {
+    const { createDashboardApiSecurity } = await import("/dashboard-api-security.js");
+    window.securityCalls = [];
+    let current = { enabled: false, configured: true, etag: '"4"' };
+    window.security = createDashboardApiSecurity({
+      documentRoot: document,
+      administratorConfigured: true,
+      api: async (path, options) => {
+        window.securityCalls.push({ path, options });
+        if (options) current = { ...current, enabled: JSON.parse(options.body).enabled, etag: '"5"' };
+        return current;
+      },
+      showError: (message) => {
+        throw new Error(message);
+      },
+      confirm: () => true,
+      copyToClipboard: async () => {},
+    });
+    document.getElementById("settings-dialog").showModal();
+    await window.security.open();
+  });
+  await expect(frame.locator("#settings-api-security-summary")).toHaveText("Protection off");
+  await expect(frame.locator("#settings-api-security-status")).toContainText("unauthenticated");
+  await expect(frame.locator("#settings-api-key-generate")).toHaveText("Rotate key");
+  await frame.getByLabel("Require X-MockAPI-Key on mock requests").check();
+  await expect(frame.locator("#settings-api-security-summary")).toHaveText("Protection off");
+  expect(await frame.evaluate(() => window.securityCalls.length)).toBe(1);
+  await frame.locator("#settings-api-security-apply").click();
+  await expect(frame.locator("#settings-api-security-summary")).toHaveText("Protection on");
+  expect(await frame.evaluate(() => window.securityCalls[1].options.etag)).toBe('"4"');
+  expect(await frame.evaluate(() => JSON.parse(window.securityCalls[1].options.body))).toEqual({ enabled: true });
 });
 
 const endpoint = {
