@@ -443,6 +443,11 @@ invoke_run() {
 # ---------------------------------------------------------------------------
 # Tests / coverage / publish / validation.
 # ---------------------------------------------------------------------------
+invoke_site_preview() {
+  require_command node || die 'Node.js is missing. Install the version selected by .nvmrc.'
+  run_tool 'Previewing the documentation site' node "$REPOSITORY_ROOT/scripts/serve-site.cjs" --open
+}
+
 invoke_tests() {
   assert_dotnet
   assert_pnpm
@@ -1608,6 +1613,7 @@ Interactive menu (no action required):
 
    run                Run locally and open the dashboard without the tutorial.
    run-tutorial       Run locally and open the dashboard with the tutorial.
+   site-preview       Preview the documentation site at http://127.0.0.1:4173/MockAPI/.
 
 
 4) Verification
@@ -1683,9 +1689,11 @@ MockAPI Developer CLI
       Launch with local .NET and open the dashboard without the first-use tour.
   [2] Run with tutorial
       Launch with local .NET and open the first-use tour, even if previously dismissed.
+  [3] Preview documentation site
+      Open the local Pages preview. Refresh after editing; Ctrl+C stops the server.
 
   The launch choice does not reset saved dashboard preferences.
-  Use run or run-tutorial for the equivalent command-line actions.
+  Use run, run-tutorial, or site-preview for the equivalent command-line actions.
 EOF
       ;;
     Verify)
@@ -1804,6 +1812,7 @@ show_menu() {
       'Run locally')
         printf '   %-5s  %s\n' '[1]' 'Run without tutorial'
         printf '   %-5s  %s\n' '[2]' 'Run with tutorial'
+        printf '   %-5s  %s\n' '[3]' 'Preview documentation site'
         ;;
       Verify)
         printf '   %-5s  %s\n' '[1]' 'Validate managed code'
@@ -1856,6 +1865,7 @@ show_menu() {
     case "$currentMenu:$selection" in
       'Run locally:1') MENU_SELECTION='run'; return 0 ;;
       'Run locally:2') MENU_SELECTION='run-tutorial'; return 0 ;;
+      'Run locally:3') MENU_SELECTION='site-preview'; return 0 ;;
       'Verify:1') MENU_SELECTION='validate'; return 0 ;;
       'Verify:2') MENU_SELECTION='test'; return 0 ;;
       'Azure:1') MENU_SELECTION='pathway-azure-initial'; return 0 ;;
@@ -1973,6 +1983,7 @@ invoke_action() {
     build) invoke_build ;;
     run) invoke_run ;;
     run-tutorial) invoke_run show ;;
+    site-preview) invoke_site_preview ;;
     test) invoke_tests ;;
     coverage) invoke_coverage ;;
     publish) invoke_publish ;;
@@ -2004,7 +2015,7 @@ invoke_action() {
 # ---------------------------------------------------------------------------
 # Argument parsing.
 # ---------------------------------------------------------------------------
-VALID_ACTIONS="menu help check setup dependencies-update pnpm-update restore format lint build run run-tutorial test coverage publish validate container-engine-wslc container-engine-docker container-build container-run container-test container-showcase container-logs container-status container-stop container-remove azure-setup azure-check azure-up azure-import azure-push azure-deploy azure-down pathway-azure-initial pathway-azure-update all"
+VALID_ACTIONS="menu help check setup dependencies-update pnpm-update restore format lint build run run-tutorial site-preview test coverage publish validate container-engine-wslc container-engine-docker container-build container-run container-test container-showcase container-logs container-status container-stop container-remove azure-setup azure-check azure-up azure-import azure-push azure-deploy azure-down pathway-azure-initial pathway-azure-update all"
 
 is_valid_action() {
   local candidate="$1" action

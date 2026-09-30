@@ -729,7 +729,15 @@ Run the CLI interactively with `.\start.ps1` or `./start.sh`. The home menu show
 
 Submenus use simple numeric choices and offer `b` to go back, `h` for help, and `q` to quit. Existing prefixed action shortcuts such as `p1`, `a4`, and `c3` remain hidden global aliases that work from any menu without opening the group first. Azure keeps both composed pathways (`p1`/`p2`) and individual operations, including the distinct deploy (`a4`) and push-only (`a5`) actions.
 
-The Run locally submenu provides `1` for **Run without tutorial** and `2` for **Run with tutorial**. Numeric choices apply to the currently open submenu; the legacy `l1` shortcut remains a global alias for `run`.
+The Run locally submenu provides `1` for **Run without tutorial**, `2` for **Run with tutorial**, and `3` for **Preview documentation site**. Numeric choices apply to the currently open submenu; the legacy `l1` shortcut remains a global alias for `run`.
+
+To review the GitHub Pages documentation locally, run `.\start.ps1 -Action site-preview` (PowerShell 7) or `./start.sh --action site-preview` (bash). The preview requires Node.js from `.nvmrc`, not .NET or a dependency restore. It opens `http://127.0.0.1:4173/MockAPI/` once the server is listening and serves only the site's publication allowlist. Refresh the browser after editing; stop the server with **Ctrl+C**. Port 4173 must be available. This is the documentation page, not the runtime dashboard.
+
+The documentation site's **Toggle color theme** sun-icon button matches the dashboard. On first load, the theme follows the operating system unless a Light or Dark choice was saved. Clicking toggles between Light and Dark and saves the choice independently of dashboard preferences.
+
+The documentation gallery shows a populated dashboard overview, all seven example endpoints, and an expanded log of 16 sample requests. Use the left/right arrow buttons, the named view buttons, or the left/right arrow keys within the gallery to switch screenshots. Images open at full size in a new tab. The carousel does not advance automatically; without JavaScript, all three screenshots remain visible. Captures use only the checked-in example configuration and generated local requests, not a running deployment's data.
+
+Site browser checks target WCAG 2.2 AA in light and dark themes, including text and control contrast, visible keyboard focus, control sizes, 320-pixel reflow, 200% text resizing with system and wider fallback fonts, reduced motion, and forced colors. Automated accessibility checks supplement manual review; they are not a conformance certification.
 
 After each interactive execution, the CLI leaves the output visible until a key is pressed, then clears the console before returning to the home menu. Direct actions remain unchanged and pause-free for automation. List every action and option with:
 

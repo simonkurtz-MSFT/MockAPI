@@ -25,7 +25,7 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
   [ValidateSet(
-    'menu', 'help', 'check', 'setup', 'dependencies-update', 'pnpm-update', 'restore', 'format', 'lint', 'build', 'run', 'run-tutorial', 'test', 'coverage',
+    'menu', 'help', 'check', 'setup', 'dependencies-update', 'pnpm-update', 'restore', 'format', 'lint', 'build', 'run', 'run-tutorial', 'site-preview', 'test', 'coverage',
     'publish', 'validate', 'container-engine-wslc', 'container-engine-docker', 'container-build', 'container-run', 'container-test',
     'container-showcase', 'container-logs', 'container-status', 'container-stop',
     'container-remove', 'azure-setup', 'azure-check', 'azure-up', 'azure-import', 'azure-push', 'azure-deploy', 'azure-down',
@@ -1137,6 +1137,15 @@ function Invoke-Run {
   }
 }
 
+function Invoke-SitePreview {
+  if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+    throw 'Node.js is missing. Install the version selected by .nvmrc.'
+  }
+  Invoke-Tool -Executable 'node' -Operation 'Previewing the documentation site' -Arguments @(
+    (Join-Path $repositoryRoot 'scripts/serve-site.cjs'), '--open'
+  )
+}
+
 function Invoke-Tests {
   Assert-DotNet
   Assert-Pnpm
@@ -1920,6 +1929,7 @@ Interactive menu (no action required):
 
    run                Run locally and open the dashboard without the tutorial.
    run-tutorial       Run locally and open the dashboard with the tutorial.
+   site-preview       Preview the documentation site at http://127.0.0.1:4173/MockAPI/.
 
 
 4) Verification
@@ -1999,9 +2009,11 @@ MockAPI Developer CLI
       Launch with local .NET and open the dashboard without the first-use tour.
   [2] Run with tutorial
       Launch with local .NET and open the first-use tour, even if previously dismissed.
+  [3] Preview documentation site
+      Open the local Pages preview. Refresh after editing; Ctrl+C stops the server.
 
   The launch choice does not reset saved dashboard preferences.
-  Use run or run-tutorial for the equivalent command-line actions.
+  Use run, run-tutorial, or site-preview for the equivalent command-line actions.
 "@
     }
     'Verify' {
@@ -2110,6 +2122,7 @@ function Show-Menu {
     'Run locally' = [ordered]@{
       '1' = @{ Label = 'Run without tutorial'; Action = 'run' }
       '2' = @{ Label = 'Run with tutorial'; Action = 'run-tutorial' }
+      '3' = @{ Label = 'Preview documentation site'; Action = 'site-preview' }
     }
     'Setup' = [ordered]@{
       '1' = @{ Label = 'Setup local dependencies'; Action = 'setup' }
@@ -2272,6 +2285,7 @@ function Invoke-Action {
     'build' { Invoke-Build }
     'run' { Invoke-Run }
     'run-tutorial' { Invoke-Run -ShowTutorial }
+    'site-preview' { Invoke-SitePreview }
     'test' { Invoke-Tests }
     'coverage' { Invoke-Coverage }
     'publish' { Invoke-Publish }

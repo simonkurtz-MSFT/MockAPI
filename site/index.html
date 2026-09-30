@@ -18,6 +18,19 @@
       content="MockAPI is an open-source, self-hosted mock API server. Configure HTTP responses, test retries and failures, and edit endpoints live in a lightweight container."
     />
     <meta name="color-scheme" content="light dark" />
+    <script>
+      (() => {
+        let mode = "system";
+        try {
+          const saved = localStorage.getItem("mockapi.site.theme");
+          if (saved === "light" || saved === "dark") mode = saved;
+        } catch (error) {
+          console.warn("Site theme preference could not be read.", error);
+        }
+        document.documentElement.dataset.theme =
+          mode === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : mode;
+      })();
+    </script>
     <title>MockAPI | Open-Source, Self-Hosted Mock API Server</title>
     <link rel="canonical" href="https://mockapi.simondoescloud.com/" />
     <meta property="og:type" content="website" />
@@ -32,7 +45,7 @@
     <meta property="og:image" content="https://mockapi.simondoescloud.com/dashboard.png" />
     <meta
       property="og:image:alt"
-      content="MockAPI dashboard with endpoint management, live request statistics, and response testing."
+      content="MockAPI dashboard with seven example endpoints, request statistics, and a populated request log."
     />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="MockAPI | Open-Source, Self-Hosted Mock API Server" />
@@ -43,7 +56,7 @@
     <meta name="twitter:image" content="https://mockapi.simondoescloud.com/dashboard.png" />
     <meta
       name="twitter:image:alt"
-      content="MockAPI dashboard with endpoint management, live request statistics, and response testing."
+      content="MockAPI dashboard with seven example endpoints, request statistics, and a populated request log."
     />
     <script type="application/ld+json">
       {
@@ -84,6 +97,7 @@
     </script>
     <link rel="icon" href="./brand-mark.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./site.css" />
+    <script src="./site.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -95,33 +109,173 @@
         <a href="#start">Get started</a>
         <a href="#examples">Examples</a>
         <a href="https://github.com/simonkurtz-MSFT/MockAPI">GitHub</a>
+        <button
+          id="theme-toggle"
+          class="icon-button icon-theme"
+          type="button"
+          title="Toggle color theme"
+          aria-label="Toggle color theme"
+          hidden
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="4" />
+            <path
+              d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"
+            />
+          </svg>
+        </button>
       </nav>
     </header>
+    <p id="theme-status" class="theme-status" role="status"></p>
     <main id="main">
       <section class="hero" aria-labelledby="hero-title">
-        <p class="eyebrow">Built for developers. Ready for the unexpected.</p>
-        <h1 id="hero-title">MockAPI: real HTTP.<br /><span>Predictable responses.</span></h1>
+        <p class="eyebrow">HTTP mocking for development and testing</p>
+        <h1 id="hero-title">
+          MockAPI<br /><span>Configure the response.<br />Test your application.</span>
+        </h1>
         <p class="lead">
-          An open-source, self-hosted mock API server for development and testing. A clean 200. A stubborn 429. A broken
-          connection. Define the HTTP response your app needs to handle, then change it live. No stub code. No restart.
+          MockAPI is an open-source, self-hosted mock API server. Configure status codes, headers, and response bodies
+          through the dashboard or a JSON file. Use it to test successful requests, rate limits, server errors, and
+          connection failures. Endpoint changes take effect without a restart.
         </p>
         <div class="actions">
-          <a class="button primary" href="#start">Start mocking</a>
-          <a class="button" href="https://github.com/simonkurtz-MSFT/MockAPI#readme">Read the docs</a>
+          <a class="button primary" href="#start">Get started</a>
+          <a class="button" href="https://github.com/simonkurtz-MSFT/MockAPI#readme">Read the documentation</a>
         </div>
         <p class="muted">Open source &middot; .NET 10 &middot; Linux AMD64 + ARM64 &middot; Pre-1.0</p>
       </section>
-      <figure class="preview">
-        <img
-          src="./dashboard.png"
-          width="1920"
-          height="1080"
-          alt="MockAPI dashboard with endpoint management, live request statistics, and response testing."
-        />
-        <figcaption>Define, test, and observe your mock endpoints in one dashboard.</figcaption>
-      </figure>
+      <section
+        id="dashboard-gallery"
+        class="gallery"
+        aria-label="Dashboard screenshots"
+        aria-roledescription="carousel"
+      >
+        <div id="gallery-slides">
+          <figure
+            class="preview gallery-slide"
+            role="group"
+            aria-roledescription="slide"
+            aria-label="1 of 3: Dashboard overview"
+          >
+            <a
+              class="gallery-image"
+              href="./dashboard.png"
+              target="_blank"
+              rel="noopener"
+              aria-label="Open dashboard overview at full size (opens in a new tab)"
+            >
+              <img
+                src="./dashboard.png"
+                width="1920"
+                height="1200"
+                alt="MockAPI dashboard with seven example endpoints, request statistics, and a populated request log."
+              />
+            </a>
+            <figcaption>
+              <strong>Dashboard overview.</strong> Example endpoints, request statistics, and recent outcomes in the
+              side-by-side workspace. Select the image to open it at full size.
+            </figcaption>
+          </figure>
+          <figure
+            class="preview gallery-slide"
+            role="group"
+            aria-roledescription="slide"
+            aria-label="2 of 3: Example endpoints"
+          >
+            <a
+              class="gallery-image"
+              href="./dashboard-endpoints.png"
+              target="_blank"
+              rel="noopener"
+              aria-label="Open example endpoints at full size (opens in a new tab)"
+            >
+              <img
+                src="./dashboard-endpoints.png"
+                width="922"
+                height="906"
+                alt="Seven configured example endpoints showing HTTP methods, paths, response codes, attempt counts, and editing controls."
+              />
+            </a>
+            <figcaption>
+              <strong>Example endpoints.</strong> Success responses, redirects, rate limiting, server errors, and
+              connection aborts, with controls to test and edit each definition.
+            </figcaption>
+          </figure>
+          <figure
+            class="preview gallery-slide"
+            role="group"
+            aria-roledescription="slide"
+            aria-label="3 of 3: Request log"
+          >
+            <a
+              class="gallery-image"
+              href="./dashboard-request-log.png"
+              target="_blank"
+              rel="noopener"
+              aria-label="Open request log at full size (opens in a new tab)"
+            >
+              <img
+                src="./dashboard-request-log.png"
+                width="1444"
+                height="875"
+                alt="Expanded request log with 16 recorded outcomes, including HTTP 200, 201, 204, 302, 429, and 500 responses."
+              />
+            </a>
+            <figcaption>
+              <strong>Request log.</strong> All 16 recorded requests, with local and UTC timestamps, methods, paths,
+              HTTP outcomes, transport attempts, and response byte counts.
+            </figcaption>
+          </figure>
+        </div>
+        <div id="gallery-controls" class="gallery-controls" hidden>
+          <button
+            id="gallery-previous"
+            class="icon-button gallery-arrow"
+            type="button"
+            aria-controls="gallery-slides"
+            aria-label="Previous screenshot"
+            title="Previous screenshot"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+          </button>
+          <div class="gallery-choices" role="group" aria-label="Choose a dashboard screenshot">
+            <button class="button" type="button" data-slide="0" aria-controls="gallery-slides" aria-pressed="true">
+              Overview
+            </button>
+            <button class="button" type="button" data-slide="1" aria-controls="gallery-slides" aria-pressed="false">
+              Endpoints
+            </button>
+            <button class="button" type="button" data-slide="2" aria-controls="gallery-slides" aria-pressed="false">
+              Request log
+            </button>
+          </div>
+          <button
+            id="gallery-next"
+            class="icon-button gallery-arrow"
+            type="button"
+            aria-controls="gallery-slides"
+            aria-label="Next screenshot"
+            title="Next screenshot"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m9 6 6 6-6 6" />
+            </svg>
+          </button>
+          <p id="gallery-status" class="gallery-status" role="status">Screenshot 1 of 3: Dashboard overview</p>
+        </div>
+      </section>
       <section id="start" aria-labelledby="start-title">
-        <p class="eyebrow">Your first response, in minutes</p>
+        <p class="eyebrow">Getting started</p>
         <h2 id="start-title">Run your mock API locally or in a container</h2>
         <div class="cards">
           <article class="card">
@@ -185,7 +339,7 @@ cd MockAPI</code></pre>
           <ol>
             <li>Open the dashboard and select <strong>Load examples</strong>.</li>
             <li>Visit <code>/ex/hello</code> on your running MockAPI instance.</li>
-            <li>Edit the response, call it again, and watch the statistics change.</li>
+            <li>Edit the response, repeat the request, and check the response and request statistics.</li>
             <li>Select <strong>Save</strong> to keep changes in your configured writable file or volume.</li>
           </ol>
           <p>
@@ -195,14 +349,14 @@ cd MockAPI</code></pre>
         </div>
       </section>
       <section id="examples" aria-labelledby="examples-title">
-        <p class="eyebrow">Build confidence before production</p>
+        <p class="eyebrow">Common uses</p>
         <h2 id="examples-title">Mock API examples for development and testing</h2>
         <div class="cards">
           <article class="card">
-            <h3>Unblock development</h3>
+            <h3>Develop against an unavailable API</h3>
             <p>
-              Give your app a real HTTP dependency while the upstream API is still being built. Exact method and path
-              matching keeps every response predictable.
+              Configure responses for an upstream API that is not yet available. Requests match an exact HTTP method and
+              path, so your application can call the same routes during development.
             </p>
             <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/config/mockapi.json"
               >Explore the built-in examples</a
@@ -211,17 +365,18 @@ cd MockAPI</code></pre>
           <article class="card">
             <h3>Exercise retry behavior</h3>
             <p>
-              Return 429s with Retry-After, configure server errors, or deliberately drop a connection. Verify the
-              unhappy path without disrupting a real service.
+              Return HTTP 429 with Retry-After, configure server errors, or abort a connection. Check how your client
+              handles these failures without changing the upstream service.
             </p>
             <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/CONFIGURATION.md"
               >Configure a response</a
             >
           </article>
           <article class="card">
-            <h3>Share a repeatable contract</h3>
+            <h3>Keep test configuration in source control</h3>
             <p>
-              Version JSON configurations, automate management calls, and export mock definitions for your API workflow.
+              Import and export endpoint definitions as JSON. Review configuration changes in source control or automate
+              them through the management API.
             </p>
             <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/MANAGEMENT_API.md"
               >Use the management API</a
@@ -230,10 +385,11 @@ cd MockAPI</code></pre>
         </div>
       </section>
       <section class="closing" aria-labelledby="closing-title">
-        <h2 id="closing-title">One app. One container. Your test scenarios.</h2>
+        <h2 id="closing-title">Self-hosted, with a small runtime footprint</h2>
         <p>
-          No hosted service, account, telemetry SDK, or frontend runtime to add to your application. This page is
-          documentation, not a running MockAPI instance.
+          MockAPI runs as a single .NET application or Linux container. The dashboard is served by the application; no
+          separate frontend server or hosted account is required. The runtime does not include analytics. This
+          documentation page is not a running MockAPI instance.
         </p>
         <a class="button primary" href="https://github.com/simonkurtz-MSFT/MockAPI">Explore MockAPI on GitHub</a>
       </section>
@@ -241,8 +397,7 @@ cd MockAPI</code></pre>
     <footer>
       <p>
         MockAPI &middot;
-        <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/LICENSE">MIT licensed</a> &middot; Built for
-        developers
+        <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/LICENSE">MIT licensed</a>
       </p>
       <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/RELEASING.md">Release process and readiness</a>
     </footer>

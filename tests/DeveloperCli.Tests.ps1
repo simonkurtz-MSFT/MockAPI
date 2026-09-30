@@ -227,6 +227,56 @@ printf 'BROWSER_URL=%s\n' "$(cat "$browserLog")"
   Microsoft.PowerShell.Utility\Write-Host 'Developer CLI local launch tests passed (tutorial modes, URL parity, and worker cleanup).'
 }
 
+function Test-SitePreview {
+  . (Import-CliFunction -Name 'Invoke-SitePreview')
+  . (Import-CliFunction -Name 'Invoke-Action')
+  . (Import-CliFunction -Name 'Invoke-Tool')
+  function Write-Host {}
+  function Invoke-NativeTool {
+    param([string] $Executable, [string[]] $Arguments, [switch] $StreamOutput)
+    Assert-True ($Executable -eq 'node' -and $StreamOutput) 'Site preview must stream the Node server output.'
+    Assert-True ($Arguments[0] -eq (Join-Path $repositoryRoot 'scripts/serve-site.cjs')) 'Site preview must use the allowlisted preview server.'
+    Assert-True ($Arguments.Count -eq 2 -and $Arguments[1] -eq '--open') 'Site preview must open the browser after readiness.'
+    return [pscustomobject]@{ ExitCode = $script:sitePreviewExitCode }
+  }
+
+  $script:sitePreviewExitCode = 0
+  Invoke-Action -SelectedAction 'site-preview'
+  $script:sitePreviewExitCode = 7
+  $failed = $false
+  try { Invoke-Action -SelectedAction 'site-preview' }
+  catch { $failed = $_.Exception.Message -eq 'Previewing the documentation site failed with exit code 7.' }
+  Assert-True $failed 'Site preview must report server failures.'
+
+  $bashSource = Get-Content -LiteralPath $bashCliPath -Raw
+  $bashFunctions = foreach ($name in @('invoke_site_preview', 'invoke_action', 'run_tool')) {
+    $definition = [regex]::Match($bashSource, "(?ms)^$([regex]::Escape($name))\(\) \{.*?^\}")
+    Assert-True $definition.Success "Bash must define $name."
+    $definition.Value
+  }
+  $bashHarness = @'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+REPOSITORY_ROOT='.'
+require_command() { [[ "$1" == 'node' ]]; }
+write_color() { printf '%s\n' "$2"; }
+die() { printf '%s\n' "$1" >&2; exit 1; }
+node() {
+  [[ "$#" == 2 && "$1" == './scripts/serve-site.cjs' && "$2" == '--open' ]] || return 98
+  return "$previewExitCode"
+}
+previewExitCode="$1"
+'@
+  $bashTest = $bashHarness + "`n" + ($bashFunctions -join "`n") + "`ninvoke_action site-preview`n"
+  Set-Content -LiteralPath $bashMenuTestPath -Value $bashTest.Replace("`r", '') -Encoding utf8NoBOM -NoNewline
+  $bashScript = './' + (Split-Path -Leaf $bashMenuTestPath)
+  $success = Invoke-BashCliProcess -ScriptPath $bashScript -Arguments @('0')
+  Assert-True ($success.ExitCode -eq 0) "Bash site preview failed: $($success.Output)"
+  $failure = Invoke-BashCliProcess -ScriptPath $bashScript -Arguments @('7')
+  Assert-True ($failure.ExitCode -ne 0 -and $failure.Output.Contains('Previewing the documentation site failed with exit code 7.')) 'Bash must report the same server failure.'
+  Microsoft.PowerShell.Utility\Write-Host 'Developer CLI site preview tests passed (server arguments, browser opening, and failure parity).'
+}
+
 function Test-InteractiveMenu {
   . (Import-CliFunction -Name 'Show-Menu')
   . (Import-CliFunction -Name 'Show-SubmenuHelp')
@@ -288,14 +338,14 @@ printf 'SELECTED_ACTION=%s\n' "$MENU_SELECTION"
   }
   $menuKeys = @{
     Home = @('l', 'v', 'a', 'c', 's', 'h', 'q')
-    'Run locally' = @('1', '2', 'b', 'h', 'q')
+    'Run locally' = @('1', '2', '3', 'b', 'h', 'q')
     Verify = @('1', '2', 'b', 'h', 'q')
     Azure = @('1', '2', '3', '4', '5', '6', '7', '8', '9', 'b', 'h', 'q')
     Containers = @('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'b', 'h', 'q')
     Setup = @('1', '2', 'b', 'h', 'q')
   }
   $menuActions = @{
-    'Run locally' = @('run', 'run-tutorial')
+    'Run locally' = @('run', 'run-tutorial', 'site-preview')
     Verify = @('validate', 'test')
     Azure = @(
       'pathway-azure-initial', 'pathway-azure-update', 'azure-setup', 'azure-check', 'azure-up',
@@ -424,7 +474,7 @@ printf 'SELECTED_ACTION=%s\n' "$MENU_SELECTION"
   Assert-True ($dockerMenu.TrimEnd() -ceq (($bashDocker.Output.Replace("`r", '') -split 'SELECTED_ACTION=')[0]).TrimEnd()) 'Docker menu labels must match across shells.'
 
   $submenuLabels = [ordered]@{
-    'Run locally' = @('Run without tutorial', 'Run with tutorial')
+    'Run locally' = @('Run without tutorial', 'Run with tutorial', 'Preview documentation site')
     Verify = @('Validate managed code', 'Run unit tests')
     Azure = @(
       'Test, build, and deploy initial Azure environment',
@@ -498,6 +548,7 @@ show_submenu_help "$1"
 try {
   Test-InteractiveMenu
   Test-LocalRun
+  Test-SitePreview
   if ($MenuOnly) {
     return
   }
@@ -555,7 +606,7 @@ try {
   Assert-True ($cliSource -match "Read-Host 'Select an action'\)\.ToLowerInvariant\(\)\s+Write-Host ''") 'The PowerShell menu must print a blank line after a selection.'
   Assert-True ($bashCliSource -match "read -r -p 'Select an action: ' selection \|\| true\s+printf '\\n'") 'The Bash menu must print a blank line after a selection.'
   $expectedActions = @(
-    'menu', 'help', 'check', 'setup', 'dependencies-update', 'pnpm-update', 'restore', 'format', 'lint', 'build', 'run', 'run-tutorial',
+    'menu', 'help', 'check', 'setup', 'dependencies-update', 'pnpm-update', 'restore', 'format', 'lint', 'build', 'run', 'run-tutorial', 'site-preview',
     'test', 'coverage', 'publish', 'validate', 'container-engine-wslc',
     'container-engine-docker', 'container-build', 'container-run', 'container-test',
     'container-showcase', 'container-logs', 'container-status', 'container-stop',
@@ -580,7 +631,7 @@ try {
       'Test, build, and deploy initial Azure environment',
       'Test, build, and update existing Azure deployment',
       'Setup local dependencies', 'Update dependencies and pnpm meeting the cooldown',
-      'Run locally', 'Run without tutorial', 'Run with tutorial', 'Validate managed code',
+      'Run locally', 'Run without tutorial', 'Run with tutorial', 'Preview documentation site', 'Validate managed code',
       'Run unit tests', 'Use WSLC', 'Use Docker',
       'Build Dockerfile', 'Start or restart native container', 'Test running container',
       'Load and showcase built-in example', 'Show container logs', 'Show container status',

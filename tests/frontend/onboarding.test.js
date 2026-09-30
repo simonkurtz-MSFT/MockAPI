@@ -13,10 +13,13 @@ describe("public onboarding boundaries", () => {
     buildSite();
     expect(fs.readdirSync(output).sort()).toEqual([
       "brand-mark.svg",
+      "dashboard-endpoints.png",
+      "dashboard-request-log.png",
       "dashboard.png",
       "index.html",
       "robots.txt",
       "site.css",
+      "site.js",
       "sitemap.xml",
     ]);
     for (const [destination, source] of Object.entries(assets)) {

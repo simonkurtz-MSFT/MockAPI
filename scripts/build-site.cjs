@@ -6,10 +6,13 @@ const output = path.join(root, "artifacts", "site");
 const assets = {
   "index.html": "site/index.html",
   "site.css": "site/site.css",
+  "site.js": "site/site.js",
   "robots.txt": "site/robots.txt",
   "sitemap.xml": "site/sitemap.xml",
   "brand-mark.svg": "src/MockAPI/wwwroot/brand-mark.svg",
-  "dashboard.png": "docs/images/01-dashboard-overview.png",
+  "dashboard.png": "docs/images/site-dashboard-overview.png",
+  "dashboard-endpoints.png": "docs/images/site-dashboard-endpoints.png",
+  "dashboard-request-log.png": "docs/images/site-dashboard-request-log.png",
 };
 
 function buildSite() {

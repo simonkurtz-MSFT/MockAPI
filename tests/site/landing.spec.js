@@ -1,5 +1,10 @@
 const { test, expect } = require("@playwright/test");
 const AxeBuilder = require("@axe-core/playwright").default;
+const fs = require("node:fs");
+const path = require("node:path");
+
+const dashboardRoot = path.join(__dirname, "..", "..", "src", "MockAPI", "wwwroot");
+const dashboardStyles = fs.readFileSync(path.join(dashboardRoot, "app.css"), "utf8");
 
 test.beforeEach(async ({ page }) => {
   // Exercise tag initialization without sending preview or test traffic to Google.
@@ -32,8 +37,8 @@ test("quick starts, assets and accessibility work under the Pages repository pre
   });
   await page.goto("./");
   await expect(page).toHaveTitle("MockAPI | Open-Source, Self-Hosted Mock API Server");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Predictable responses.");
-  await page.getByRole("link", { name: "Start mocking", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Configure the response.");
+  await page.getByRole("link", { name: "Get started", exact: true }).last().click();
   await expect(page).toHaveURL(/#start$/);
   await expect(page.getByRole("link", { name: "Create a codespace" })).toHaveAttribute(
     "href",
@@ -46,6 +51,164 @@ test("quick starts, assets and accessibility work under the Pages repository pre
   const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   expect(results.violations).toEqual([]);
   expect(failures).toEqual([]);
+});
+
+test("dashboard-style theme toggle uses the initial system theme and persists explicit choices", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("./");
+  const theme = page.getByRole("button", { name: "Toggle color theme" });
+  const root = page.locator("html");
+  await expect(theme).toBeVisible();
+  await expect(page.getByRole("combobox")).toHaveCount(0);
+  await expect(root).toHaveAttribute("data-theme", "dark");
+  await theme.click();
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await expect(root).toHaveCSS("color-scheme", "light");
+  await page.reload();
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await theme.focus();
+  await page.keyboard.press("Space");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(root).toHaveAttribute("data-theme", "dark");
+  await expect(root).toHaveCSS("color-scheme", "dark");
+  await page.reload();
+  await expect(root).toHaveAttribute("data-theme", "dark");
+  await theme.focus();
+  await page.keyboard.press("Enter");
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await page.reload();
+  await expect(root).toHaveAttribute("data-theme", "light");
+  for (const mode of ["light", "dark"]) {
+    if ((await root.getAttribute("data-theme")) !== mode) await theme.click();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+    expect(results.violations).toEqual([]);
+  }
+});
+
+test("theme control uses the dashboard icon and works without browser storage", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "localStorage", {
+      get() {
+        throw new Error("Storage disabled");
+      },
+    });
+  });
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("./");
+  await page.getByRole("button", { name: "Toggle color theme" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("#theme-status")).toHaveText(
+    "Theme changed for this visit. Browser storage is unavailable."
+  );
+  const dashboard = fs.readFileSync(path.join(dashboardRoot, "dashboard-dom.js"), "utf8");
+  const themePaths = dashboard.match(/theme:\s*'([^']+)'/)[1];
+  const paths = await page.locator("#theme-toggle svg path").getAttribute("d");
+  expect(themePaths).toContain(`<path d="${paths}"/>`);
+  await expect(page.locator("#theme-toggle svg circle")).toHaveAttribute("r", "4");
+});
+
+test("first paint applies only valid site preferences, independently of the dashboard", async ({ page }) => {
+  await page.route("**/site.js", (route) => route.fulfill({ contentType: "text/javascript", body: "" }));
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.addInitScript(() => {
+    localStorage.setItem("mockapi.theme", "light");
+    localStorage.setItem("mockapi.preferences", JSON.stringify({ version: 1, theme: "light" }));
+  });
+  await page.goto("./");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  for (const [saved, resolved] of [
+    ["light", "light"],
+    ["dark", "dark"],
+    ["system", "dark"],
+    ["invalid", "dark"],
+  ]) {
+    await page.evaluate((value) => localStorage.setItem("mockapi.site.theme", value), saved);
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", resolved);
+  }
+});
+
+test("light and dark theme tokens and button states exactly match the dashboard", async ({ page, context }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("./");
+  const toggle = page.getByRole("button", { name: "Toggle color theme" });
+  const reference = await context.newPage();
+  try {
+    await reference.setContent(
+      `<header class="app-header"><button class="icon-button icon-theme" aria-label="Toggle color theme">${await toggle.innerHTML()}</button></header>`
+    );
+    await reference.addStyleTag({ content: dashboardStyles });
+    const referenceToggle = reference.getByRole("button", { name: "Toggle color theme" });
+    const properties = [
+      "background-color",
+      "border-top-color",
+      "border-radius",
+      "box-shadow",
+      "color",
+      "width",
+      "height",
+      "padding",
+      "outline",
+      "outline-offset",
+      "transform",
+    ];
+    const siteStyles = fs.readFileSync(path.join(__dirname, "..", "..", "site", "site.css"), "utf8");
+    const tokens = [...new Set([...siteStyles.matchAll(/(--cp-[a-z-]+):/g)].map((match) => match[1]))];
+    for (const mode of ["light", "dark"]) {
+      if ((await page.locator("html").getAttribute("data-theme")) !== mode) await toggle.click();
+      await reference.locator("html").evaluate((root, theme) => (root.dataset.theme = theme), mode);
+      await page.mouse.move(0, 0);
+      await reference.mouse.move(0, 0);
+      await toggle.blur();
+      await referenceToggle.blur();
+      const referenceTokens = await reference
+        .locator("html")
+        .evaluate((root, names) => names.map((name) => getComputedStyle(root).getPropertyValue(name).trim()), tokens);
+      const siteTokens = await page
+        .locator("html")
+        .evaluate((root, names) => names.map((name) => getComputedStyle(root).getPropertyValue(name).trim()), tokens);
+      expect(siteTokens).toEqual(referenceTokens);
+      for (const state of ["default", "hover", "focus"]) {
+        if (state === "hover") {
+          await referenceToggle.hover();
+          await toggle.hover();
+        }
+        if (state === "focus") {
+          await page.mouse.move(0, 0);
+          await reference.mouse.move(0, 0);
+          await referenceToggle.focus();
+          await toggle.focus();
+        }
+        await expect(referenceToggle).toHaveCSS("transform", state === "hover" ? "matrix(1, 0, 0, 1, 0, -1)" : "none");
+        for (const property of properties) {
+          const expected = await referenceToggle.evaluate(
+            (button, name) => getComputedStyle(button).getPropertyValue(name),
+            property
+          );
+          await expect(toggle).toHaveCSS(property, expected);
+        }
+      }
+      await expect(toggle.locator("svg")).toHaveCSS("width", "18px");
+      await expect(toggle.locator("svg")).toHaveCSS("height", "18px");
+      const primary = page.getByRole("link", { name: "Get started", exact: true }).last();
+      await expect(primary).toHaveCSS("background-color", mode === "light" ? "rgb(7, 94, 168)" : "rgb(105, 184, 255)");
+      await expect(primary).toHaveCSS("color", mode === "light" ? "rgb(255, 255, 255)" : "rgb(8, 33, 59)");
+    }
+  } finally {
+    await reference.close();
+  }
+});
+
+test("preview rejects assets outside the publication allowlist", async ({ request }) => {
+  for (const name of [".env", "start.ps1", "package.json", "unknown.js"]) {
+    expect((await request.get(name)).status()).toBe(404);
+  }
+  const script = await request.get("site.js");
+  expect(script.status()).toBe(200);
+  expect(script.headers()["content-type"]).toBe("text/javascript");
 });
 
 test.describe("search engine discovery", () => {
@@ -80,7 +243,7 @@ test.describe("search engine discovery", () => {
       );
       await expect(page.locator(`meta[${attribute}="${prefix}:image:alt"]`)).toHaveAttribute(
         "content",
-        await page.locator(".preview img").getAttribute("alt")
+        await page.locator(".preview img").first().getAttribute("alt")
       );
     }
     const data = JSON.parse(await page.locator('script[type="application/ld+json"]').textContent());
@@ -132,6 +295,92 @@ test.describe("search engine discovery", () => {
     const image = await request.get("dashboard.png");
     expect(image.status()).toBe(200);
     expect(image.headers()["content-type"]).toBe("image/png");
+  });
+});
+
+test("dashboard gallery supports named views, wrapping controls, keyboard navigation, and full-size images", async ({
+  page,
+}) => {
+  await page.goto("./");
+  const gallery = page.getByRole("region", { name: "Dashboard screenshots" });
+  const slides = gallery.locator(".gallery-slide");
+  await expect(slides).toHaveCount(3);
+  await expect(slides.nth(0)).toBeVisible();
+  await expect(slides.nth(1)).toBeHidden();
+  await expect(slides.nth(2)).toBeHidden();
+  await expect(gallery.getByRole("button", { name: "Overview", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await gallery.getByRole("button", { name: "Previous screenshot" }).click();
+  await expect(slides.nth(2)).toBeVisible();
+  await expect(gallery.getByRole("status")).toHaveText("Screenshot 3 of 3: Request log");
+  await gallery.getByRole("button", { name: "Next screenshot" }).click();
+  await expect(slides.nth(0)).toBeVisible();
+  const endpoints = gallery.getByRole("button", { name: "Endpoints", exact: true });
+  await endpoints.click();
+  await expect(slides.nth(1)).toBeVisible();
+  await expect(endpoints).toHaveAttribute("aria-pressed", "true");
+  await expect(gallery.getByRole("button", { name: "Overview", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await endpoints.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(slides.nth(2)).toBeVisible();
+  await expect(endpoints).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(slides.nth(0)).toBeVisible();
+  await page.keyboard.press("ArrowLeft");
+  await expect(slides.nth(2)).toBeVisible();
+  await page.keyboard.press("Shift+ArrowLeft");
+  await expect(slides.nth(2)).toBeVisible();
+  await page.getByRole("button", { name: "Toggle color theme" }).click();
+  await expect(slides.nth(2)).toBeVisible();
+  const image = gallery.getByRole("link", { name: "Open request log at full size (opens in a new tab)" });
+  await expect(image).toHaveAttribute("href", "./dashboard-request-log.png");
+  await expect(image).toHaveAttribute("target", "_blank");
+  await expect(image).toHaveAttribute("rel", "noopener");
+  expect(
+    await gallery
+      .locator("img")
+      .evaluateAll((images) => images.map((image) => [image.naturalWidth, image.naturalHeight]))
+  ).toEqual([
+    [1920, 1200],
+    [922, 906],
+    [1444, 875],
+  ]);
+});
+
+test("every gallery view is accessible in light and dark mode and fits a narrow viewport", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto("./");
+  const gallery = page.getByRole("region", { name: "Dashboard screenshots" });
+  for (const mode of ["light", "dark"]) {
+    if ((await page.locator("html").getAttribute("data-theme")) !== mode) {
+      await page.getByRole("button", { name: "Toggle color theme" }).click();
+    }
+    for (const name of ["Overview", "Endpoints", "Request log"]) {
+      await gallery.getByRole("button", { name, exact: true }).click();
+      await expect(gallery.locator(".gallery-slide:visible")).toHaveCount(1);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      const results = await new AxeBuilder({ page })
+        .include("#dashboard-gallery")
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    }
+  }
+  await page.emulateMedia({ forcedColors: "active" });
+  await expect(gallery.getByRole("button", { name: "Next screenshot" })).toBeVisible();
+  await gallery.getByRole("button", { name: "Next screenshot" }).click();
+  await expect(gallery.getByRole("status")).toHaveText("Screenshot 1 of 3: Dashboard overview");
+});
+
+test.describe("gallery without JavaScript", () => {
+  test.use({ javaScriptEnabled: false });
+  test("keeps all screenshots and full-size links available", async ({ page }) => {
+    await page.goto("./");
+    const gallery = page.getByRole("region", { name: "Dashboard screenshots" });
+    await expect(gallery.locator(".gallery-slide:visible")).toHaveCount(3);
+    await expect(gallery.getByRole("link")).toHaveCount(3);
+    await expect(gallery.locator("#gallery-controls")).toBeHidden();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 });
 
