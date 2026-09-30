@@ -4,14 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="author" content="Simon Kurtz" />
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XQZ0DQP020"></script>
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag() {
-        dataLayer.push(arguments);
-      }
-      gtag("js", new Date());
-      gtag("config", "G-XQZ0DQP020");
+      ((window, document, tagName, dataLayerName, containerId) => {
+        window[dataLayerName] = window[dataLayerName] || [];
+        window[dataLayerName].push({ "gtm.start": Date.now(), event: "gtm.js" });
+        const firstScript = document.getElementsByTagName(tagName)[0];
+        const tagManagerScript = document.createElement(tagName);
+        const dataLayerQuery = dataLayerName === "dataLayer" ? "" : `&l=${dataLayerName}`;
+        tagManagerScript.async = true;
+        tagManagerScript.src = `https://www.googletagmanager.com/gtm.js?id=${containerId}${dataLayerQuery}`;
+        firstScript.parentNode.insertBefore(tagManagerScript, firstScript);
+      })(window, document, "script", "dataLayer", "GTM-N92H54N6");
     </script>
     <meta
       name="description"
@@ -100,6 +103,15 @@
     <script src="./site.js" defer></script>
   </head>
   <body>
+    <noscript
+      ><iframe
+        src="https://www.googletagmanager.com/ns.html?id=GTM-N92H54N6"
+        height="0"
+        width="0"
+        style="display: none; visibility: hidden"
+        title="Google Tag Manager"
+      ></iframe
+    ></noscript>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header">
       <a class="brand" href="./" aria-label="MockAPI home"

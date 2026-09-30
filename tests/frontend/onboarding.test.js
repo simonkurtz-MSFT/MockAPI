@@ -60,11 +60,14 @@ describe("public onboarding boundaries", () => {
     expect(workflow).not.toContain("path: .\n");
   });
 
-  it("keeps Google Analytics on the documentation site, not the runtime dashboard", () => {
-    expect(read("site/index.html")).toContain("https://www.googletagmanager.com/gtag/js?id=G-XQZ0DQP020");
+  it("keeps Google Tag Manager on the documentation site, not the runtime dashboard", () => {
+    const site = read("site/index.html");
+    expect(site).toContain('"GTM-N92H54N6"');
+    expect(site).toContain("https://www.googletagmanager.com/gtm.js?id=");
+    expect(site).toContain("https://www.googletagmanager.com/ns.html?id=GTM-N92H54N6");
+    expect(site).not.toContain("G-XQZ0DQP020");
     const dashboard = read("src/MockAPI/wwwroot/index.html");
     expect(dashboard).not.toContain("googletagmanager.com");
-    expect(dashboard).not.toContain("G-XQZ0DQP020");
-    expect(dashboard).not.toContain("gtag(");
+    expect(dashboard).not.toContain("GTM-N92H54N6");
   });
 });

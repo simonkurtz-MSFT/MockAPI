@@ -7,25 +7,32 @@ const dashboardRoot = path.join(__dirname, "..", "..", "src", "MockAPI", "wwwroo
 const dashboardStyles = fs.readFileSync(path.join(dashboardRoot, "app.css"), "utf8");
 
 test.beforeEach(async ({ page }) => {
-  // Exercise tag initialization without sending preview or test traffic to Google.
-  await page.route("https://www.googletagmanager.com/gtag/js?*", (route) =>
+  // Exercise container initialization without sending preview or test traffic to Google.
+  await page.route("https://www.googletagmanager.com/gtm.js?*", (route) =>
     route.fulfill({ contentType: "application/javascript", body: "" })
+  );
+  await page.route("https://www.googletagmanager.com/ns.html?*", (route) =>
+    route.fulfill({ contentType: "text/html", body: "" })
   );
 });
 
-test("initializes the supplied Google Analytics tag once", async ({ page }) => {
-  const tagUrl = "https://www.googletagmanager.com/gtag/js?id=G-XQZ0DQP020";
+test("initializes the supplied Google Tag Manager container once", async ({ page }) => {
+  const tagUrl = "https://www.googletagmanager.com/gtm.js?id=GTM-N92H54N6";
   const tagRequest = page.waitForRequest(tagUrl);
   await page.goto("./");
   await tagRequest;
   const tag = page.locator(`script[src="${tagUrl}"]`);
   await expect(tag).toHaveCount(1);
   await expect(tag).toHaveAttribute("async", "");
-  const commands = await page.evaluate(() => window.dataLayer.map((command) => Array.from(command)));
-  expect(commands).toEqual([
-    ["js", expect.any(Date)],
-    ["config", "G-XQZ0DQP020"],
-  ]);
+  const dataLayer = await page.evaluate(() => window.dataLayer);
+  expect(dataLayer).toEqual([{ event: "gtm.js", "gtm.start": expect.any(Number) }]);
+
+  const fallback = page.locator("body > noscript:first-child");
+  await expect(fallback).toHaveCount(1);
+  const fallbackMarkup = await fallback.evaluate((element) => element.textContent);
+  expect(fallbackMarkup).toContain("https://www.googletagmanager.com/ns.html?id=GTM-N92H54N6");
+  expect(fallbackMarkup).toContain('height="0"');
+  expect(fallbackMarkup).toContain('width="0"');
 });
 
 test("quick starts, assets and accessibility work under the Pages repository prefix", async ({ page }) => {

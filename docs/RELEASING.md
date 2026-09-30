@@ -115,12 +115,13 @@ budget, or SBOM disclosure review: those remain human release gates.
 ## Pages publication
 
 The [landing page](../site/index.html) is static documentation, not a public MockAPI service.
-It uses Google Analytics with measurement ID `G-XQZ0DQP020` through Google's asynchronous `gtag.js`.
-This tag loads automatically on the documentation page, including local previews unless blocked;
-it is not included in the runtime dashboard or mock endpoints.
+It loads Google Tag Manager container `GTM-N92H54N6`; analytics tags are configured in that
+container rather than embedded directly in the site. The container loads automatically on the
+documentation page, including local previews unless blocked; it is not included in the runtime
+dashboard or mock endpoints.
 All other assets are self-hosted, with no externally loaded fonts.
-Before publishing, review applicable privacy-disclosure and consent requirements; the supplied tag
-does not implement a consent banner or consent gating.
+Before publishing or changing the container, review applicable privacy-disclosure and consent
+requirements; the site does not implement a consent banner or consent gating.
 [The build](../scripts/build-site.cjs) copies only six approved assets to `artifacts/site`;
 unknown output files fail the build. Never upload the repository root or the whole `docs` directory.
 
