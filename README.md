@@ -45,9 +45,12 @@ export ASPNETCORE_URLS='http://localhost:5080'
 </details>
 
 1. Open **[the dashboard](http://localhost:5080/__mockapi/)** and select **Load examples**.
-2. Open **[your first mock response](http://localhost:5080/ex/hello)**.
-3. Edit its response in the dashboard and refresh the mock URL. No restart needed.
-4. Select **Save** after configuring [a writable file or volume](#22-run-directly-with-net) to keep your changes.
+2. Configure [dashboard administrator credentials](docs/OPERATIONS.md#mock-api-keys), then open
+   **Settings > Mock API security** and generate a key. Mock calls fail with `401` until a key is generated.
+3. Select **Test** on `/ex/hello`. Dashboard tests use the generated key automatically.
+   External callers must send it in `X-MockAPI-Key`; opening a mock URL without that header returns `401`.
+4. Edit its response in the dashboard and repeat the test. No restart needed.
+5. Select **Save** after configuring [a writable file or volume](#22-run-directly-with-net) to keep your changes.
 
 Press `Ctrl+C` to stop. [Readiness](http://localhost:5080/health/ready) returns HTTP `200` when the app is ready.
 Keep administrative access on localhost or a protected network unless you configure [authentication and HTTPS](#32-administrative-security).
@@ -168,7 +171,8 @@ MockAPI is intentionally narrower than a general-purpose API virtualization plat
 #### 1.5.3) Run Where the Team Works
 
 - **Flexible persistence:** Save configuration to a local file, a container volume, or private Azure Blob Storage.
-- **Independent administration security:** Optionally protect the dashboard and management surfaces with HTTP Basic authentication while keeping health and configured mock routes public.
+- **Independent administration security:** Protect mock calls with an instance API key by default, independently
+  of optional dashboard and management Basic authentication. Health stays public; security Settings require an administrator.
 - **Hardened portable runtime:** Run as a trimmed, non-root Linux container on `amd64` and `arm64`, including with a read-only root filesystem.
 
 ![Annotated endpoint registry table listing the example endpoints with their methods, exact paths, configured responses, request counts, last-request times, and enabled state, plus per-row test, edit, duplicate, and delete actions.](docs/images/02-endpoints.png)
@@ -256,7 +260,7 @@ $env:ASPNETCORE_URLS = 'http://localhost:5080'
 
 # Terminal 2: verify readiness, then call the first mock endpoint
 Invoke-WebRequest http://localhost:5080/health/ready
-Invoke-RestMethod http://localhost:5080/ex/hello
+Invoke-RestMethod http://localhost:5080/ex/hello -Headers @{ 'X-MockAPI-Key' = $env:MOCKAPI_KEY }
 ```
 
 </details>
@@ -271,7 +275,7 @@ export ASPNETCORE_URLS='http://localhost:5080'
 
 # Terminal 2: verify readiness, then call the first mock endpoint
 curl -fsS http://localhost:5080/health/ready
-curl -fsS http://localhost:5080/ex/hello
+curl -fsS -H "X-MockAPI-Key: $MOCKAPI_KEY" http://localhost:5080/ex/hello
 ```
 
 </details>
@@ -388,7 +392,7 @@ Open `http://localhost:8080/`, select **Load examples**, and verify the first re
 <summary><strong>PowerShell 7</strong></summary>
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/ex/hello
+Invoke-RestMethod http://localhost:8080/ex/hello -Headers @{ 'X-MockAPI-Key' = $env:MOCKAPI_KEY }
 ```
 
 </details>
@@ -397,7 +401,7 @@ Invoke-RestMethod http://localhost:8080/ex/hello
 <summary><strong>Bash</strong></summary>
 
 ```bash
-curl -fsS http://localhost:8080/ex/hello
+curl -fsS -H "X-MockAPI-Key: $MOCKAPI_KEY" http://localhost:8080/ex/hello
 ```
 
 </details>
@@ -554,7 +558,10 @@ Choices `1` and `2` in the Azure submenu run these same pathways; `p1` and `p2` 
 
 `azure-import` reads `<Version>` from the application project, imports `docker.io/simonkurtzmsft/mockapi:v<Version>` as `mockapi:v<Version>` in the provisioned ACR without Docker Hub credentials, and updates the existing Container App to use that ACR image. It is an explicit per-version import, not a persistent upstream cache, and requires the Azure environment to be provisioned first.
 
-Leave both dashboard credential values empty to deploy without administrative authentication, or set both to protect the dashboard and management API. Passwords must contain at least 8 characters. The CLI derives the PBKDF2-SHA256 hash locally and never sends the plaintext password to azd, Bicep, ARM, or the application container.
+Set both dashboard credential values to protect administration and enable key generation in Settings. Leaving
+them empty leaves ordinary administration unauthenticated but does not unlock mock calls or security Settings.
+Passwords must contain at least 8 characters. The CLI derives the PBKDF2-SHA256 hash locally and never sends the
+plaintext password to azd, Bicep, ARM, or the application container.
 
 For a custom HTTPS hostname, set `AZURE_CUSTOM_DOMAIN=api.example.com` in your environment file. Deployments use a free Azure-managed certificate and print the DNS records you must create. Keep `AZURE_CUSTOM_DOMAIN_VALIDATION_METHOD=CNAME` for subdomains, or select `HTTP` for an apex domain. See [custom domain and managed TLS setup](docs/OPERATIONS.md#custom-domain-and-azure-managed-tls) for the initial DNS-validation retry and renewal requirements.
 
@@ -578,7 +585,9 @@ The same workflow applies to every execution model:
 
 1. Open the dashboard at the application root.
 2. Select **Load examples** to add the built-in `/ex/*` endpoints.
-3. Call `/ex/hello` or select **Test** on an endpoint.
+3. With administrator credentials configured, generate a key in **Settings > Mock API security**.
+   Copy it before reloading; the server stores only its hash. Select **Test** on an endpoint, or call `/ex/hello`
+   with the key in `X-MockAPI-Key`. Set `MOCKAPI_KEY` in the calling terminal for the request examples above.
 4. Edit, duplicate, enable, disable, or create an endpoint. Valid changes become active immediately.
 5. Select **Save** to write the complete active configuration to the selected persistence target.
 6. Restart or recreate the application and verify that the saved endpoint remains available.
@@ -608,7 +617,9 @@ Each request generates the document from one current active configuration snapsh
 1. Run or deploy MockAPI using one of the workflows above, then create endpoints or **Load examples**.
 2. In APIM, choose **APIs > Add API > OpenAPI** and supply the deployed export URL, or upload a freshly downloaded file if the export requires authentication or is private.
 3. Set APIM's **Web service URL** to the deployed MockAPI HTTPS base URL. The export's `servers` value is a local-development placeholder, not deployment discovery.
-4. Choose an API URL suffix, such as `mockapi`. An enabled `/ex/hello` route is then called through `https://<apim-gateway>/mockapi/ex/hello`.
+4. Configure the backend call to supply `X-MockAPI-Key`, using a secret value rather than embedding the key in
+   the export. Choose an API URL suffix, such as `mockapi`. An enabled `/ex/hello` route is then called through
+   `https://<apim-gateway>/mockapi/ex/hello`.
 5. Test through APIM with its required subscription key or other caller credentials. MockAPI still serves the response; importing the document does not reproduce its behavior inside APIM.
 
 **Runtime generation is not APIM synchronization.** APIM imports a snapshot and does not watch the source URL. Re-import into the same APIM API when its operations or documented responses need updating. Existing imported routes forward to the current MockAPI behavior immediately, subject to APIM policies and caching.

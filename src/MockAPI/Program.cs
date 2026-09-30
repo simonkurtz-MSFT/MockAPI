@@ -22,6 +22,7 @@ builder.Services.AddSingleton<IConfigurationStore>(_ => MockApiHostConfiguration
 builder.Services.AddSingleton<EndpointManagementService>();
 builder.Services.AddSingleton<ConfigurationManagementService>();
 builder.Services.AddSingleton<RequestStatisticsCollector>();
+builder.Services.AddSingleton<ApiKeySecurity>();
 MockApiHostConfiguration.AddRateLimiting(builder.Services, options);
 builder.Services.ConfigureHttpJsonOptions(jsonOptions =>
 {
@@ -40,6 +41,8 @@ var configurationManagement = app.Services.GetRequiredService<ConfigurationManag
 var statistics = app.Services.GetRequiredService<RequestStatisticsCollector>();
 
 await configurationStore.LoadAsync(configuration, CancellationToken.None);
+var apiSecurity = app.Services.GetRequiredService<ApiKeySecurity>();
+await apiSecurity.LoadAsync(CancellationToken.None);
 
 if (options.EnableDashboard)
 {
@@ -50,6 +53,7 @@ if (options.EnableDashboard)
         "app.js",
         "brand-mark.svg",
         "dashboard-api-description.js",
+        "dashboard-api-security.js",
         "dashboard-core.js",
         "dashboard-dom.js",
         "dashboard-editor-dialog.js",
@@ -74,10 +78,11 @@ if (options.EnableDashboard)
         CancellationToken.None))
         .Replace("{{VERSION}}", version, StringComparison.Ordinal)
         .Replace("{{ASSET_VERSION}}", assetVersion, StringComparison.Ordinal)
+        .Replace("{{SECURITY_ADMINISTRATION}}", string.IsNullOrWhiteSpace(options.DashboardUsername) ? "false" : "true", StringComparison.Ordinal)
         .Replace("{{LOG_ANALYTICS_WORKSPACE_LINK}}", logAnalyticsWorkspaceLink, StringComparison.Ordinal);
 
     DashboardAssets.Map(app, "/app.css", "app.css", "text/css; charset=utf-8", assetVersion);
-    foreach (var script in new[] { "app.js", "dashboard-api-description.js", "dashboard-core.js", "dashboard-dom.js", "dashboard-editor-dialog.js",
+    foreach (var script in new[] { "app.js", "dashboard-api-description.js", "dashboard-api-security.js", "dashboard-core.js", "dashboard-dom.js", "dashboard-editor-dialog.js",
         "dashboard-endpoint-editor.js", "dashboard-endpoint-table.js", "dashboard-layout.js", "dashboard-management.js",
         "dashboard-preferences.js", "dashboard-statistics.js", "dashboard-sync.js", "dashboard-test-blade.js",
         "dashboard-test-request.js", "dashboard-tutorial.js" })
@@ -118,6 +123,7 @@ if (options.EnableDashboard)
 if (options.EnableManagementApi)
 {
     ManagementApiEndpoints.Map(app, endpointManagement, configurationManagement, statistics);
+    ApiSecurityEndpoints.Map(app);
 }
 
 if (options.EnableManagementApi && options.EnableOpenApi)
@@ -144,8 +150,17 @@ app.MapGet("/health/ready", () => Results.Json(
     ManagementJsonContext.Default.HealthStatusResponse))
     .ExcludeFromDescription();
 
-app.MapFallback("/{**path}", context =>
-    MockRequestDispatcher.DispatchAsync(context, configuration, statistics))
+app.MapFallback("/{**path}", async context =>
+{
+    if (!apiSecurity.Authorizes(context))
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        context.Response.Headers.WWWAuthenticate = "ApiKey realm=\"MockAPI\"";
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return;
+    }
+    await MockRequestDispatcher.DispatchAsync(context, configuration, statistics);
+})
     .ExcludeFromDescription();
 
 app.Run();
@@ -234,6 +249,7 @@ internal static class MockApiHostConfiguration
             EnableOpenApi = ReadBoolean(configuration, "EnableOpenApi"),
             EnableSwaggerUi = ReadBoolean(configuration, "EnableSwaggerUi"),
             ManagementPermitLimit = ReadPositiveInteger(configuration, "ManagementPermitLimit", 120),
+            RequireApiKey = ReadBoolean(configuration, "RequireApiKey"),
             DashboardUsername = configuration[$"{MockApiOptions.SectionName}:DashboardUsername"],
             DashboardPasswordHash = configuration[$"{MockApiOptions.SectionName}:DashboardPasswordHash"]
         };

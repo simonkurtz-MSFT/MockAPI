@@ -13,7 +13,7 @@ public sealed class MockDispatcherTests
     [Fact]
     public async Task Root_ReturnsDashboardInsteadOfDispatcherResponse()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
         using var client = factory.CreateClient();
 
@@ -37,7 +37,7 @@ public sealed class MockDispatcherTests
     [Fact]
     public async Task FaviconRequest_IsServedWithoutAddingARequestLogEntry()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
         using var client = factory.CreateClient();
 
@@ -53,7 +53,7 @@ public sealed class MockDispatcherTests
     [Fact]
     public async Task UnconfiguredBrowserResource_IsNotAddedToRequestLog()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
         using var client = factory.CreateClient();
 
@@ -71,7 +71,7 @@ public sealed class MockDispatcherTests
     [Fact]
     public async Task ConfiguredEndpoint_WritesExactResponseAndHeadOmitsBody()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         var configuration = factory.Services.GetRequiredService<ConfigurationState>();
         var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
         var endpoint = CreateEndpoint(
@@ -122,7 +122,7 @@ public sealed class MockDispatcherTests
     [Fact]
     public async Task RateLimitedEndpoint_ReturnsSuccessUntilRequestLimitIsExceeded()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         var configuration = factory.Services.GetRequiredService<ConfigurationState>();
         var endpoint = CreateEndpoint(["GET"], "/api/rate-limited", "{\"error\":\"try later\"}") with
         {
@@ -165,7 +165,7 @@ public sealed class MockDispatcherTests
     [Fact]
     public async Task RateLimitedEndpoint_ReturnsSuccessAfterWindowExpires()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         var configuration = factory.Services.GetRequiredService<ConfigurationState>();
         var endpoint = CreateEndpoint(["GET"], "/api/rate-window", "limited") with
         {
@@ -205,7 +205,7 @@ public sealed class MockDispatcherTests
     [Fact]
     public async Task AbortConnectionEndpoint_DropsConnectionWithoutAResponse()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         var configuration = factory.Services.GetRequiredService<ConfigurationState>();
         var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
         var endpoint = CreateEndpoint(["GET"], "/api/abort", string.Empty) with
@@ -235,7 +235,7 @@ public sealed class MockDispatcherTests
     [Fact]
     public async Task Dispatcher_UsesExactPathAndReturnsNotFoundWhenUnmatched()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         var configuration = factory.Services.GetRequiredService<ConfigurationState>();
         var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
         Apply(configuration, CreateDocument(CreateEndpoint(["GET"], "/case-sensitive", "matched")));
@@ -269,7 +269,7 @@ public sealed class MockDispatcherTests
     [Fact]
     public async Task Dispatcher_FallbackMatchesPathsWithFileExtensions()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         var configuration = factory.Services.GetRequiredService<ConfigurationState>();
         Apply(configuration, CreateDocument(CreateEndpoint(["GET"], "/response.json", "json path")));
         using var client = factory.CreateClient();
@@ -283,7 +283,7 @@ public sealed class MockDispatcherTests
     [Fact]
     public async Task ReplacingRegistry_ChangesRunningRouteWithoutRestart()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         var configuration = factory.Services.GetRequiredService<ConfigurationState>();
         Apply(configuration, CreateDocument(CreateEndpoint(["GET"], "/dynamic", "before")));
         using var client = factory.CreateClient();
@@ -319,7 +319,7 @@ public sealed class MockDispatcherTests
     [Fact]
     public async Task ConcurrentRequestsAndReplacements_ReturnOnlyCompleteResponses()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         var configuration = factory.Services.GetRequiredService<ConfigurationState>();
         var first = CreateDocument(CreateEndpoint(["GET"], "/race", "first-response"));
         var second = CreateDocument(CreateEndpoint(["GET"], "/race", "second-response"));

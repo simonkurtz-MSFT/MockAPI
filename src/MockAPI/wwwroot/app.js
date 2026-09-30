@@ -12,6 +12,7 @@ import { createDashboardTutorialController } from "./dashboard-tutorial.js?v={{A
 import { createEndpointTestRequestController } from "./dashboard-test-request.js?v={{ASSET_VERSION}}";
 import { createDashboardEditorDialog } from "./dashboard-editor-dialog.js?v={{ASSET_VERSION}}";
 import { createApiDescriptionEditor } from "./dashboard-api-description.js?v={{ASSET_VERSION}}";
+import { createDashboardApiSecurity } from "./dashboard-api-security.js?v={{ASSET_VERSION}}";
 import { createDashboardEndpointTable } from "./dashboard-endpoint-table.js?v={{ASSET_VERSION}}";
 import { createDashboardStatistics } from "./dashboard-statistics.js?v={{ASSET_VERSION}}";
 import { createDashboardTestBlade } from "./dashboard-test-blade.js?v={{ASSET_VERSION}}";
@@ -76,6 +77,14 @@ let dashboardSynchronizer;
 /** @type {{etag: string|null, dirty: boolean, pendingConfirm: (() => Promise<void>)|null, managementPending: boolean}} */
 const state = { etag: null, dirty: false, pendingConfirm: null, managementPending: false };
 const api = createDashboardManagementClient({ request: (url, options) => fetch(url, options) });
+const apiSecurity = createDashboardApiSecurity({
+  documentRoot: document,
+  administratorConfigured: document.documentElement.dataset.securityAdministration === "true",
+  api,
+  showError: (message) => showToast(message, true),
+  confirm: (message) => window.confirm(message),
+  copyToClipboard,
+});
 const managementCommands = createDashboardCommandRunner({
   synchronize: refresh,
   onError: (error) => showToast(formatProblem(error), true),
@@ -107,6 +116,7 @@ const testBlade = createDashboardTestBlade({
       origin: window.location.origin,
       request: (url, options) => fetch(url, options),
       now: () => performance.now(),
+      getApiKey: apiSecurity.getKey,
     }),
   copyToClipboard,
   showError: (message) => showToast(message, true),
@@ -402,8 +412,12 @@ function bindEvents() {
     elements["settings-endpoint-test-dialog-alignment"].value = preferences.endpointTestDialogAlignment;
     elements["settings-dialog"].showModal();
     elements["settings-dashboard-layout"].focus();
+    void apiSecurity.open();
   });
-  pageEvents.listen(elements["settings-dialog"], "close", () => elements["settings-button"].focus());
+  pageEvents.listen(elements["settings-dialog"], "close", () => {
+    apiSecurity.close();
+    elements["settings-button"].focus();
+  });
   pageEvents.listen(elements["settings-close"], "click", () => elements["settings-dialog"].close());
   pageEvents.listen(elements["settings-dashboard-layout"], "change", (event) => {
     const dashboardLayout = /** @type {import("./dashboard-preferences.js").DashboardLayout} */ (
@@ -549,6 +563,7 @@ pageEvents.listen(window, "pagehide", (event) => {
   endpointTable.dispose();
   statisticsPanel.dispose();
   testBlade.dispose();
+  apiSecurity.dispose();
   for (const timer of toastTimers) window.clearTimeout(timer);
   toastTimers.clear();
   elements["toast-region"].replaceChildren();

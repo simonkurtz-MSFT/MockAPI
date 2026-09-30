@@ -1030,7 +1030,7 @@ public sealed class RemainingManagementApiTests : IDisposable
             .SelectMany(path => path.Value.EnumerateObject())
             .Select(operation => operation.Value)
             .ToArray();
-        Assert.Equal(21, operations.Length);
+        Assert.Equal(24, operations.Length);
         var apiDescription = paths.GetProperty($"{BasePath}/configuration/api-description").GetProperty("put");
         Assert.Equal("SetApiDescription", apiDescription.GetProperty("operationId").GetString());
         Assert.Contains("If-Match", apiDescription.GetProperty("description").GetString(), StringComparison.Ordinal);
@@ -1138,7 +1138,7 @@ public sealed class RemainingManagementApiTests : IDisposable
     }
 
     private WebApplicationFactory<Program> CreateFactory(string? path = null) =>
-        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        new UnsecuredApplicationFactory().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("MockApi:ConfigurationPath", path ?? Path.Combine(_directory, "mockapi.json"));
             builder.UseSetting("MockApi:AllowEmptyConfiguration", "true");

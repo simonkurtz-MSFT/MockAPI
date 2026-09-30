@@ -835,32 +835,47 @@ invoke_container_showcase() {
   local statisticsUrl="${baseUrl}/__mockapi/api/statistics"
   local exampleUrl="${baseUrl}/ex/rate-limited"
   local endpointId='7b2d425d-75f1-4ded-a74e-503374a7e99e'
+  local administrativeHeader='' mockHeader=''
+  if [[ -n "${MOCKAPI_DASHBOARD_USERNAME:-}" && -z "${MOCKAPI_DASHBOARD_PASSWORD:-}" ]] ||
+     [[ -z "${MOCKAPI_DASHBOARD_USERNAME:-}" && -n "${MOCKAPI_DASHBOARD_PASSWORD:-}" ]]; then
+    die 'Set MOCKAPI_DASHBOARD_USERNAME and MOCKAPI_DASHBOARD_PASSWORD together for authenticated showcase administration.'
+  fi
+  if [[ -n "${MOCKAPI_DASHBOARD_USERNAME:-}" ]]; then
+    local credentials
+    credentials="$(printf '%s' "${MOCKAPI_DASHBOARD_USERNAME}:${MOCKAPI_DASHBOARD_PASSWORD}" | base64 | tr -d '\r\n')"
+    administrativeHeader="header = \"Authorization: Basic ${credentials}\""
+  fi
+  if [[ -n "${MOCKAPI_KEY:-}" ]]; then
+    [[ "$MOCKAPI_KEY" =~ ^[A-Za-z0-9_-]{43}$ ]] || die 'MOCKAPI_KEY must be a generated 43-character MockAPI key.'
+    mockHeader="header = \"X-MockAPI-Key: ${MOCKAPI_KEY}\""
+  fi
   local headersFile="/tmp/mockapi-showcase-headers.$$" bodyFile="/tmp/mockapi-showcase-body.$$"
 
   local status
-  status="$(curl -s --max-time 5 -o "$bodyFile" -w '%{http_code}' "$endpointsUrl" || true)"
-  [[ "$status" != '401' ]] || die "Dashboard authentication is enabled. Load examples in the dashboard at $baseUrl, then rerun the showcase."
+  status="$(printf '%s\n' "$administrativeHeader" | curl --config - -s --max-time 5 -o "$bodyFile" -w '%{http_code}' "$endpointsUrl" || true)"
+  [[ "$status" != '401' ]] || die 'Dashboard authentication is enabled. Set MOCKAPI_DASHBOARD_USERNAME and MOCKAPI_DASHBOARD_PASSWORD for the showcase.'
   [[ "$status" == '200' ]] || die "Reading the active endpoints returned HTTP $status."
   local hasEndpoint
+  # Native Windows Python emits CRLF even when launched from Bash.
   hasEndpoint="$(MOCKAPI_JSON="$(cat "$bodyFile")" MOCKAPI_ENDPOINT_ID="$endpointId" python3 -c '
 import json,os
 data = json.loads(os.environ["MOCKAPI_JSON"])
 print("true" if any(str(entry.get("id", "")) == os.environ["MOCKAPI_ENDPOINT_ID"] for entry in data) else "false")
-')"
+' | tr -d '\r')"
   if [[ "$hasEndpoint" != 'true' ]]; then
-    status="$(curl -s --max-time 5 -D "$headersFile" -o "$bodyFile" -w '%{http_code}' "$configurationUrl" || true)"
-    [[ "$status" != '401' ]] || die "Dashboard authentication is enabled. Load examples in the dashboard at $baseUrl, then rerun the showcase."
+    status="$(printf '%s\n' "$administrativeHeader" | curl --config - -s --max-time 5 -D "$headersFile" -o "$bodyFile" -w '%{http_code}' "$configurationUrl" || true)"
+    [[ "$status" != '401' ]] || die 'Dashboard authentication is enabled. Set MOCKAPI_DASHBOARD_USERNAME and MOCKAPI_DASHBOARD_PASSWORD for the showcase.'
     local etag
     etag="$(grep -i '^ETag:' "$headersFile" | head -n 1 | cut -d: -f2- | tr -d '\r' | sed 's/^ *//')"
     [[ "$status" == '200' && -n "$etag" ]] || die 'The management API did not return the current configuration ETag.'
-    status="$(curl -s --max-time 5 -X POST -H "If-Match: $etag" -o "$bodyFile" -w '%{http_code}' "${configurationUrl}/example/merge" || true)"
+    status="$(printf '%s\n' "$administrativeHeader" | curl --config - -s --max-time 5 -X POST -H "If-Match: $etag" -o "$bodyFile" -w '%{http_code}' "${configurationUrl}/example/merge" || true)"
     [[ "$status" != '409' ]] || die "The built-in examples conflict with the active configuration. Resolve the conflicts from the dashboard at $baseUrl, then rerun the showcase."
     [[ "$status" == '200' ]] || die "Loading the built-in examples returned HTTP $status."
     write_field 'Examples' 'Loaded built-in examples' green
   fi
 
   local statsBefore totalBefore matchedBefore unmatchedBefore endpointBefore
-  statsBefore="$(curl -s --max-time 5 "$statisticsUrl")" || die "Reading statistics from '$statisticsUrl' failed."
+  statsBefore="$(printf '%s\n' "$administrativeHeader" | curl --config - -s --max-time 5 "$statisticsUrl")" || die "Reading statistics from '$statisticsUrl' failed."
   read -r totalBefore matchedBefore unmatchedBefore endpointBefore < <(
     MOCKAPI_JSON="$statsBefore" MOCKAPI_ENDPOINT_ID="$endpointId" python3 -c '
 import json,os
@@ -875,13 +890,14 @@ for entry in data.get("endpoints", []):
         endpoint = int(entry.get("totalRequests", 0))
         break
 print(total, matched, unmatched, endpoint)
-' || die 'The statistics response was invalid.'
+' | tr -d '\r' || die 'The statistics response was invalid.'
   )
 
   local rateLimitRequestCount=0 attempt
   for attempt in 1 2 3 4 5; do
-    status="$(curl --http1.1 -s --max-time 5 -D "$headersFile" -o "$bodyFile" -w '%{http_code}' "$exampleUrl" || true)"
+    status="$(printf '%s\n' "$mockHeader" | curl --config - --http1.1 -s --max-time 5 -D "$headersFile" -o "$bodyFile" -w '%{http_code}' "$exampleUrl" || true)"
     (( rateLimitRequestCount += 1 ))
+    [[ "$status" != '401' ]] || die 'API key required. Set MOCKAPI_KEY to the key generated in dashboard Settings.'
     [[ "$status" != '404' ]] || die 'The built-in rate-limit example is unavailable after loading the examples.'
     [[ "$status" != '429' ]] || break
   done
@@ -902,12 +918,12 @@ print(total, matched, unmatched, endpoint)
   [[ "$body" == '{"error":"try again later"}' ]] || die "Unexpected response body: $body"
   [[ "$mockSources" == *MockAPI* && "$mockSources" == *checked-in-example* ]] || die "Expected repeated X-Mock-Source values but received '$mockSources'."
 
-  [[ "$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' "${exampleUrl}?request=showcase" || true)" == '429' ]] || die 'Query-insensitive match assertion failed.'
-  [[ "$(curl -s --max-time 5 -X POST -o /dev/null -w '%{http_code}' "$exampleUrl" || true)" == '404' ]] || die 'Unsupported method assertion failed.'
-  [[ "$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' "${baseUrl}/ex/not-configured" || true)" == '404' ]] || die 'Unmatched path assertion failed.'
+  [[ "$(printf '%s\n' "$mockHeader" | curl --config - -s --max-time 5 -o /dev/null -w '%{http_code}' "${exampleUrl}?request=showcase" || true)" == '429' ]] || die 'Query-insensitive match assertion failed.'
+  [[ "$(printf '%s\n' "$mockHeader" | curl --config - -s --max-time 5 -X POST -o /dev/null -w '%{http_code}' "$exampleUrl" || true)" == '404' ]] || die 'Unsupported method assertion failed.'
+  [[ "$(printf '%s\n' "$mockHeader" | curl --config - -s --max-time 5 -o /dev/null -w '%{http_code}' "${baseUrl}/ex/not-configured" || true)" == '404' ]] || die 'Unmatched path assertion failed.'
 
   local statsAfter
-  statsAfter="$(curl -s --max-time 5 "$statisticsUrl")" || die "Reading statistics from '$statisticsUrl' failed."
+  statsAfter="$(printf '%s\n' "$administrativeHeader" | curl --config - -s --max-time 5 "$statisticsUrl")" || die "Reading statistics from '$statisticsUrl' failed."
   local totalAfter matchedAfter unmatchedAfter endpointAfter
   read -r totalAfter matchedAfter unmatchedAfter endpointAfter < <(
     MOCKAPI_JSON="$statsAfter" MOCKAPI_ENDPOINT_ID="$endpointId" python3 -c '
@@ -923,7 +939,7 @@ for entry in data.get("endpoints", []):
         endpoint = int(entry.get("totalRequests", 0))
         break
 print(total, matched, unmatched, endpoint)
-' || die 'The statistics response was invalid.'
+' | tr -d '\r' || die 'The statistics response was invalid.'
   )
 
   local expectedTotalRequests=$((rateLimitRequestCount + 3))
@@ -1636,6 +1652,7 @@ Interactive menu (no action required):
    container-run      Create or start ${CONTAINER_NAME}; full-mode containers prompt for optional dashboard credentials.
    container-test     Send an HTTP smoke test to the running container.
    container-showcase Load the built-in examples when needed, then verify rate-limit response and statistics behavior.
+                      Uses MOCKAPI_KEY and optional paired MOCKAPI_DASHBOARD_USERNAME/MOCKAPI_DASHBOARD_PASSWORD.
    container-logs     Show container logs.
    container-status   Inspect the container.
    container-stop     Stop the container with a one-second graceful shutdown window.

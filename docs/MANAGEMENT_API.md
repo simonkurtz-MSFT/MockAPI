@@ -1,5 +1,26 @@
 # Management API
 
+## Mock API Security Settings
+
+Mock endpoints require `X-MockAPI-Key` by default; administrative routes continue to use Basic authentication.
+Every `/__mockapi/api/security` operation requires configured dashboard administrator credentials.
+Without that configuration these operations return `403`, even if other management operations are anonymous.
+
+| Method | Path                          | Behavior                                                                                                |
+| ------ | ----------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `GET`  | `/__mockapi/api/security`     | Returns `enabled`, `configured`, and the independent security `etag`; never the key or hash.            |
+| `PUT`  | `/__mockapi/api/security`     | Applies `{"enabled":true}` or an explicit opt-out with `false`.                                         |
+| `POST` | `/__mockapi/api/security/key` | Generates a new key, revokes the previous key, enables protection, and returns `key` and `status` once. |
+
+Security writes require their current strong ETag in `If-Match`: missing headers return `428`, stale or invalid
+headers return `412`. Successful changes are persisted before activation; persistence failures return `500`
+without changing active authorization. Responses use `Cache-Control: no-store`. Configuration ETags and saves
+are independent of security settings.
+
+Request-format exports describe the current security requirement using variables or OpenAPI security schemes.
+Native endpoint configuration exports never contain security settings. See
+[Mock API keys](OPERATIONS.md#mock-api-keys) for setup and storage details.
+
 The management API is rooted at `/__mockapi/api`. When `MockApi__DashboardUsername` and `MockApi__DashboardPasswordHash` are configured together, HTTP Basic authentication protects it with the other administrative surfaces. Without that pair, keep it on localhost or a protected network unless unauthenticated public access is an explicit deployment choice.
 
 ## Concurrency

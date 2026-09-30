@@ -17,7 +17,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task ApiDescriptionEdit_PreservesExactMockResponseAndSurvivesEndpointDeletionAndExport()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var endpoint = CreateEndpoint("/ex/description", "raw\r\nbody") with { Methods = ["GET", "HEAD"] };
         using var created = await SendEndpointAsync(client, HttpMethod.Post, EndpointsPath, endpoint, "\"0\"");
@@ -65,7 +65,7 @@ public sealed class ManagementApiTests
     [InlineData("\"0\"", "{\"path\":\"/ex\",\"description\":\"text\",\"unknown\":true}", 400)]
     public async Task ApiDescriptionEdit_RejectsInvalidWritesWithoutMutation(string? etag, string json, int status)
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Put, "/__mockapi/api/configuration/api-description")
         {
@@ -163,7 +163,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task ManagementRateLimit_ReturnsProblemWithoutAffectingHealth()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         HttpResponseMessage? limited = null;
 
@@ -185,7 +185,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task Queries_ReturnCurrentStateAndQuotedETag()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
 
         using var status = await client.GetAsync("/__mockapi/api/configuration");
@@ -207,7 +207,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task Create_ImmediatelyPublishesMockRoute()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var endpoint = CreateEndpoint("/created", "created body");
 
@@ -233,7 +233,7 @@ public sealed class ManagementApiTests
         int expectedStatus,
         string expectedTypeSuffix)
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var endpoint = CreateEndpoint("/precondition", "body");
 
@@ -246,7 +246,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task Write_StaleRevisionReturnsPreconditionFailedWithoutMutation()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var first = CreateEndpoint("/first", "first");
         var stale = CreateEndpoint("/stale", "stale");
@@ -264,7 +264,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task Create_InvalidEndpointReturnsValidationErrorsWithoutMutation()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var endpoint = CreateEndpoint("/__mockapi/shadow", "body");
 
@@ -282,7 +282,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task Create_DuplicateIdReturnsConflict()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var endpoint = CreateEndpoint("/first", "first");
         using var first = await SendEndpointAsync(client, HttpMethod.Post, EndpointsPath, endpoint, "\"0\"");
@@ -298,7 +298,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task Get_ReturnsEndpointAndUnknownIdReturnsProblem()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var endpoint = CreateEndpoint("/get-one", "body");
         using var created = await SendEndpointAsync(client, HttpMethod.Post, EndpointsPath, endpoint, "\"0\"");
@@ -316,7 +316,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task Replace_MovesLiveRouteAndPreservesId()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var endpoint = CreateEndpoint("/before", "before");
         using var created = await SendEndpointAsync(client, HttpMethod.Post, EndpointsPath, endpoint, "\"0\"");
@@ -343,7 +343,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task Replace_MismatchedIdReturnsProblemWithoutMutation()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var endpoint = CreateEndpoint("/unchanged", "unchanged");
         using var created = await SendEndpointAsync(client, HttpMethod.Post, EndpointsPath, endpoint, "\"0\"");
@@ -364,7 +364,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task Replace_StaleRevisionTakesPrecedenceOverIdMismatch()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var endpoint = CreateEndpoint("/current", "current");
         using var created = await SendEndpointAsync(client, HttpMethod.Post, EndpointsPath, endpoint, "\"0\"");
@@ -384,7 +384,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task Enablement_ImmediatelyDisablesAndReEnablesRoute()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var endpoint = CreateEndpoint("/toggle", "enabled");
         using var created = await SendEndpointAsync(client, HttpMethod.Post, EndpointsPath, endpoint, "\"0\"");
@@ -414,7 +414,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task Delete_RemovesEndpointAndUnknownIdReturnsProblem()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var endpoint = CreateEndpoint("/delete", "delete");
         using var created = await SendEndpointAsync(client, HttpMethod.Post, EndpointsPath, endpoint, "\"0\"");
@@ -442,7 +442,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task BulkOperations_ApplySelectedEndpointsWithOneRevisionEach()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var first = CreateEndpoint("/bulk-first", "first");
         var second = CreateEndpoint("/bulk-second", "second");
@@ -485,7 +485,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task BulkOperation_RejectsInvalidOrMissingSelectionsWithoutMutation()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var endpoint = CreateEndpoint("/bulk-preserved", "preserved");
         using var created = await SendEndpointAsync(client, HttpMethod.Post, EndpointsPath, endpoint, "\"0\"");
@@ -525,7 +525,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task Write_MalformedOrUnknownJsonReturnsProblem()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
 
         using var malformed = await SendJsonAsync(
@@ -562,7 +562,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task Write_OversizedBodyIsRejectedBeforeParsing()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var oversized = new string('x', ConfigurationLimits.MaximumDocumentBytes + 1);
 
@@ -579,7 +579,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task Write_NonJsonMediaTypeReturnsProblem()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var request = new HttpRequestMessage(HttpMethod.Post, EndpointsPath)
         {
@@ -595,7 +595,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task ReplaceAndEnable_UnknownEndpointReturnNotFoundWithoutRevisionChange()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var endpoint = CreateEndpoint("/missing", "missing");
 
@@ -620,7 +620,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task ManagementApi_CanBeDisabledWithoutDisablingMockRoutes()
     {
-        await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        await using var factory = new UnsecuredApplicationFactory().WithWebHostBuilder(builder =>
             builder.UseSetting("MockApi:EnableManagementApi", "false"));
         var state = factory.Services.GetRequiredService<ConfigurationState>();
         var endpoint = CreateEndpoint("/still-mocked", "available");
@@ -646,7 +646,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task DisabledAdministrativeSurfaces_DoNotDisableMockRoutes()
     {
-        await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        await using var factory = new UnsecuredApplicationFactory().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("MockApi:EnableDashboard", "false");
             builder.UseSetting("MockApi:EnableManagementApi", "false");
@@ -683,7 +683,7 @@ public sealed class ManagementApiTests
     [Fact]
     public async Task ConcurrentCreatesWithSameRevision_HaveOneWinner()
     {
-        await using var factory = new WebApplicationFactory<Program>();
+        await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
         var first = CreateEndpoint("/race-first", "first");
         var second = CreateEndpoint("/race-second", "second");

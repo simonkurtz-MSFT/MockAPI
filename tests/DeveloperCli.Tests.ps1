@@ -710,6 +710,12 @@ try {
   Assert-True ($bashCliSource -match 'for attempt in 1 2 3 4 5') 'Bash showcase must make five requests before asserting HTTP 429.'
   Assert-True ($cliSource -match '\$retryAfter -eq ''10''') 'PowerShell showcase must assert the checked-in Retry-After value.'
   Assert-True ($bashCliSource -match '\$retryAfter" == "10') 'Bash showcase must assert the checked-in Retry-After value.'
+  foreach ($source in @($cliSource, $bashCliSource)) {
+    Assert-True ($source.Contains('MOCKAPI_KEY') -and $source.Contains('X-MockAPI-Key')) 'Both showcases must support the instance API key.'
+    Assert-True ($source.Contains('MOCKAPI_DASHBOARD_USERNAME') -and $source.Contains('MOCKAPI_DASHBOARD_PASSWORD')) 'Both showcases must support paired administrator credentials.'
+    Assert-True ($source.Contains('API key required. Set MOCKAPI_KEY to the key generated in dashboard Settings.')) 'Both showcases must give the same actionable API-key rejection message.'
+  }
+  Assert-True ($bashCliSource -match 'print\(total, matched, unmatched, endpoint\)\s*'' \| tr -d ''\\r''') 'Bash showcase statistics must normalize native Windows Python line endings before arithmetic.'
   Assert-True (
     ([regex]::Matches($cliSource, 'Write-AzureServiceSummary -ServiceUri \$serviceUri')).Count -eq 4
   ) 'Azure provisioning, deployment, publication, and import must finish with the Container App service summary.'

@@ -17,6 +17,14 @@ internal sealed class DashboardBasicAuthentication(RequestDelegate next, MockApi
 
     public async Task InvokeAsync(HttpContext context)
     {
+        if (context.Request.Path.StartsWithSegments("/__mockapi/api/security") && _passwordHash is null)
+        {
+            context.Response.Headers.CacheControl = "no-store";
+            await ApiSecurityEndpoints.Problem(403,
+                "Configure dashboard administrator credentials before managing API security.").ExecuteAsync(context);
+            return;
+        }
+
         if (_passwordHash is null || !IsAdministrativePath(context.Request.Path))
         {
             await next(context);
@@ -42,6 +50,7 @@ internal sealed class DashboardBasicAuthentication(RequestDelegate next, MockApi
         || path == "/app.js"
         || path == "/brand-mark.svg"
         || path == "/dashboard-api-description.js"
+        || path == "/dashboard-api-security.js"
         || path == "/dashboard-core.js"
         || path == "/dashboard-dom.js"
         || path == "/dashboard-editor-dialog.js"

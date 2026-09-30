@@ -1547,6 +1547,8 @@ dialog::backdrop {
   display: grid;
   gap: 20px;
   padding: 22px;
+  max-height: calc(100dvh - 210px);
+  overflow-y: auto;
 }
 .settings-field {
   display: grid;

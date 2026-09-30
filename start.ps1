@@ -1678,10 +1678,25 @@ function Invoke-ContainerShowcase {
   $statisticsUri = "$baseUri/__mockapi/api/statistics"
   $exampleUri = "$baseUri/ex/rate-limited"
   $endpointId = '7b2d425d-75f1-4ded-a74e-503374a7e99e'
+  $administrativeHeaders = @{}
+  $mockHeaders = @{}
+  if ([bool] $env:MOCKAPI_DASHBOARD_USERNAME -ne [bool] $env:MOCKAPI_DASHBOARD_PASSWORD) {
+    throw 'Set MOCKAPI_DASHBOARD_USERNAME and MOCKAPI_DASHBOARD_PASSWORD together for authenticated showcase administration.'
+  }
+  if ($env:MOCKAPI_DASHBOARD_USERNAME) {
+    $credentials = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("$($env:MOCKAPI_DASHBOARD_USERNAME):$($env:MOCKAPI_DASHBOARD_PASSWORD)"))
+    $administrativeHeaders.Authorization = "Basic $credentials"
+  }
+  if ($env:MOCKAPI_KEY) {
+    if ($env:MOCKAPI_KEY -cnotmatch '^[A-Za-z0-9_-]{43}$') {
+      throw 'MOCKAPI_KEY must be a generated 43-character MockAPI key.'
+    }
+    $mockHeaders['X-MockAPI-Key'] = $env:MOCKAPI_KEY
+  }
   try {
-    $endpointsResponse = Invoke-WebRequest -Uri $endpointsUri -TimeoutSec 5 -SkipHttpErrorCheck
+    $endpointsResponse = Invoke-WebRequest -Uri $endpointsUri -Headers $administrativeHeaders -TimeoutSec 5 -SkipHttpErrorCheck
     if ($endpointsResponse.StatusCode -eq 401) {
-      throw "Dashboard authentication is enabled. Load examples in the dashboard at $baseUri, then rerun the showcase."
+      throw 'Dashboard authentication is enabled. Set MOCKAPI_DASHBOARD_USERNAME and MOCKAPI_DASHBOARD_PASSWORD for the showcase.'
     }
     if ($endpointsResponse.StatusCode -ne 200) {
       throw "Reading the active endpoints returned HTTP $($endpointsResponse.StatusCode)."
@@ -1693,9 +1708,9 @@ function Invoke-ContainerShowcase {
       [string] $_.id -eq $endpointId
     }
     if (-not $showcaseEndpoint) {
-      $configuration = Invoke-WebRequest -Uri $configurationUri -TimeoutSec 5 -SkipHttpErrorCheck
+      $configuration = Invoke-WebRequest -Uri $configurationUri -Headers $administrativeHeaders -TimeoutSec 5 -SkipHttpErrorCheck
       if ($configuration.StatusCode -eq 401) {
-        throw "Dashboard authentication is enabled. Load examples in the dashboard at $baseUri, then rerun the showcase."
+        throw 'Dashboard authentication is enabled. Set MOCKAPI_DASHBOARD_USERNAME and MOCKAPI_DASHBOARD_PASSWORD for the showcase.'
       }
       if ($configuration.StatusCode -ne 200 -or [string]::IsNullOrWhiteSpace([string] $configuration.Headers.ETag)) {
         throw "The management API did not return the current configuration ETag."
@@ -1704,7 +1719,7 @@ function Invoke-ContainerShowcase {
       $merge = Invoke-WebRequest `
         -Uri "$configurationUri/example/merge" `
         -Method Post `
-        -Headers @{ 'If-Match' = [string] $configuration.Headers.ETag } `
+        -Headers ($administrativeHeaders + @{ 'If-Match' = [string] $configuration.Headers.ETag }) `
         -TimeoutSec 5 `
         -SkipHttpErrorCheck
       if ($merge.StatusCode -eq 409) {
@@ -1720,7 +1735,7 @@ function Invoke-ContainerShowcase {
     throw "Container '$ContainerName' could not prepare the built-in example. $($_.Exception.Message)"
   }
 
-  $before = Invoke-RestMethod -Uri $statisticsUri -TimeoutSec 5
+  $before = Invoke-RestMethod -Uri $statisticsUri -Headers $administrativeHeaders -TimeoutSec 5
   $beforeEndpoint = @($before.endpoints | Where-Object { [string] $_.endpointId -eq $endpointId } | Select-Object -First 1)
   $beforeEndpointTotal = if ($beforeEndpoint.Count -eq 0) { 0L } else { [long] $beforeEndpoint[0].totalRequests }
   $checks = [Collections.Generic.List[object]]::new()
@@ -1738,8 +1753,13 @@ function Invoke-ContainerShowcase {
       })
   }
 
-  $httpClient = [Net.Http.HttpClient]::new()
+  $httpHandler = [Net.Http.HttpClientHandler]::new()
+  $httpHandler.AllowAutoRedirect = $false
+  $httpClient = [Net.Http.HttpClient]::new($httpHandler)
   $httpClient.Timeout = [TimeSpan]::FromSeconds(5)
+  if ($env:MOCKAPI_KEY) {
+    $httpClient.DefaultRequestHeaders.Add('X-MockAPI-Key', $env:MOCKAPI_KEY)
+  }
   $response = $null
   $rateLimitRequestCount = 0
   try {
@@ -1754,6 +1774,9 @@ function Invoke-ContainerShowcase {
         $request.Dispose()
       }
       $rateLimitRequestCount++
+      if ([int] $response.StatusCode -eq 401) {
+        throw 'API key required. Set MOCKAPI_KEY to the key generated in dashboard Settings.'
+      }
       if ([int] $response.StatusCode -eq 404) {
         throw 'The built-in rate-limit example is unavailable after loading the examples.'
       }
@@ -1793,14 +1816,14 @@ function Invoke-ContainerShowcase {
     $httpClient.Dispose()
   }
 
-  $queryResponse = Invoke-WebRequest -Uri "$exampleUri`?request=showcase" -TimeoutSec 5 -SkipHttpErrorCheck
+  $queryResponse = Invoke-WebRequest -Uri "$exampleUri`?request=showcase" -Headers $mockHeaders -MaximumRedirection 0 -TimeoutSec 5 -SkipHttpErrorCheck
   Add-ShowcaseCheck 'Query-insensitive match' ($queryResponse.StatusCode -eq 429) "HTTP $($queryResponse.StatusCode)"
-  $wrongMethod = Invoke-WebRequest -Uri $exampleUri -Method Post -TimeoutSec 5 -SkipHttpErrorCheck
+  $wrongMethod = Invoke-WebRequest -Uri $exampleUri -Method Post -Headers $mockHeaders -MaximumRedirection 0 -TimeoutSec 5 -SkipHttpErrorCheck
   Add-ShowcaseCheck 'Unsupported method' ($wrongMethod.StatusCode -eq 404) "HTTP $($wrongMethod.StatusCode)"
-  $unmatched = Invoke-WebRequest -Uri "$baseUri/ex/not-configured" -TimeoutSec 5 -SkipHttpErrorCheck
+  $unmatched = Invoke-WebRequest -Uri "$baseUri/ex/not-configured" -Headers $mockHeaders -MaximumRedirection 0 -TimeoutSec 5 -SkipHttpErrorCheck
   Add-ShowcaseCheck 'Unmatched path' ($unmatched.StatusCode -eq 404) "HTTP $($unmatched.StatusCode)"
 
-  $after = Invoke-RestMethod -Uri $statisticsUri -TimeoutSec 5
+  $after = Invoke-RestMethod -Uri $statisticsUri -Headers $administrativeHeaders -TimeoutSec 5
   $afterEndpoint = @($after.endpoints | Where-Object { [string] $_.endpointId -eq $endpointId } | Select-Object -First 1)
   $afterEndpointTotal = if ($afterEndpoint.Count -eq 0) { 0L } else { [long] $afterEndpoint[0].totalRequests }
   $expectedTotalRequests = $rateLimitRequestCount + 3
@@ -1952,6 +1975,7 @@ Interactive menu (no action required):
    container-run      Create or start $ContainerName; full-mode containers prompt for optional dashboard credentials.
    container-test     Send an HTTP smoke test to the running container.
    container-showcase Load the built-in examples when needed, then verify rate-limit response and statistics behavior.
+                      Uses MOCKAPI_KEY and optional paired MOCKAPI_DASHBOARD_USERNAME/MOCKAPI_DASHBOARD_PASSWORD.
    container-logs     Show the last 200 container log lines.
    container-status   Inspect the container.
    container-stop     Stop the container with a one-second graceful shutdown window.

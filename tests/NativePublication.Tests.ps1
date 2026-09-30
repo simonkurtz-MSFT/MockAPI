@@ -30,6 +30,8 @@ foreach ($workflowName in @('container-pr.yml', 'container-release.yml')) {
   Assert-True ($workflow.Contains('Test-PublishedApplication.ps1 -VerifyPersistence')) 'Both image workflows must test persisted configuration after container recreation.'
   Assert-True ($workflow.Contains('Assert-PublishContents.ps1 -PublishDirectory ./published -NativeAot')) 'Both image workflows must reject managed runtime and debug artifacts.'
   Assert-True ($workflow.Contains('outputs: type=docker,oci-mediatypes=true')) 'Both image workflows must preserve OCI manifests.'
+  Assert-True ($workflow.Contains('/protected-default)" = "401"')) 'Both native images must reject mock calls with their default settings.'
+  Assert-True ($workflow.Contains('--env MockApi__RequireApiKey=false')) 'Unauthenticated response fixtures must opt out of API-key enforcement explicitly.'
 }
 
 $publicationFixture = Join-Path ([IO.Path]::GetTempPath()) "mockapi-publication-$([Guid]::NewGuid().ToString('N'))"
@@ -39,7 +41,7 @@ try {
   [IO.File]::WriteAllBytes($nativeExecutable, [byte[]] @(0x7f, 0x45, 0x4c, 0x46))
   $publishValidator = Join-Path $repositoryRoot 'scripts/Assert-PublishContents.ps1'
   & $publishValidator -PublishDirectory $publicationFixture -NativeAot
-  foreach ($forbiddenFile in @('MockAPI.dbg', 'MockAPI.pdb', 'MockAPI.dll', 'libcoreclr.so', 'MockAPI.runtimeconfig.json')) {
+  foreach ($forbiddenFile in @('MockAPI.dbg', 'MockAPI.pdb', 'MockAPI.dll', 'libcoreclr.so', 'MockAPI.runtimeconfig.json', 'mockapi.json.security.json')) {
     $forbiddenPath = Join-Path $publicationFixture $forbiddenFile
     [IO.File]::WriteAllText($forbiddenPath, 'fixture')
     $rejected = $false

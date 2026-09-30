@@ -27,7 +27,10 @@ forwarding is the access boundary. The `devcontainer.json` port configuration on
 forwarding and notification; GitHub's private default and your visibility settings control access.
 Do not change it to Public without intentionally configuring application authentication and HTTPS.
 
-Select **Load examples**, invoke `/ex/hello`, edit a response, and select **Save**.
+Select **Load examples**, configure administrator credentials, and generate a key in **Settings > Mock API
+security** before testing `/ex/hello`. Dashboard tests attach the memory-only key automatically; external
+requests require `X-MockAPI-Key`. Edit a response and select **Save**. See
+[Mock API keys](OPERATIONS.md#mock-api-keys) for bootstrap and persistence.
 Saves go to the ignored `artifacts/local-data/mockapi.json` inside the workspace.
 Rebuilding the development container does not overwrite that file.
 Deleting the codespace deletes workspace-local data: export anything you need to keep first.

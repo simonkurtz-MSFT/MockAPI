@@ -54,6 +54,19 @@
  */
 
 /**
+ * @typedef {object} ApiSecurityStatus
+ * @property {boolean} enabled Whether mock requests require an instance key.
+ * @property {boolean} configured Whether a key hash has been persisted.
+ * @property {string} etag Independent strong security-settings revision.
+ */
+
+/**
+ * @typedef {object} ApiKeyCreated
+ * @property {string} key Newly generated secret, returned only by rotation.
+ * @property {ApiSecurityStatus} status Committed security settings.
+ */
+
+/**
  * @typedef {{path: string, code: string, message: string}} ConfigurationValidationError
  */
 

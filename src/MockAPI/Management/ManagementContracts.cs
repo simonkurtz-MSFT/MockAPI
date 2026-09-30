@@ -133,6 +133,9 @@ public sealed record ManagementProblemDetails(
     WriteIndented = true,
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)]
 [JsonSerializable(typeof(ConfigurationStatusResponse))]
+[JsonSerializable(typeof(ApiSecurityStatus))]
+[JsonSerializable(typeof(ApiSecurityRequest))]
+[JsonSerializable(typeof(ApiKeyCreated))]
 [JsonSerializable(typeof(ApiDescriptionRequest))]
 [JsonSerializable(typeof(EndpointEnabledRequest))]
 [JsonSerializable(typeof(BulkEndpointRequest))]

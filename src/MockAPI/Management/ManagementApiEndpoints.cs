@@ -458,7 +458,8 @@ public static class ManagementApiEndpoints
         SetETag(context, snapshot);
         if (format is not null)
         {
-            if (!ConfigurationExportService.TryExport(format, snapshot.GetDocument(), out var export))
+            if (!ConfigurationExportService.TryExport(format, snapshot.GetDocument(), out var export,
+                context.RequestServices.GetRequiredService<ApiKeySecurity>().Status.Enabled))
             {
                 await WriteProblemAsync(
                     context,

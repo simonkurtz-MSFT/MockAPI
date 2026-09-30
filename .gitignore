@@ -22,3 +22,5 @@ Thumbs.db
 .azure/
 .playwright-mcp
 .developer-cli-bash*.sh
+*.security.json
+*.security.json.*.tmp

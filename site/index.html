@@ -326,7 +326,14 @@ cd MockAPI</code></pre>
           <h3>Make your first request</h3>
           <ol>
             <li>Open the dashboard and select <strong>Load examples</strong>.</li>
-            <li>Visit <code>/ex/hello</code> on your running MockAPI instance.</li>
+            <li>
+              Configure dashboard administrator credentials, then generate a key in
+              <strong>Settings &gt; Mock API security</strong>.
+            </li>
+            <li>
+              Select <strong>Test</strong> for <code>/ex/hello</code>, or send an external request with the
+              <code>X-MockAPI-Key</code> header. Mock calls without a key return <code>401</code> by default.
+            </li>
             <li>Edit the response, repeat the request, and check the response and request statistics.</li>
             <li>Select <strong>Save</strong> to keep changes in your configured writable file or volume.</li>
           </ol>

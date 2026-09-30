@@ -36,6 +36,9 @@ public sealed class MockApiOptions
     /// <summary>Gets the per-client management request permit limit for each one-minute sliding window.</summary>
     public int ManagementPermitLimit { get; init; } = 120;
 
+    /// <summary>Gets whether mock calls require an API key before security settings are first persisted. Defaults to true.</summary>
+    public bool RequireApiKey { get; init; } = true;
+
     /// <summary>Gets the optional Basic authentication username for administrative surfaces.</summary>
     public string? DashboardUsername { get; init; }
 

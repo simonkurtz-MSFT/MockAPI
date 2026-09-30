@@ -34,6 +34,7 @@ export default defineConfig({
       ...process.env,
       ASPNETCORE_URLS: baseURL,
       MockApi__AllowEmptyConfiguration: "true",
+      MockApi__RequireApiKey: "false",
       MockApi__ConfigurationPath: path.resolve("artifacts/playwright/mockapi.json"),
       MockApi__ManagementPermitLimit: "10000",
     },

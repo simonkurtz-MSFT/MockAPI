@@ -13,6 +13,8 @@ tests
 **/TestResults
 *.user
 *.suo
+**/*.security.json
+**/*.security.json.*.tmp
 .editorconfig
 .env
 .env.*

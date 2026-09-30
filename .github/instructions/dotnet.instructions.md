@@ -17,6 +17,10 @@ applyTo: "**/*.{cs,csproj,sln,props,targets}"
 - Load persisted configuration before serving requests, fail startup for required malformed or invalid files, and save by replacing a flushed same-directory temporary file.
 - Capture one configuration snapshot per save and clear its dirty state only when that revision is still current.
 - Keep request dispatch free of persistence and management concerns.
+- Require the instance API key before the mock dispatcher by default; leave health probes public.
+  Security Settings require configured administrator credentials even when other administration is anonymous.
+  Keep security persistence separate from endpoint configuration, activate only after a successful save,
+  and require the independent current strong security ETag for writes. Never export a key or its hash.
 - Use cancellation tokens for asynchronous I/O and propagate them through application boundaries.
 - Use UTC timestamps through `TimeProvider` where behavior depends on time.
 - Use source-generated `System.Text.Json` contexts for application-owned request, response, and persistence types.

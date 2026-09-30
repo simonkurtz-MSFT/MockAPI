@@ -12,7 +12,46 @@
 
 See [Live mock OpenAPI and APIM import](MANAGEMENT_API.md#live-mock-openapi-and-apim-import) for download links, backend URL configuration, and re-import requirements. The live mock export depends on the management API, not on the separate management OpenAPI or Swagger UI switches.
 
-Optional HTTP Basic authentication protects all administrative surfaces when both `MockApi__DashboardUsername` and `MockApi__DashboardPasswordHash` are configured. This includes the dashboard and static assets, management API, OpenAPI document, and Swagger UI. Health and configured mock routes remain public. Missing pairs and malformed hashes fail startup.
+Optional HTTP Basic authentication protects all administrative surfaces when both `MockApi__DashboardUsername` and `MockApi__DashboardPasswordHash` are configured. This includes the dashboard and static assets, management API, OpenAPI document, and Swagger UI. Health remains public; mock calls require an API key by default. Missing pairs and malformed hashes fail startup.
+
+### Mock API keys
+
+Mock calls require `X-MockAPI-Key`. With no key generated, they return `401` before endpoint dispatch,
+connection aborts, rate limiting, or mock statistics. Administrative credentials do not authorize mock calls.
+
+1. Configure the dashboard administrator username and password hash using the existing deployment workflow.
+2. Open **Settings > Mock API security > Generate / rotate key**.
+3. Copy the generated key immediately. The server stores only its SHA-256 hash and cannot show it again.
+4. Supply `X-MockAPI-Key` on external mock calls. Dashboard tests automatically use the key held in memory.
+   After a reload, enter the existing key in Settings or generate a replacement.
+
+Security Settings require configured administrator credentials even when the rest of management is anonymous.
+Without administrator credentials, security management returns `403`; ordinary mock calls still fail closed.
+Leaving other management operations anonymous is not safe for an untrusted network: the key protects mock
+invocation, not configuration integrity. Configure administrative authentication for shared deployments.
+
+Rotation generates 32 random bytes, enables enforcement, and immediately revokes the old key. Changes require
+the security settings' own strong ETag and are persisted before activation. Failed or stale writes leave active
+authorization unchanged. Keys are never retained in browser storage, endpoint configuration, or statistics.
+Endpoint tests reject redirects rather than forwarding a key to another target.
+
+The hash and enforcement setting are saved in `<ConfigurationPath>.security.json`, or in a sibling
+`<configuration-blob-name>.security.json` when Blob persistence is configured. Retain this document with the
+configuration volume or private Blob container. Endpoint import/export/save never changes it. Losing this
+document restores the fail-closed default; generate a replacement key as an administrator.
+
+For a deliberately unauthenticated local fixture, set `MockApi__RequireApiKey=false` before the first security
+document is saved. Persisted security settings take precedence over this bootstrap setting. Administrators can
+also explicitly disable enforcement in Settings after confirming the exposure warning. Do not opt a shared or
+public deployment out of protection.
+
+Use HTTPS outside loopback, terminating TLS at the trusted host or ingress as described below. Neither API keys
+nor Basic authentication encrypt transport or provide per-user identity, revocation, MFA, or abuse protection.
+Keep secrets out of URLs, command history, logs, and source control. Anyone holding the shared key can invoke mocks.
+
+Request exports use secret-free variables: `mockApiKey` in Postman and Insomnia, `MOCKAPI_KEY` for cURL,
+k6 and HTTP files, and the JMeter `MOCKAPI_KEY` property. OpenAPI declares an API-key security scheme.
+Fill the variable locally; do not share a populated export.
 
 The supported WSLC creation workflow prompts for an optional username and reads the password and confirmation as secure strings. It stores only a random-salt PBKDF2-SHA256 hash in container configuration. Existing containers restart without prompting; recreate a container to change authentication while retaining its named data volume.
 

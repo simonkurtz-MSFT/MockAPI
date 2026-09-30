@@ -107,12 +107,22 @@ jobs:
           test "$(docker inspect --format '{{.Config.User}}' mockapi)" = "app"
           curl --fail --silent http://localhost:8080/ | grep -q '<title>MockAPI Console</title>'
           test -z "$(curl --silent --dump-header - --output /dev/null http://localhost:8080/health/live | grep -i '^server:' || true)"
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:8080/protected-default)" = "401"
       - name: Verify AOT payload and application behavior
         shell: bash
         run: |
           set -euo pipefail
           docker cp mockapi:/app ./published
           pwsh -NoProfile ./scripts/Assert-PublishContents.ps1 -PublishDirectory ./published -NativeAot
+          # The default above is fail-closed; opt this isolated response-behavior fixture out explicitly.
+          docker stop --time 10 mockapi
+          docker rm mockapi
+          docker run --detach --name mockapi \
+            --read-only --cpus 0.5 --memory 256m \
+            --publish 8080:8080 --volume mockapi-data:/data \
+            --env MockApi__RequireApiKey=false \
+            mockapi:pr-${{ matrix.suffix }}
+          curl --retry 20 --retry-connrefused --retry-delay 1 --fail --silent http://localhost:8080/health/ready
           pwsh -NoProfile ./scripts/Test-PublishedApplication.ps1
           docker stop --time 10 mockapi
           test "$(docker inspect --format '{{.State.ExitCode}}' mockapi)" = "0"
@@ -120,6 +130,7 @@ jobs:
           docker run --detach --name mockapi \
             --read-only --cpus 0.5 --memory 256m \
             --publish 8080:8080 --volume mockapi-data:/data \
+            --env MockApi__RequireApiKey=false \
             mockapi:pr-${{ matrix.suffix }}
           curl --retry 20 --retry-connrefused --retry-delay 1 --fail --silent http://localhost:8080/health/ready
           pwsh -NoProfile ./scripts/Test-PublishedApplication.ps1 -VerifyPersistence

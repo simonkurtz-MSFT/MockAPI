@@ -23,6 +23,27 @@ function createController(request, times = [10, 15]) {
 }
 
 describe("createEndpointTestRequestController", () => {
+  it("injects the current memory-only API key and blocks credential-bearing redirects", async () => {
+    const request = vi.fn().mockResolvedValue(createResponse());
+    let key = "first-key";
+    const controller = createEndpointTestRequestController({ origin, request, now: () => 0, getApiKey: () => key });
+    await controller.send({ method: "GET", path: "/test", headerLines: "", body: "" });
+    expect(request.mock.calls[0][1].headers.get("X-MockAPI-Key")).toBe("first-key");
+    expect(request.mock.calls[0][1].redirect).toBe("error");
+    key = "rotated-key";
+    await controller.send({ method: "GET", path: "/test", headerLines: "", body: "" });
+    expect(request.mock.calls[1][1].headers.get("X-MockAPI-Key")).toBe("rotated-key");
+    await controller.send({
+      method: "GET",
+      path: "/test",
+      headerLines: "X-MockAPI-Key: deliberate-invalid-key",
+      body: "",
+    });
+    expect(request.mock.calls[2][1].headers.get("X-MockAPI-Key")).toBe("deliberate-invalid-key");
+    await controller.send({ method: "GET", path: "https://untrusted.test/test", headerLines: "", body: "" });
+    expect(request).toHaveBeenCalledTimes(3);
+  });
+
   it("sends a bodyless request and returns a structured non-2xx response", async () => {
     const request = vi.fn().mockResolvedValue(
       createResponse({

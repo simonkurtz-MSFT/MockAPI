@@ -224,7 +224,7 @@ public sealed class ConfigurationStartupTests : IDisposable
     private static WebApplicationFactory<Program> CreateFactory(
         string path,
         bool allowEmptyConfiguration) =>
-        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        new UnsecuredApplicationFactory().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("MockApi:ConfigurationPath", path);
             builder.UseSetting(

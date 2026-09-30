@@ -29,6 +29,7 @@
   <ItemGroup>
     <EmbeddedResource Include="..\..\config\mockapi.json" LogicalName="MockAPI.BuiltIns.example.json" />
     <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
+    <Content Remove="**\*.security.json;**\*.security.json.*.tmp" />
   </ItemGroup>
 
   <Target Name="RemovePublishedSymbols" AfterTargets="Publish">

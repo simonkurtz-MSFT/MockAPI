@@ -42,6 +42,7 @@ public sealed class DashboardAuthenticationTests
     [InlineData("/dashboard-dom.js")]
     [InlineData("/dashboard-editor-dialog.js")]
     [InlineData("/dashboard-api-description.js")]
+    [InlineData("/dashboard-api-security.js")]
     [InlineData("/dashboard-endpoint-editor.js")]
     [InlineData("/dashboard-endpoint-table.js")]
     [InlineData("/dashboard-layout.js")]
@@ -177,7 +178,7 @@ public sealed class DashboardAuthenticationTests
             HashAlgorithmName.SHA256,
             32);
         var passwordHash = $"v1.100000.{Convert.ToBase64String(salt)}.{Convert.ToBase64String(hash)}";
-        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new UnsecuredApplicationFactory().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("MockApi:DashboardUsername", Username);
             builder.UseSetting("MockApi:DashboardPasswordHash", passwordHash);

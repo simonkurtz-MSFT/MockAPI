@@ -1,5 +1,106 @@
 import { expect, test } from "@playwright/test";
 
+test("API security controller generates once, uses captured revisions, and ignores closed completions", async ({
+  page,
+  request,
+}) => {
+  const frame = await createFixture(page, request);
+  await frame.evaluate(async () => {
+    const { createDashboardApiSecurity } = await import("/dashboard-api-security.js");
+    window.securityCalls = [];
+    window.securityErrors = [];
+    window.confirmations = [];
+    window.pendingSecurity = [];
+    let current = { enabled: true, configured: false, etag: '"0"' };
+    window.security = createDashboardApiSecurity({
+      documentRoot: document,
+      administratorConfigured: true,
+      api: async (path, options) => {
+        window.securityCalls.push({ path, options });
+        if (!options) return current;
+        return new Promise((resolve) =>
+          window.pendingSecurity.push((result) => {
+            current = result.status ?? result;
+            resolve(result);
+          })
+        );
+      },
+      showError: (message) => window.securityErrors.push(message),
+      confirm: (message) => {
+        window.confirmations.push(message);
+        return true;
+      },
+      copyToClipboard: async (text) => {
+        window.copiedKey = text;
+      },
+    });
+    document.getElementById("settings-dialog").showModal();
+    await window.security.open();
+  });
+  await expect(frame.locator("#settings-api-security-status")).toContainText("blocked");
+  await frame.locator("#settings-api-key-generate").click();
+  await expect(frame.locator("#settings-api-key-generate")).toBeDisabled();
+  expect(await frame.evaluate(() => window.securityCalls[1].options.etag)).toBe('"0"');
+  await frame.evaluate(() =>
+    window.pendingSecurity[0]({
+      key: "a".repeat(43),
+      status: { enabled: true, configured: true, etag: '"1"' },
+    })
+  );
+  await expect(frame.locator("#settings-api-key-copy")).toBeEnabled();
+  await frame.locator("#settings-api-key-copy").click();
+  expect(await frame.evaluate(() => window.copiedKey)).toBe("a".repeat(43));
+  await frame.locator("#settings-api-key-generate").click();
+  expect(await frame.evaluate(() => window.confirmations.length)).toBe(1);
+  await frame.evaluate(() => {
+    window.security.close();
+    document.getElementById("settings-dialog").close();
+    window.pendingSecurity[1]({ key: "b".repeat(43), status: { enabled: true, configured: true, etag: '"2"' } });
+  });
+  expect(await frame.evaluate(() => window.security.getKey())).toBe("a".repeat(43));
+  await frame.evaluate(() => window.security.dispose());
+  expect(await frame.evaluate(() => window.security.getKey())).toBe("");
+});
+
+test("API security controller reports write failures and confirms explicit opt-out", async ({ page, request }) => {
+  const frame = await createFixture(page, request);
+  await frame.evaluate(async () => {
+    const { createDashboardApiSecurity } = await import("/dashboard-api-security.js");
+    window.calls = [];
+    window.confirmResult = false;
+    window.security = createDashboardApiSecurity({
+      documentRoot: document,
+      administratorConfigured: true,
+      api: async (path, options) => {
+        window.calls.push({ path, options });
+        if (!options) return { enabled: true, configured: true, etag: '"3"' };
+        throw new Error("Security settings changed. Reload Settings.");
+      },
+      showError: (message) => {
+        window.currentError = message;
+      },
+      confirm: () => window.confirmResult,
+      copyToClipboard: async () => {},
+    });
+    document.getElementById("settings-dialog").showModal();
+    await window.security.open();
+  });
+  await frame.locator("#settings-api-security-enabled").uncheck();
+  await frame.locator("#settings-api-security-apply").click();
+  expect(await frame.evaluate(() => window.calls.length)).toBe(1);
+  await frame.evaluate(() => {
+    window.confirmResult = true;
+  });
+  await frame.locator("#settings-api-security-apply").click();
+  await expect(frame.locator("#settings-api-security-status")).toContainText("changed");
+  expect(await frame.evaluate(() => window.calls[1].options.etag)).toBe('"3"');
+  expect(await frame.evaluate(() => JSON.parse(window.calls[1].options.body))).toEqual({ enabled: false });
+  await expect(frame.locator("#settings-api-security-apply")).toBeEnabled();
+  await frame.locator("#settings-api-key").fill("invalid");
+  await expect(frame.locator("#settings-api-key-copy")).toBeDisabled();
+  expect(await frame.evaluate(() => window.security.getKey())).toBe("");
+});
+
 const endpoint = {
   id: "9697f1e8-7f7b-455a-b9a7-699961338bc8",
   name: "Controller endpoint",

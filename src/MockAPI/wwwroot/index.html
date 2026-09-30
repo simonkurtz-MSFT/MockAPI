@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-security-administration="{{SECURITY_ADMINISTRATION}}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -583,7 +583,7 @@
       <form method="dialog">
         <header class="dialog-header">
           <div>
-            <span class="eyebrow">Dashboard preferences</span>
+            <span class="eyebrow">Dashboard and API security</span>
             <h2 id="settings-title">Settings</h2>
           </div>
           <button
@@ -596,6 +596,30 @@
           ></button>
         </header>
         <div class="settings-body">
+          <div class="settings-field">
+            <h3>Mock API security</h3>
+            <p id="settings-api-security-status" role="status" aria-live="polite"></p>
+            <label for="settings-api-security-enabled">
+              <input id="settings-api-security-enabled" type="checkbox" />
+              Require X-MockAPI-Key on mock requests
+            </label>
+            <button id="settings-api-security-apply" class="button" type="button">Apply protection setting</button>
+            <label for="settings-api-key">API key for dashboard tests</label>
+            <input
+              id="settings-api-key"
+              type="password"
+              autocomplete="off"
+              spellcheck="false"
+              aria-describedby="settings-api-key-description"
+            />
+            <p id="settings-api-key-description">
+              Keys are held in memory only. Copy a generated key before reloading. Exports use placeholders, never
+              secrets. Generating a replacement revokes the old key immediately. Security changes require administrator
+              credentials.
+            </p>
+            <button id="settings-api-key-generate" class="button" type="button">Generate / rotate key</button>
+            <button id="settings-api-key-copy" class="button" type="button">Copy key</button>
+          </div>
           <div class="settings-field">
             <label for="settings-dashboard-layout">Workspace layout</label>
             <select id="settings-dashboard-layout" aria-describedby="settings-dashboard-layout-description">
@@ -623,7 +647,7 @@
           </div>
         </div>
         <footer class="dialog-footer">
-          <span>Preferences are saved in this browser only.</span>
+          <span>Layout preferences are browser-local. API protection is saved on the server.</span>
           <button class="button primary" type="submit">Done</button>
         </footer>
       </form>

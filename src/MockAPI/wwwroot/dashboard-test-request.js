@@ -33,6 +33,7 @@ import { methodSupportsBody, parseHeaderLines } from "./dashboard-core.js?v={{AS
  * @param {() => number} options.now Monotonic clock used for elapsed time.
  * @param {() => AbortController} [options.createAbortController] Abort controller factory.
  * @param {() => string} [options.createRequestId] Logical request ID factory used to coalesce browser transport retries.
+ * @param {() => string} [options.getApiKey] Memory-only key provider; explicit test headers take precedence.
  * @returns {EndpointTestRequestController} Test request controller.
  */
 export function createEndpointTestRequestController({
@@ -41,6 +42,7 @@ export function createEndpointTestRequestController({
   now,
   createAbortController = () => new AbortController(),
   createRequestId = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
+  getApiKey = () => "",
 }) {
   let activeController = null;
 
@@ -76,13 +78,21 @@ export function createEndpointTestRequestController({
       return { kind: "validationError", message: error.message };
     }
     headers.set("X-MockAPI-Dashboard-Request-Id", createRequestId());
+    const apiKey = getApiKey();
+    if (apiKey && !headers.has("X-MockAPI-Key")) headers.set("X-MockAPI-Key", apiKey);
 
     const controller = createAbortController();
     activeController = controller;
     const started = now();
     try {
       /** @type {RequestInit} */
-      const options = { method, headers, signal: controller.signal };
+      // Never forward a mock credential to a configured redirect target.
+      const options = {
+        method,
+        headers,
+        signal: controller.signal,
+        redirect: headers.has("X-MockAPI-Key") ? "error" : "follow",
+      };
       if (methodSupportsBody(method)) options.body = body;
       const response = await request(url, options);
       const responseBody = await response.text();

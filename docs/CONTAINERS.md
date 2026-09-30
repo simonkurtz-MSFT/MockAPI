@@ -37,7 +37,15 @@ Use the developer CLI from the repository root for the normal workflow:
 .\start.ps1 -Action container-showcase
 ```
 
-The showcase action merges the built-in examples into the active configuration when the rate-limit example is missing, preserving unrelated endpoints, and then verifies its HTTP response and statistics. When dashboard authentication is enabled, load the examples through the authenticated dashboard before running the showcase.
+The showcase action merges the built-in examples into the active configuration when the rate-limit example is
+missing, preserving unrelated endpoints, and then verifies its HTTP response and statistics. For protected mocks,
+set `MOCKAPI_KEY` to the key generated in dashboard Settings. When dashboard authentication is enabled, also set
+the paired `MOCKAPI_DASHBOARD_USERNAME` and `MOCKAPI_DASHBOARD_PASSWORD` environment variables. Both developer
+CLIs use those values without printing them; never put credentials in command history.
+
+Native CI first verifies that the image's default settings reject mock calls with `401`. The isolated response
+and persistence fixture then explicitly sets `MockApi__RequireApiKey=false`; this is a test-only opt-out, not a
+deployment default.
 
 The developer CLI gives each image a permanent UTC timestamp tag, then moves the `mockapi:dev` alias to the new image. The equivalent direct WSLC commands are:
 

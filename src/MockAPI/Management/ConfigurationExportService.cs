@@ -15,19 +15,20 @@ internal static class ConfigurationExportService
     internal static bool TryExport(
         string format,
         MockApiConfigurationDocument document,
-        out ConfigurationExport? export)
+        out ConfigurationExport? export,
+        bool requireApiKey = false)
     {
         ArgumentNullException.ThrowIfNull(document);
 
         export = format.ToLowerInvariant() switch
         {
-            "postman" => JsonExport(CreatePostman(document), "application/json; charset=utf-8", "mockapi.postman_collection.json", ValidatePostman),
-            "insomnia" => JsonExport(CreateInsomnia(document), "application/json; charset=utf-8", "mockapi.insomnia.json", ValidateInsomnia),
-            "openapi" => JsonExport(CreateOpenApi(document), "application/json; charset=utf-8", "mockapi.openapi.json", ValidateOpenApi),
-            "curl" => TextExport(CreateCurl(document), "text/x-shellscript; charset=utf-8", "mockapi.sh", ValidateCurl),
-            "jmeter" => XmlExport(CreateJMeter(document), "application/xml; charset=utf-8", "mockapi.jmx", ValidateJMeter),
-            "k6" => TextExport(CreateK6(document), "text/javascript; charset=utf-8", "mockapi.k6.js", ValidateK6),
-            "http" => TextExport(CreateHttp(document), "text/plain; charset=utf-8", "mockapi.http", ValidateHttp),
+            "postman" => JsonExport(CreatePostman(document, requireApiKey), "application/json; charset=utf-8", "mockapi.postman_collection.json", ValidatePostman),
+            "insomnia" => JsonExport(CreateInsomnia(document, requireApiKey), "application/json; charset=utf-8", "mockapi.insomnia.json", ValidateInsomnia),
+            "openapi" => JsonExport(CreateOpenApi(document, requireApiKey), "application/json; charset=utf-8", "mockapi.openapi.json", ValidateOpenApi),
+            "curl" => TextExport(CreateCurl(document, requireApiKey), "text/x-shellscript; charset=utf-8", "mockapi.sh", ValidateCurl),
+            "jmeter" => XmlExport(CreateJMeter(document, requireApiKey), "application/xml; charset=utf-8", "mockapi.jmx", ValidateJMeter),
+            "k6" => TextExport(CreateK6(document, requireApiKey), "text/javascript; charset=utf-8", "mockapi.k6.js", ValidateK6),
+            "http" => TextExport(CreateHttp(document, requireApiKey), "text/plain; charset=utf-8", "mockapi.http", ValidateHttp),
             _ => null
         };
         return export is not null;
@@ -66,19 +67,21 @@ internal static class ConfigurationExportService
         return new ConfigurationExport(Encoding.UTF8.GetBytes(document.ToString()), contentType, fileName);
     }
 
-    private static JsonObject CreatePostman(MockApiConfigurationDocument document) => new()
+    private static JsonObject CreatePostman(MockApiConfigurationDocument document, bool requireApiKey) => new()
     {
         ["info"] = new JsonObject
         {
             ["name"] = "MockAPI",
             ["schema"] = "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
         },
-        ["variable"] = new JsonArray(new JsonObject { ["key"] = "baseUrl", ["value"] = "http://localhost:8080" }),
+        ["variable"] = requireApiKey
+            ? new JsonArray(new JsonObject { ["key"] = "baseUrl", ["value"] = "http://localhost:8080" }, new JsonObject { ["key"] = "mockApiKey", ["value"] = "" })
+            : new JsonArray(new JsonObject { ["key"] = "baseUrl", ["value"] = "http://localhost:8080" }),
         ["item"] = new JsonArray(document.Endpoints.Where(endpoint => endpoint.Enabled)
-            .SelectMany(endpoint => endpoint.Methods.Select(method => (JsonNode)CreatePostmanItem(endpoint, method))).ToArray())
+            .SelectMany(endpoint => endpoint.Methods.Select(method => (JsonNode)CreatePostmanItem(endpoint, method, requireApiKey))).ToArray())
     };
 
-    private static JsonObject CreatePostmanItem(MockEndpointDefinition endpoint, string method)
+    private static JsonObject CreatePostmanItem(MockEndpointDefinition endpoint, string method, bool requireApiKey)
     {
         var item = new JsonObject
         {
@@ -86,7 +89,7 @@ internal static class ConfigurationExportService
             ["request"] = new JsonObject
             {
                 ["method"] = method,
-                ["header"] = new JsonArray(),
+                ["header"] = requireApiKey ? new JsonArray(new JsonObject { ["key"] = ApiKeySecurity.HeaderName, ["value"] = "{{mockApiKey}}" }) : new JsonArray(),
                 ["url"] = new JsonObject { ["raw"] = $"{BaseUrl}{endpoint.Path}", ["host"] = new JsonArray("{{baseUrl}}"), ["path"] = PathParts(endpoint.Path) }
             }
         };
@@ -117,13 +120,17 @@ internal static class ConfigurationExportService
         return item;
     }
 
-    private static JsonObject CreateInsomnia(MockApiConfigurationDocument document)
+    private static JsonObject CreateInsomnia(MockApiConfigurationDocument document, bool requireApiKey)
     {
         var workspaceId = "wrk_mockapi";
         var environmentId = "env_mockapi";
         var resources = new JsonArray(
             new JsonObject { ["_id"] = workspaceId, ["_type"] = "workspace", ["name"] = "MockAPI", ["scope"] = "collection" },
             new JsonObject { ["_id"] = environmentId, ["_type"] = "environment", ["parentId"] = workspaceId, ["name"] = "Base Environment", ["data"] = new JsonObject { ["baseUrl"] = "http://localhost:8080" } });
+        if (requireApiKey)
+        {
+            resources[1]!["data"]!["mockApiKey"] = "";
+        }
         foreach (var endpoint in document.Endpoints.Where(endpoint => endpoint.Enabled))
         {
             foreach (var method in endpoint.Methods)
@@ -136,7 +143,7 @@ internal static class ConfigurationExportService
                     ["name"] = $"{endpoint.Name} ({method})",
                     ["method"] = method,
                     ["url"] = $"{{{{ _.baseUrl }}}}{endpoint.Path}",
-                    ["headers"] = new JsonArray()
+                    ["headers"] = requireApiKey ? new JsonArray(new JsonObject { ["name"] = ApiKeySecurity.HeaderName, ["value"] = "{{ _.mockApiKey }}" }) : new JsonArray()
                 };
                 if (endpoint.Description is not null)
                 {
@@ -156,7 +163,7 @@ internal static class ConfigurationExportService
         };
     }
 
-    private static JsonObject CreateOpenApi(MockApiConfigurationDocument document)
+    private static JsonObject CreateOpenApi(MockApiConfigurationDocument document, bool requireApiKey)
     {
         var paths = new JsonObject();
         foreach (var endpoint in document.Endpoints.Where(endpoint => endpoint.Enabled))
@@ -218,6 +225,17 @@ internal static class ConfigurationExportService
             ["servers"] = new JsonArray(new JsonObject { ["url"] = "http://localhost:8080" }),
             ["paths"] = paths
         };
+        if (requireApiKey)
+        {
+            result["components"] = new JsonObject
+            {
+                ["securitySchemes"] = new JsonObject
+                {
+                    ["MockApiKey"] = new JsonObject { ["type"] = "apiKey", ["in"] = "header", ["name"] = ApiKeySecurity.HeaderName }
+                }
+            };
+            result["security"] = new JsonArray(new JsonObject { ["MockApiKey"] = new JsonArray() });
+        }
         if (document.ApiDescriptions is { Count: > 0 } descriptions)
         {
             result["tags"] = new JsonArray(descriptions.OrderBy(pair => pair.Key, StringComparer.Ordinal)
@@ -228,23 +246,39 @@ internal static class ConfigurationExportService
         return result;
     }
 
-    private static string CreateCurl(MockApiConfigurationDocument document)
+    private static string CreateCurl(MockApiConfigurationDocument document, bool requireApiKey)
     {
         var lines = new List<string> { "#!/usr/bin/env sh", "set -eu", "BASE_URL=${BASE_URL:-http://localhost:8080}", string.Empty };
+        if (requireApiKey)
+        {
+            lines.Add(": \"${MOCKAPI_KEY:?Set MOCKAPI_KEY before sending requests}\"");
+        }
         foreach (var endpoint in document.Endpoints.Where(endpoint => endpoint.Enabled))
         {
             foreach (var method in endpoint.Methods)
             {
-                lines.Add($"curl --fail-with-body --request {method} --url \"$BASE_URL{endpoint.Path}\"");
+                var authentication = requireApiKey ? " --header \"X-MockAPI-Key: $MOCKAPI_KEY\"" : string.Empty;
+                lines.Add($"curl --fail-with-body --request {method}{authentication} --url \"$BASE_URL{endpoint.Path}\"");
             }
         }
 
         return string.Join('\n', lines) + "\n";
     }
 
-    private static XDocument CreateJMeter(MockApiConfigurationDocument document)
+    private static XDocument CreateJMeter(MockApiConfigurationDocument document, bool requireApiKey)
     {
         var plan = new XElement("hashTree");
+        if (requireApiKey)
+        {
+            plan.Add(new XElement("HeaderManager",
+                new XAttribute("guiclass", "HeaderPanel"), new XAttribute("testclass", "HeaderManager"),
+                new XAttribute("testname", "MockAPI key"), new XAttribute("enabled", "true"),
+                new XElement("collectionProp", new XAttribute("name", "HeaderManager.headers"),
+                    new XElement("elementProp", new XAttribute("name", ""), new XAttribute("elementType", "Header"),
+                        JMeterString("Header.name", ApiKeySecurity.HeaderName),
+                        JMeterString("Header.value", "${__P(MOCKAPI_KEY,)}")))),
+                new XElement("hashTree"));
+        }
         foreach (var endpoint in document.Endpoints.Where(endpoint => endpoint.Enabled))
         {
             foreach (var method in endpoint.Methods)
@@ -289,7 +323,7 @@ internal static class ConfigurationExportService
                     plan)));
     }
 
-    private static string CreateK6(MockApiConfigurationDocument document)
+    private static string CreateK6(MockApiConfigurationDocument document, bool requireApiKey)
     {
         var requests = new JsonArray(document.Endpoints.Where(endpoint => endpoint.Enabled)
             .SelectMany(endpoint => endpoint.Methods.Select(method => (JsonNode)new JsonObject
@@ -306,18 +340,29 @@ internal static class ConfigurationExportService
                     }).ToArray())
             })).ToArray());
         var json = requests.ToJsonString();
-        return $"import http from 'k6/http';\nimport {{ check }} from 'k6';\n\nconst baseUrl = __ENV.BASE_URL || 'http://localhost:8080';\nconst requests = {json};\n\nexport default function () {{\n  for (const request of requests) {{\n    const response = http.request(request.method, `${{baseUrl}}${{request.path}}`);\n    check(response, request.behavior === 'abortConnection' ? {{\n      'connection is aborted': (result) => result.status === 0,\n    }} : {{\n      'status and body match': (result) => request.responses.some((expected) => expected.status === result.status && expected.body === result.body),\n    }});\n  }}\n}}\n";
+        var authentication = requireApiKey
+            ? "\nif (!__ENV.MOCKAPI_KEY) throw new Error('Set MOCKAPI_KEY before sending requests');\nconst options = { headers: { 'X-MockAPI-Key': __ENV.MOCKAPI_KEY } };\n"
+            : "\nconst options = {};\n";
+        return $"import http from 'k6/http';\nimport {{ check }} from 'k6';\n\nconst baseUrl = __ENV.BASE_URL || 'http://localhost:8080';\nconst requests = {json};\n{authentication}\nexport default function () {{\n  for (const request of requests) {{\n    const response = http.request(request.method, `${{baseUrl}}${{request.path}}`, null, options);\n    check(response, request.behavior === 'abortConnection' ? {{\n      'connection is aborted': (result) => result.status === 0,\n    }} : {{\n      'status and body match': (result) => request.responses.some((expected) => expected.status === result.status && expected.body === result.body),\n    }});\n  }}\n}}\n";
     }
 
-    private static string CreateHttp(MockApiConfigurationDocument document)
+    private static string CreateHttp(MockApiConfigurationDocument document, bool requireApiKey)
     {
         var builder = new StringBuilder("@baseUrl = http://localhost:8080\n");
+        if (requireApiKey)
+        {
+            builder.Append("@mockApiKey = {{$processEnv MOCKAPI_KEY}}\n");
+        }
         foreach (var endpoint in document.Endpoints.Where(endpoint => endpoint.Enabled))
         {
             foreach (var method in endpoint.Methods)
             {
                 builder.Append("\n### ").Append(endpoint.Name).Append(" (").Append(method).Append(")\n")
                     .Append(method).Append(" {{baseUrl}}").Append(endpoint.Path).Append('\n');
+                if (requireApiKey)
+                {
+                    builder.Append("X-MockAPI-Key: {{mockApiKey}}\n");
+                }
             }
         }
         return builder.ToString();

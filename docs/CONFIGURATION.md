@@ -14,6 +14,10 @@ MockAPI stores one versioned JSON document containing all runtime endpoint defin
 
 The authoritative JSON Schema is [schemas/mockapi.schema.json](../schemas/mockapi.schema.json). Unknown properties are rejected.
 
+Mock API-key security is instance-wide, separate from this document, and enabled by default. Configuration
+imports and native exports never carry keys, hashes, or protection settings. See
+[Mock API keys](OPERATIONS.md#mock-api-keys) for administrator setup, persistence, and secret-free request exports.
+
 ## API Descriptions
 
 Optional `apiDescriptions` supplies API/group metadata separately from each endpoint's `description`:

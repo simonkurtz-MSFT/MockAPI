@@ -30,7 +30,10 @@
 - Compile container releases with Native AOT on matching AMD64 and ARM64 Linux runners, then assemble one multi-platform index from the exact tested images. Keep local managed development and diagnostic cross-publication separate from release-image validation.
 - Reject invalid, conflicting, oversized, or unsafe endpoint definitions before activation.
 - Keep management and health paths reserved and reject controlled or hop-by-hop response headers.
-- When dashboard credentials are configured, protect every administrative surface while keeping health and configured mock routes public. Store only a salted password hash and require HTTPS outside loopback.
+- When dashboard credentials are configured, protect every administrative surface. Health remains public; mock
+  routes require an instance API key by default. Security Settings always require configured administrative
+  credentials. Store only the administrator's salted password hash and the random API key's SHA-256 hash,
+  separately from endpoint configuration, and require HTTPS outside loopback.
 - Make focused changes and add tests at the lowest layer that can prove the behavior.
 - Do not create GitHub Actions or Dependabot configuration until the plan phase that introduces them.
 

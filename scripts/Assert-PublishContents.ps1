@@ -23,7 +23,8 @@ $forbiddenNames = @(
 )
 $forbiddenExtensions = @('.pdb', '.dbg', '.trx', '.lcov')
 $violations = Get-ChildItem -LiteralPath $PublishDirectory -Recurse -Force | Where-Object {
-  $forbiddenNames -contains $_.Name -or $forbiddenExtensions -contains $_.Extension.ToLowerInvariant()
+  $forbiddenNames -contains $_.Name -or $forbiddenExtensions -contains $_.Extension.ToLowerInvariant() -or
+  $_.Name -match '\.security\.json(?:\..*\.tmp)?$'
 }
 
 if ($violations) {

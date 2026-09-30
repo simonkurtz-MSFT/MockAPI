@@ -73,6 +73,8 @@ Use one ASP.NET Core application and one deployable container.
    - Health endpoints under `/health/`.
 2. Send all other requests to a mock dispatcher.
 3. Normalize the request method and path.
+   Require the instance API key before mock dispatch unless an administrator explicitly disables protection.
+   Missing security settings default to enforcement with no valid key, so mock calls fail closed.
 4. Look up an enabled endpoint in an immutable in-memory snapshot keyed by method and normalized path.
 5. Abort the connection immediately when configured; otherwise write the configured status, permitted custom headers, content type, and raw response bytes.
 6. Record statistics in a bounded, concurrency-safe collector.
@@ -369,6 +371,17 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
 - Bind management routes to the same listener initially, but support disabling the dashboard and management API independently.
 - Use one `Dockerfile` for all deployments. Removing dashboard assets yields negligible image-size savings; deployments that do not need the dashboard disable it with `MockApi__EnableDashboard=false` and can disable the remaining administrative surfaces independently.
 - Support optional Basic authentication for administrative paths. Require the username and PBKDF2-SHA256 password hash together; when both are absent, leave administrative paths unauthenticated and clearly warn against direct exposure to untrusted networks.
+- Require `X-MockAPI-Key` for mock calls by default, separately from endpoint matching and administrative Basic authentication.
+  Health probes remain public. Only a configured administrator may read or change security Settings, generate a key,
+  or explicitly disable enforcement. Never let anonymous administration replace or disable the key.
+- Generate 32-byte random keys, compare SHA-256 hashes in constant time, and keep only the hash in a separate
+  security document beside the configuration file or blob. Persist before atomic activation; use an independent
+  strong ETag for security writes. Rotation enables protection and immediately revokes the previous key.
+- Keep dashboard keys in memory only and send them only to same-origin mock tests, rejecting redirects.
+  Request exports include header variables or OpenAPI security requirements, never the secret or hash.
+  Endpoint configuration import/export/save never reads or changes security settings.
+- Require HTTPS at the listener or trusted TLS-terminating ingress outside loopback. API keys do not replace
+  administrative protection, transport security, abuse controls, or stronger identity for sensitive deployments.
 - Encode response headers through ASP.NET Core header APIs and reject CR/LF characters.
 - Encode dashboard-rendered values; never inject configured body/header text as HTML.
 - Apply request-size limits and management API rate limits.
