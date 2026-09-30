@@ -23,7 +23,10 @@ public sealed class ConfigurationSchemaTests
         Assert.Equal(7, document.Endpoints.Count);
         Assert.Equal("This API demonstrates some of MockAPI's capabilities.", document.ApiDescriptions!["/ex"]);
         Assert.All(document.Endpoints, endpoint =>
-            Assert.StartsWith("/ex/", endpoint.Path, StringComparison.Ordinal));
+        {
+            Assert.StartsWith("/ex/", endpoint.Path, StringComparison.Ordinal);
+            Assert.False(string.IsNullOrWhiteSpace(endpoint.Description));
+        });
 
         var hello = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ex/hello");
         Assert.Equal(["GET"], hello.Methods);

@@ -138,6 +138,8 @@ Uploaded imports replace the entire active document after validation and ETag ve
 
 The checked-in example contains seven `/ex/` endpoints covering `200`, `201`, `204`, `302`, a conditional `429`, and `500` responses plus `/ex/abort-connection`, which intentionally sends no response. `GET /ex/redirect` returns `302 Found` with `Location: /ex/hello`; clients that automatically follow redirects will receive the destination's `200` response. `GET /ex/server-error` returns `500 Internal Server Error` with the JSON body `{"error":"internal server error"}`.
 
+Each example endpoint includes a semantic description explaining its purpose, configured response, and relevant client behavior. The order endpoints simulate creation and deletion without storing or changing orders. View these descriptions through the endpoint information buttons in the dashboard.
+
 ## Azure OpenAI Sample
 
 [`config/aoai.json`](../config/aoai.json) provides controlled Azure OpenAI backend outcomes for the APIM inference-failover response-handling matrix. Every route accepts `POST`; request headers and bodies are intentionally ignored because MockAPI v1 matches only the HTTP method and exact path.

@@ -8,6 +8,7 @@
     {
       "id": "4cb6e141-5f4f-4a30-9715-ec2c68554ad0",
       "name": "Hello from MockAPI",
+      "description": "Returns a static JSON greeting with 200 OK and an X-Mock-Source header. Use this endpoint to verify connectivity and inspect a successful JSON response.",
       "enabled": true,
       "methods": ["GET"],
       "path": "/ex/hello",
@@ -24,6 +25,7 @@
     {
       "id": "17a50c14-e67f-4770-9bf6-afb4a80e4609",
       "name": "Create an order",
+      "description": "Simulates successful order creation with 201 Created, a fixed JSON response for order 42, and a Location header pointing to /ex/orders/42. The request body is ignored; no order is stored or changed.",
       "enabled": true,
       "methods": ["POST"],
       "path": "/ex/orders",
@@ -41,6 +43,7 @@
     {
       "id": "7b2d425d-75f1-4ded-a74e-503374a7e99e",
       "name": "Rate limited response",
+      "description": "Demonstrates rolling-window rate limiting: up to four requests in a 10-second window return 200 OK with an accepted JSON response; additional requests return 429 Too Many Requests with a JSON error and Retry-After: 10. The dashboard preselects five requests to demonstrate the limit. Both responses include repeated X-Mock-Source header values.",
       "enabled": true,
       "methods": ["GET"],
       "path": "/ex/rate-limited",
@@ -72,6 +75,7 @@
     {
       "id": "b53545e8-fd25-44cb-940b-0ce175547483",
       "name": "Delete an order",
+      "description": "Simulates successful deletion of order 42 with 204 No Content and an empty response body. No order is actually deleted; repeated requests return the same configured response.",
       "enabled": true,
       "methods": ["DELETE"],
       "path": "/ex/orders/42",
@@ -88,6 +92,7 @@
     {
       "id": "ec8d45cb-a095-4d7e-9540-c7d9d81fe426",
       "name": "Redirect to hello",
+      "description": "Returns 302 Found with Location: /ex/hello and an empty body to demonstrate an HTTP redirect. Clients that follow redirects automatically receive the destination endpoint's 200 OK JSON greeting.",
       "enabled": true,
       "methods": ["GET"],
       "path": "/ex/redirect",
@@ -105,6 +110,7 @@
     {
       "id": "a276b184-ecf6-4377-bf45-5ef1dc8f7433",
       "name": "Server error",
+      "description": "Always returns 500 Internal Server Error with a static JSON error body. Use this endpoint to test how clients handle server failures without causing a real application error.",
       "enabled": true,
       "methods": ["GET"],
       "path": "/ex/server-error",
@@ -121,6 +127,7 @@
     {
       "id": "5f8c908d-42e1-4af9-952a-35c77c408a26",
       "name": "Abort the connection",
+      "description": "Immediately aborts the connection without sending an HTTP status, headers, or body. Use this endpoint to test transport-failure handling rather than HTTP error-response handling.",
       "enabled": true,
       "methods": ["GET"],
       "path": "/ex/abort-connection",
