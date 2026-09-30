@@ -72,6 +72,89 @@ describe("application release versions", () => {
     expect(() => planTag({ ...candidate, version: "1.0.0-beta.2" })).toThrow("must be newer");
   });
 
+  it.each([
+    { scenario: "skips an unchanged version", version: "1.0.0-beta.2", status: 0, message: "decision=unchanged" },
+    { scenario: "tags a version bump", version: "1.0.0-beta.3", status: 0, message: "decision=create" },
+    { scenario: "rejects a downgrade", version: "1.0.0-beta.1", status: 1, message: "must be newer" },
+    {
+      scenario: "rejects tag reuse",
+      version: "1.0.0-beta.3",
+      existingTag: true,
+      status: 1,
+      message: "Refusing to move",
+    },
+    {
+      scenario: "fails explicitly when the previous commit cannot be fetched",
+      version: "1.0.0-beta.3",
+      missingCommit: true,
+      status: 1,
+      message: "refusing to tag without comparing versions",
+    },
+  ])(
+    "$scenario after a force-push into a fresh checkout",
+    ({ version, existingTag, missingCommit, status, message }) => {
+      const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "mockapi-force-push-test-"));
+      const remote = path.join(fixture, "remote.git");
+      const author = path.join(fixture, "author");
+      const runner = path.join(fixture, "runner");
+      const script = path.resolve(import.meta.dirname, "../../scripts/release-version.cjs");
+      fs.mkdirSync(author);
+      const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8", stdio: "pipe" }).trim();
+      const project = path.join(author, "src/MockAPI/MockAPI.csproj");
+      const saveVersion = (value) =>
+        fs.writeFileSync(project, `<Project><PropertyGroup><Version>${value}</Version></PropertyGroup></Project>`);
+      try {
+        git(author, "init", "--bare", "--initial-branch=main", remote);
+        git(author, "init", "--initial-branch=main");
+        git(author, "config", "user.name", "Release test");
+        git(author, "config", "user.email", "release-test@example.invalid");
+        git(author, "config", "commit.gpgsign", "false");
+        git(author, "config", "core.hooksPath", path.join(fixture, "no-hooks"));
+        git(author, "remote", "add", "origin", remote);
+        fs.mkdirSync(path.dirname(project), { recursive: true });
+        fs.writeFileSync(path.join(author, "package.json"), '{"private":true}');
+        saveVersion("1.0.0-beta.2");
+        git(author, "add", ".");
+        git(author, "commit", "-m", "Original tip");
+        git(author, "push", "origin", "main");
+        const previous = git(author, "rev-parse", "HEAD");
+        if (existingTag) {
+          git(author, "-c", "tag.gpgsign=false", "tag", `v${version}`);
+          git(author, "push", "origin", `refs/tags/v${version}`);
+        }
+        saveVersion(version);
+        git(author, "commit", "-am", "Replacement tip", "--amend");
+        git(author, "push", "--force", "origin", "main");
+        git(author, "clone", "--no-local", remote, runner);
+        git(runner, "config", "tag.gpgsign", "false");
+        git(runner, "config", "core.hooksPath", path.join(fixture, "no-hooks"));
+        const before = missingCommit ? "f".repeat(40) : previous;
+        if (!existingTag) {
+          expect(spawnSync("git", ["cat-file", "-e", `${before}^{commit}`], { cwd: runner }).status).not.toBe(0);
+        }
+        const result = spawnSync(process.execPath, [script, "tag"], {
+          cwd: runner,
+          encoding: "utf8",
+          env: { ...process.env, BEFORE_SHA: before, GITHUB_OUTPUT: "" },
+        });
+        expect(result.status).toBe(status);
+        expect(status === 0 ? result.stdout : result.stderr).toContain(message);
+        if (!existingTag) expect(result.stdout).toContain(`Fetching previous push commit ${before}`);
+        const remoteTag = git(runner, "ls-remote", "origin", `refs/tags/v${version}^{}`);
+        if (message === "decision=create") {
+          expect(remoteTag).toContain(git(runner, "rev-parse", "HEAD"));
+        } else if (existingTag) {
+          expect(git(runner, "ls-remote", "origin", `refs/tags/v${version}`)).toContain(previous);
+        } else {
+          expect(git(runner, "ls-remote", "origin", `refs/tags/v${version}`)).toBe("");
+        }
+      } finally {
+        fs.rmSync(fixture, { recursive: true, force: true });
+      }
+    },
+    30000
+  );
+
   it("tags and pushes the validated commit without moving it on later unchanged commits", () => {
     const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "mockapi-version-test-"));
     const remote = path.join(fixture, "remote.git");

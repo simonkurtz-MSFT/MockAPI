@@ -97,6 +97,10 @@ budget, or SBOM disclosure review: those remain human release gates.
 
 - **Version unchanged:** expected on non-version pushes. Make a deliberate new version bump
   for the next release; do not retag routine commits.
+- **Force-push replaces the previous commit:** tagging fetches the pre-push commit explicitly
+  when it is no longer in the checkout's reachable history, then compares versions normally.
+  Unchanged versions remain no-ops; downgrades and tag reuse still fail. If the remote can no
+  longer provide the previous commit, tagging fails explicitly rather than assuming a new version.
 - **Existing tag points elsewhere:** choose a new version. Never delete, move, or force-push it.
 - **No matching quality evidence:** run quality validation for the tagged commit through the
   normal `main` workflow. Investigate expired evidence or legacy tags rather than bypassing the gate.

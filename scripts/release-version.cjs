@@ -76,6 +76,26 @@ function git(...args) {
   return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 }
 
+function readPreviousVersion(commit) {
+  const result = spawnSync("git", ["rev-parse", "--verify", "--quiet", `${commit}^{commit}`]);
+  if (result.error) throw result.error;
+  if (result.status === 1) {
+    // A force-push can leave the previous tip outside the history fetched by checkout.
+    console.log(`Fetching previous push commit ${commit} for version comparison.`);
+    try {
+      git("fetch", "--no-tags", "--no-recurse-submodules", "origin", commit);
+    } catch (error) {
+      throw new Error(
+        `Cannot fetch previous push commit ${commit}; refusing to tag without comparing versions. ${error.message}`,
+        { cause: error }
+      );
+    }
+  } else if (result.status !== 0) {
+    throw new Error(`Cannot inspect previous push commit ${commit}: ${result.stderr}`);
+  }
+  return readVersion(git("show", `${commit}:${projectPath}`));
+}
+
 function tagCommit(tag) {
   const result = spawnSync("git", ["show-ref", "--verify", "--quiet", `refs/tags/${tag}`]);
   if (result.error) throw result.error;
@@ -118,7 +138,7 @@ function main(mode, requestedTag) {
 
   const before = process.env.BEFORE_SHA;
   if (before && !/^[0-9a-f]{40}$/.test(before)) throw new Error("BEFORE_SHA must be a full Git commit SHA.");
-  const previousVersion = before && !/^0+$/.test(before) ? readVersion(git("show", `${before}:${projectPath}`)) : null;
+  const previousVersion = before && !/^0+$/.test(before) ? readPreviousVersion(before) : null;
   const head = git("rev-parse", "HEAD");
   const tag = `v${version}`;
   const decision = planTag({ version, previousVersion, head, existingCommit: tagCommit(tag) });

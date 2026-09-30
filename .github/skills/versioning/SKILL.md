@@ -22,6 +22,8 @@ description: Select, apply, or validate a MockAPI semantic application version, 
 7. A validated version change pushed to `main` is tagged by the final quality job. No-op changes
    do not move a tag. Existing historical unprefixed tags are left intact; new tags use `v<Version>`.
    GitHub token-created tags do not trigger another workflow: publication is explicitly dispatched.
+   After a force-push, tagging explicitly fetches a missing nonzero pre-push commit before
+   comparing versions. Fetch failures stop tagging; never treat missing history as a version bump.
 8. Before publication, use the public-release-audit and release-validation skills. Require the
    successful quality run for the exact commit, native image evidence, and human approval.
    Never create a commit, tag, release, or publish an image during version selection or validation.
