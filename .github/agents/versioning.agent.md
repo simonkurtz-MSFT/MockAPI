@@ -41,7 +41,7 @@ Before recommending or changing a version:
 4. When asked to apply the bump, update `<Version>` and every intentional exact-version assertion or fixture found by repository search. Do not replace unrelated protocol, dependency, schema, or tool versions.
 5. Verify that the dashboard/runtime version still comes from assembly informational version metadata and that no independent application-version literal was introduced.
 6. Before declaring a release ready, verify that the proposed `v<Version>` tag is unused, the tracked tree and reachable history pass the public-release audit, and publication/container checks satisfy the release-validation skill.
-7. Follow `docs/RELEASING.md` and the `versioning` skill. The quality workflow tags validated version changes on `main`; publication is separately approved and builds the exact tagged commit. Do not move historical unprefixed tags.
+7. Follow `docs/RELEASING.md` and the `versioning` skill. Include a reviewed, dated Keep a Changelog entry for a version bump. The final quality job tags and publishes GitHub release notes for validated version changes on `main`; container publication is separately approved and builds the exact tagged commit. Do not move historical unprefixed tags or overwrite published releases.
 
 ## Validation
 
@@ -49,7 +49,8 @@ Run the narrowest version checks first, followed by the release checks required 
 
 ```text
 node scripts/release-version.cjs check
-pnpm exec vitest run tests/frontend/release-version.test.js
+node scripts/release-notes.cjs check
+pnpm exec vitest run tests/frontend/release-version.test.js tests/frontend/release-notes.test.js
 ```
 
 ```powershell

@@ -1041,7 +1041,7 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Equal("#/components/schemas/ApiDescriptionRequest",
             apiDescription.GetProperty("requestBody").GetProperty("content").GetProperty("application/json")
                 .GetProperty("schema").GetProperty("$ref").GetString());
-        foreach (var status in new[] { "200", "400", "412", "413", "415", "422", "428" })
+        foreach (var status in new[] { "200", "400", "412", "413", "415", "422", "428", "500" })
         {
             Assert.True(apiDescription.GetProperty("responses").TryGetProperty(status, out _));
         }
@@ -1057,6 +1057,20 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Equal(
             operations.Length,
             operations.Select(operation => operation.GetProperty("operationId").GetString()).Distinct().Count());
+        var automaticWrites = operations.Where(operation =>
+            operation.GetProperty("operationId").GetString() is
+                "CreateEndpoint" or "ReplaceEndpoint" or "SetEndpointEnabled" or "DeleteEndpoint" or
+                "ApplyBulkEndpointOperation" or "ImportConfiguration" or "MergeBuiltInConfiguration" or "SetApiDescription")
+            .ToArray();
+        Assert.Equal(8, automaticWrites.Length);
+        Assert.All(automaticWrites, operation =>
+        {
+            Assert.Contains("saved automatically", operation.GetProperty("description").GetString(), StringComparison.Ordinal);
+            Assert.Contains("active but unsaved", operation.GetProperty("description").GetString(), StringComparison.Ordinal);
+            Assert.Equal("#/components/schemas/ManagementProblemDetails",
+                operation.GetProperty("responses").GetProperty("500").GetProperty("content")
+                    .GetProperty("application/problem+json").GetProperty("schema").GetProperty("$ref").GetString());
+        });
 
         var exportOperation = paths.GetProperty($"{BasePath}/configuration/export/{{format}}").GetProperty("get");
         var downloadParameter = exportOperation.GetProperty("parameters").EnumerateArray()

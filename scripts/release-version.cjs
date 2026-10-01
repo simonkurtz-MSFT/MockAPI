@@ -142,6 +142,11 @@ function main(mode, requestedTag) {
   const head = git("rev-parse", "HEAD");
   const tag = `v${version}`;
   const decision = planTag({ version, previousVersion, head, existingCommit: tagCommit(tag) });
+  if (decision !== "unchanged") {
+    // Validate reviewed notes before creating the immutable tag, not after pushing it.
+    const { extractReleaseNotes } = require("./release-notes.cjs");
+    extractReleaseNotes(fs.readFileSync("CHANGELOG.md", "utf8"), version);
+  }
   if (decision === "create") {
     git(
       "-c",

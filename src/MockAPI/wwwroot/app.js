@@ -181,6 +181,9 @@ async function refresh() {
 
 function renderConfiguration() {
   elements["save-button"].disabled = state.managementPending || !state.dirty;
+  elements["save-button"].title = state.dirty
+    ? "Configuration has unsaved changes. Retry saving to the configured file or Blob Storage."
+    : "Configuration changes are saved automatically.";
 }
 
 function renderStaticIcons() {

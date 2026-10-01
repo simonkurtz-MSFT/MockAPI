@@ -1,3 +1,5 @@
+import { mkdir, readFile, rmdir, unlink, writeFile } from "node:fs/promises";
+import path from "node:path";
 import {
   expect,
   test,
@@ -6,7 +8,7 @@ import {
   expectNoUnreviewedAccessibilityViolations,
 } from "./dashboard-fixtures.js";
 
-test("imports, saves, and exports configuration", async ({ page }) => {
+test("imports, automatically saves, and exports configuration", async ({ page, request }) => {
   const endpoint = {
     id: "ec97de43-59ec-49f6-a3f5-77523adb275d",
     name: "Imported endpoint",
@@ -28,8 +30,9 @@ test("imports, saves, and exports configuration", async ({ page }) => {
   });
   await page.getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByRole("row", { name: /Imported endpoint/ })).toBeVisible();
-  await page.getByRole("button", { name: "Save" }).click();
-  await expect(page.getByRole("button", { name: "Save" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Retry save" })).toBeDisabled();
+  const status = await request.get("/__mockapi/api/configuration");
+  expect((await status.json()).hasUnsavedChanges).toBe(false);
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("link", { name: "Export" }).click();
@@ -53,6 +56,55 @@ test("imports, saves, and exports configuration", async ({ page }) => {
     .click();
   await expect(page.locator("#endpoint-dialog")).toBeVisible();
   await expect(page.locator("#field-name")).toHaveValue("Imported endpoint");
+});
+
+test("an automatic save failure keeps the endpoint active and offers persistence-only retry", async ({
+  page,
+  request,
+}) => {
+  const configurationPath = path.resolve("artifacts", "playwright", "mockapi.json");
+  const previousDocument = await readFile(configurationPath);
+  let blocked = false;
+  let saved = false;
+  try {
+    await unlink(configurationPath);
+    await mkdir(configurationPath);
+    blocked = true;
+
+    await page.getByRole("button", { name: "New endpoint" }).click();
+    await page.locator("#field-name").fill("Active but unsaved");
+    await page.locator("#field-path").fill("/autosave-failure-browser");
+    await page.locator("#field-content-type").fill("text/plain");
+    await page.locator("#field-body").fill("active response");
+    await page.getByRole("button", { name: "Apply endpoint" }).click();
+
+    await expect(page.locator("#endpoint-dialog")).toBeHidden();
+    await expect(page.getByRole("row", { name: /Active but unsaved/ })).toBeVisible();
+    await expect(page.locator(".toast.error")).toContainText("change is active");
+    const retry = page.getByRole("button", { name: "Retry save" });
+    await expect(retry).toBeEnabled();
+    await expect(retry).toHaveAttribute("title", /unsaved changes/);
+    const active = await request.get("/autosave-failure-browser");
+    expect(await active.text()).toBe("active response");
+    const before = await (await request.get("/__mockapi/api/configuration")).json();
+    expect(before.hasUnsavedChanges).toBe(true);
+
+    await rmdir(configurationPath);
+    blocked = false;
+    await retry.click();
+    await expect(retry).toBeDisabled();
+    await expect(page.locator(".toast").filter({ hasText: "Configuration saved" })).toBeVisible();
+    const after = await (await request.get("/__mockapi/api/configuration")).json();
+    expect(after.revision).toBe(before.revision);
+    expect(after.hasUnsavedChanges).toBe(false);
+    const document = JSON.parse(await readFile(configurationPath, "utf8"));
+    expect(document.endpoints).toHaveLength(1);
+    expect(document.endpoints[0].path).toBe("/autosave-failure-browser");
+    saved = true;
+  } finally {
+    if (blocked) await rmdir(configurationPath);
+    if (!saved) await writeFile(configurationPath, previousDocument);
+  }
 });
 
 test("@smoke opens the current mock specification in a browser tab through the live OpenAPI link", async ({

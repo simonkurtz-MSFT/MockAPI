@@ -205,7 +205,7 @@ public sealed class ManagementApiTests
     }
 
     [Fact]
-    public async Task Create_ImmediatelyPublishesMockRoute()
+    public async Task Create_ImmediatelyPublishesMockRouteAndAutomaticallySaves()
     {
         await using var factory = new UnsecuredApplicationFactory();
         using var client = factory.CreateClient();
@@ -220,7 +220,7 @@ public sealed class ManagementApiTests
         using var status = await client.GetAsync("/__mockapi/api/configuration");
         using var statusJson = await ReadJsonAsync(status);
         Assert.Equal(1, statusJson.RootElement.GetProperty("revision").GetInt64());
-        Assert.True(statusJson.RootElement.GetProperty("hasUnsavedChanges").GetBoolean());
+        Assert.False(statusJson.RootElement.GetProperty("hasUnsavedChanges").GetBoolean());
     }
 
     [Theory]

@@ -48,7 +48,13 @@ export function createApiDescriptionEditor({ documentRoot: document, onSave }) {
       elements["api-description-error"].hidden = false;
       elements["api-description-error"].focus();
     });
-    if (!disposed && generation === draftGeneration && result.kind === "completed") dialog.close();
+    if (
+      !disposed &&
+      generation === draftGeneration &&
+      (result.kind === "completed" || result.kind === "applied-unsaved")
+    ) {
+      dialog.close();
+    }
   });
 
   return {

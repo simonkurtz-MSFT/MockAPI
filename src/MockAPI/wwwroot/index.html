@@ -124,7 +124,15 @@
                   </select>
                 </label>
                 <a id="export-button" class="button secondary" href="/__mockapi/api/configuration/export">Export</a>
-                <button id="save-button" class="button secondary" type="button" disabled>Save</button>
+                <button
+                  id="save-button"
+                  class="button secondary"
+                  type="button"
+                  title="Configuration changes are saved automatically."
+                  disabled
+                >
+                  Retry save
+                </button>
               </div>
             </div>
             <div class="command-group" role="group" aria-labelledby="create-command-label">
@@ -567,12 +575,14 @@
             <div>
               <dt>Persistence</dt>
               <dd>
-                Select <strong>Save</strong> to write changes to disk. Containers persist them in <code>/data</code>.
+                Changes are saved automatically to the configured file or Azure Blob Storage. If saving fails, changes
+                stay active but unsaved; select <strong>Retry save</strong>. Local containers need a persistent volume
+                at <code>/data</code>.
               </dd>
             </div>
             <div>
               <dt>First run</dt>
-              <dd>Load the examples, test an endpoint, edit its response, then save when ready.</dd>
+              <dd>Load the examples, test an endpoint, and edit its response. Changes are saved automatically.</dd>
             </div>
           </dl>
         </div>

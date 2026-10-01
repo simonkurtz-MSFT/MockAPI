@@ -90,9 +90,16 @@ describe("application release versions", () => {
       status: 1,
       message: "refusing to tag without comparing versions",
     },
+    {
+      scenario: "rejects a bump without reviewed release notes before creating a tag",
+      version: "1.0.0-beta.3",
+      invalidNotes: true,
+      status: 1,
+      message: "exactly one release entry",
+    },
   ])(
     "$scenario after a force-push into a fresh checkout",
-    ({ version, existingTag, missingCommit, status, message }) => {
+    ({ version, existingTag, missingCommit, invalidNotes, status, message }) => {
       const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "mockapi-force-push-test-"));
       const remote = path.join(fixture, "remote.git");
       const author = path.join(fixture, "author");
@@ -101,8 +108,13 @@ describe("application release versions", () => {
       fs.mkdirSync(author);
       const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8", stdio: "pipe" }).trim();
       const project = path.join(author, "src/MockAPI/MockAPI.csproj");
-      const saveVersion = (value) =>
+      const saveVersion = (value) => {
         fs.writeFileSync(project, `<Project><PropertyGroup><Version>${value}</Version></PropertyGroup></Project>`);
+        fs.writeFileSync(
+          path.join(author, "CHANGELOG.md"),
+          `# Changelog\n\n## [${value}] - 2026-10-01\n\n### Fixed\n\n- Release fixture.\n`
+        );
+      };
       try {
         git(author, "init", "--bare", "--initial-branch=main", remote);
         git(author, "init", "--initial-branch=main");
@@ -126,6 +138,7 @@ describe("application release versions", () => {
         git(author, "push", "origin", "main");
         const previous = git(author, "rev-parse", "HEAD");
         saveVersion(version);
+        if (invalidNotes) fs.writeFileSync(path.join(author, "CHANGELOG.md"), "# Changelog\n");
         git(author, "commit", "-am", "Replacement tip", "--amend", "--allow-empty");
         git(author, "push", "--force", "origin", "main");
         git(author, "clone", "--no-local", remote, runner);
@@ -170,8 +183,13 @@ describe("application release versions", () => {
         env: { ...process.env, BEFORE_SHA: before, GITHUB_OUTPUT: "" },
       });
     const project = path.join(checkout, "src/MockAPI/MockAPI.csproj");
-    const saveVersion = (version) =>
+    const saveVersion = (version) => {
       fs.writeFileSync(project, `<Project><PropertyGroup><Version>${version}</Version></PropertyGroup></Project>`);
+      fs.writeFileSync(
+        path.join(checkout, "CHANGELOG.md"),
+        `# Changelog\n\n## [${version}] - 2026-10-01\n\n### Fixed\n\n- Release fixture.\n`
+      );
+    };
     try {
       git("init", "--bare", "--initial-branch=main", remote);
       git("init", "--initial-branch=main");

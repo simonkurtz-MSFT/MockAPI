@@ -347,7 +347,10 @@ cd MockAPI</code></pre>
               <code>X-MockAPI-Key</code> header. Mock calls without a key return <code>401</code> by default.
             </li>
             <li>Edit the response, repeat the request, and check the response and request statistics.</li>
-            <li>Select <strong>Save</strong> to keep changes in your configured writable file or volume.</li>
+            <li>
+              Changes are saved automatically to your configured writable file, volume, or Azure Blob Storage. If saving
+              fails, changes stay active but unsaved; use <strong>Retry save</strong>.
+            </li>
           </ol>
           <p>
             <strong>Keep administration private.</strong> Localhost or a protected network is the default. Before

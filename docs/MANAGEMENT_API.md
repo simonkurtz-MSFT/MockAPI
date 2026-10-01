@@ -33,6 +33,18 @@ If-Match: "4"
 
 Read `/configuration` to obtain the current revision and ETag. A missing precondition returns `428`; a stale revision returns `412`. Validation and revision failures leave the active snapshot unchanged.
 
+Applied configuration writes activate immediately and automatically persist the complete document to the
+configured file or blob. This includes endpoint CRUD, enabled-state and bulk operations, imports, applied
+built-in merges, and API description edits. Validation failures, stale writes, conflict previews, and
+unchanged merges do not save.
+
+An automatic persistence failure returns `500` with problem type
+`https://mockapi.local/problems/autosave-failed` and the current ETag. **The mutation is already active**,
+but `/configuration` reports `hasUnsavedChanges: true`. Do not repeat the mutation: retry
+`POST /configuration/save` with the current strong ETag, or use **Retry save** in the dashboard.
+A subsequent successful configuration write also persists previously unsaved changes.
+Endpoint configuration activation remains independent of saving; security settings still persist before activation.
+
 Management routes allow 120 requests per client address in a rolling one-minute window. Excess requests return `429` problem details and `Retry-After: 60`. Mock endpoints, health checks, and dashboard assets are outside this policy.
 
 ## Routes
@@ -48,7 +60,7 @@ Management routes allow 120 requests per client address in a rolling one-minute 
 | `PUT`                  | `/configuration/import`                   | Atomically replace with a complete candidate         |
 | `GET`                  | `/configuration/export`                   | Download the active MockAPI document                 |
 | `GET`                  | `/configuration/export/{format}`          | Download a portable request/test artifact            |
-| `POST`                 | `/configuration/save`                     | Persist the active revision                          |
+| `POST`                 | `/configuration/save`                     | Retry persistence of the active revision             |
 | `GET`, `POST`          | `/endpoints`                              | List or create endpoint definitions                  |
 | `POST`                 | `/endpoints/bulk`                         | Atomically enable, disable, or delete endpoints      |
 | `GET`, `PUT`, `DELETE` | `/endpoints/{id}`                         | Read, replace, or delete one endpoint                |
@@ -147,7 +159,11 @@ The dashboard bundles the official color symbol from the [OpenAPI Initiative sty
 
 The response is OpenAPI **3.1.0** JSON, generated on each request from one immutable active configuration snapshot. By default, it downloads as an attachment named `mockapi.openapi.json`. Append `?download=false` to view it inline in the browser; `?download=true` explicitly requests an attachment. The optional `download` query parameter is supported by the portable-format export route. Portable exports send `Cache-Control: no-store`, and their ETag identifies the configuration revision. This is not a static file generated during build or deployment. Refresh an open JSON tab to retrieve subsequent changes.
 
-Successful runtime changes are reflected in the next export, including unsaved changes. Disabling or deleting an endpoint removes its operations; enabling an endpoint adds them. Failed validation or stale writes leave both the active endpoints and their exported definition unchanged. **Save** controls persistence across restarts, not OpenAPI generation. An export already in flight can represent the preceding snapshot when a concurrent edit completes.
+Applied runtime changes are reflected in the next export, including changes whose automatic save failed.
+Disabling or deleting an endpoint removes its operations; enabling an endpoint adds them. Failed validation
+or stale writes leave both the active endpoints and their exported definition unchanged. Automatic saving
+controls persistence across restarts, not OpenAPI generation. An export already in flight can represent the
+preceding snapshot when a concurrent edit completes.
 
 Only enabled endpoints appear. Operations have stable IDs derived from the endpoint ID and method. The export includes configured response statuses and body examples, including both success and `429` outcomes for rate-limited endpoints. Management and health routes are not included.
 

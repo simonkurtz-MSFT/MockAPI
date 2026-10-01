@@ -42,7 +42,7 @@ Whitespace and line breaks are preserved. Omitted or null metadata means no desc
 Use the circled information button at the right of an API header to preview its description on
 hover or keyboard focus. Click it or press Enter/Space to edit. Escape dismisses the preview or
 closes the editor. Applying an edit uses the revision captured when the editor opened; an outdated
-draft is rejected rather than overwriting newer changes. Select **Save** to persist the configuration.
+draft is rejected rather than overwriting newer changes. Applied edits are saved automatically.
 
 Each endpoint also has an information button beside its name instead of an inline description.
 Hover or focus to preview; activate it to open the endpoint editor. Both kinds of preview preserve
@@ -134,7 +134,18 @@ Set `response.behavior` to `abortConnection` to close the connection before any 
 
 `MockApi__ConfigurationPath` selects the persisted file. It defaults to `/data/mockapi.json` in the container. `MockApi__ConfigurationBlobUri` selects Blob persistence instead of the file, and `MockApi__ManagedIdentityClientId` identifies a user-assigned identity for `DefaultAzureCredential`. `MockApi__LogAnalyticsWorkspaceUri` optionally adds a **Log Analytics workspace** link to the dashboard footer. Both URI settings must use absolute HTTPS URLs. `MockApi__AllowEmptyConfiguration=true` permits startup when the selected file or blob is missing.
 
-Runtime edits affect routing immediately and remain marked as unsaved until the operator selects **Save**. File persistence writes and flushes a temporary file in the same directory, then atomically replaces the configured path. Blob persistence uploads the complete deterministic document as one replacement operation.
+Runtime edits affect routing immediately and automatically save the complete configuration. This includes
+endpoint creation, replacement, deletion, enable/disable and bulk operations, imports, applied built-in merges,
+and API description edits. File persistence writes and flushes a temporary file in the same directory, then
+atomically replaces the configured path. Blob persistence uploads the complete deterministic document as one
+replacement operation. Concurrent saves are serialized and converge on the latest active revision.
+
+If automatic saving fails, changes remain active but unsaved. The dashboard displays an error and enables
+**Retry save**; the management API returns a `500` `autosave-failed` problem with the current ETag.
+Retry persistence through **Retry save** or `POST /__mockapi/api/configuration/save` with that ETag, not by
+repeating the original mutation. A later successful configuration change also saves the complete active
+document, including previously unsaved changes. Validation failures, stale writes, conflict previews, and
+unchanged built-in merges do not trigger saving.
 
 The dashboard checks response bodies whose content type is `application/json` or uses a `+json` suffix. It prevents applying an endpoint when a non-empty JSON response body is malformed. Configuration files and management API payloads retain the raw response-body contract, including intentionally malformed JSON used to test client behavior.
 

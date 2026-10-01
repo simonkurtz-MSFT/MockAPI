@@ -135,7 +135,7 @@ wslc remove mockapi-dev
 
 The developer CLI uses the same one-second graceful shutdown window for `container-stop`. WSLC sends the container its normal termination signal and forces the stop only if the process has not exited after that window, avoiding the default five-second wait when graceful shutdown stalls.
 
-Repeat the `wslc run` command with `mockapi-data:/data` and confirm that explicitly saved configuration is restored.
+Repeat the `wslc run` command with `mockapi-data:/data` and confirm that automatically saved configuration is restored.
 
 ## Measured Image Footprint
 

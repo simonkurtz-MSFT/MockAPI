@@ -130,6 +130,28 @@ public sealed class ConfigurationManagementService(
         CancellationToken cancellationToken) =>
         store.SaveAsync(state, expectedRevision, cancellationToken);
 
+    /// <summary>Automatically persists active changes, including revisions that supersede an in-flight save.</summary>
+    /// <param name="cancellationToken">A token that cancels persistence I/O.</param>
+    /// <returns>A task completing when the current revision is confirmed persisted.</returns>
+    /// <exception cref="ConfigurationPersistenceException">Persistence fails; active changes remain unsaved.</exception>
+    public async Task AutoSaveAsync(CancellationToken cancellationToken)
+    {
+        while (state.Current.HasUnsavedChanges)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var revision = state.Current.Revision;
+            try
+            {
+                await store.SaveAsync(state, revision, cancellationToken);
+            }
+            catch (ConfigurationPersistenceException exception)
+                when (exception.Error == ConfigurationPersistenceError.RevisionConflict)
+            {
+                // Retry persistence, not the mutation: a newer active revision now owns the saved document.
+            }
+        }
+    }
+
     private static MergeAnalysis AnalyzeMerge(
         IReadOnlyList<MockEndpointDefinition> activeEndpoints,
         IReadOnlyList<MockEndpointDefinition> builtInEndpoints)

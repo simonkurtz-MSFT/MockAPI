@@ -233,6 +233,34 @@ test("API description editor owns revisions, pending controls, and late completi
   expect(await frame.evaluate(() => window.saves.length)).toBe(3);
 });
 
+test("configuration editors close applied drafts when automatic persistence fails", async ({ page, request }) => {
+  const frame = await createFixture(page, request);
+  await frame.evaluate(async (definition) => {
+    const { createDashboardEditorDialog } = await import("/dashboard-editor-dialog.js");
+    const { createApiDescriptionEditor } = await import("/dashboard-api-description.js");
+    window.editor = createDashboardEditorDialog({
+      documentRoot: document,
+      createId: () => definition.id,
+      copyToClipboard: async () => {},
+      onSave: async () => ({ kind: "applied-unsaved" }),
+    });
+    window.apiEditor = createApiDescriptionEditor({
+      documentRoot: document,
+      onSave: async () => ({ kind: "applied-unsaved" }),
+    });
+    window.editor.open(definition, '"1"');
+  }, endpoint);
+  await frame.getByRole("button", { name: "Apply endpoint" }).click();
+  await expect(frame.locator("#endpoint-dialog")).toBeHidden();
+  await frame.evaluate(() => window.apiEditor.open("/ex", "Active draft", '"2"'));
+  await frame.locator("#api-description-apply").click();
+  await expect(frame.locator("#api-description-dialog")).toBeHidden();
+  await frame.evaluate(() => {
+    window.editor.dispose();
+    window.apiEditor.dispose();
+  });
+});
+
 test("test blade owns batches and rejects completions from a closed or disposed opening", async ({ page, request }) => {
   const frame = await createFixture(page, request);
   await frame.evaluate(async (definition) => {

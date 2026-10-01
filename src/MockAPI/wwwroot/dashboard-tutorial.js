@@ -4,7 +4,8 @@ const TUTORIAL_STEPS = [
   {
     selector: ".command-bar",
     title: "Configure your workspace",
-    description: "Load examples, import a configuration, save changes, or create a new endpoint here.",
+    description:
+      "Load examples, import a configuration, or create a new endpoint here. Changes are saved automatically; use Retry save if saving fails.",
   },
   {
     selector: ".statistics-workspace",

@@ -35,8 +35,9 @@ Use this skill after publication, container, or release-related changes. Derive 
 
 Follow `docs/RELEASING.md` for the approval boundary. Validate `v<Version>` against its resolved
 commit and successful quality run before native builds. Automatic version tagging does not
-publish images; publication requires the opt-in variable and an explicitly approved manual run.
+publish images; the final quality job publishes reviewed Keep a Changelog GitHub notes, while
+container publication requires the opt-in variable and an explicitly approved manual run.
 Keep release SBOMs, scan output, resource observations, and image/index metadata as durable
-GitHub release assets after the exact tested index is published.
+assets on the existing GitHub release after the exact tested index is published, without replacing notes.
 
 Do not claim release readiness when a required check was inferred, unavailable, or skipped. Keep TLS termination outside the container and do not install troubleshooting tools in the final image.

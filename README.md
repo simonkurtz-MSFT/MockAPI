@@ -50,7 +50,7 @@ export ASPNETCORE_URLS='http://localhost:5080'
 3. Select **Test** on `/ex/hello`. Dashboard tests use the generated key automatically.
    External callers must send it in `X-MockAPI-Key`; opening a mock URL without that header returns `401`.
 4. Edit its response in the dashboard and repeat the test. No restart needed.
-5. Select **Save** after configuring [a writable file or volume](#22-run-directly-with-net) to keep your changes.
+5. Changes are saved automatically to your [writable file or volume](#22-run-directly-with-net). Use **Retry save** if saving fails.
 
 Press `Ctrl+C` to stop. [Readiness](http://localhost:5080/health/ready) returns HTTP `200` when the app is ready.
 Keep administrative access on localhost or a protected network unless you configure [authentication and HTTPS](#32-administrative-security).
@@ -308,7 +308,8 @@ export MockApi__AllowEmptyConfiguration='false'
 
 </details>
 
-Selecting **Save** in the dashboard updates that working copy.
+Dashboard changes automatically update that working copy. If saving fails, changes stay active but unsaved;
+restore write access and select **Retry save**.
 
 ### 2.3) Run a Local Container
 
@@ -406,7 +407,8 @@ curl -fsS -H "X-MockAPI-Key: $MOCKAPI_KEY" http://localhost:8080/ex/hello
 
 </details>
 
-Edit an endpoint and select **Save**. The configuration is written to `/data/mockapi.json` in the named volume and survives container restarts and recreation.
+Edit an endpoint; the configuration is automatically written to `/data/mockapi.json` in the named volume
+and survives container restarts and recreation. If saving fails, restore write access and select **Retry save**.
 
 Common lifecycle commands:
 
@@ -589,7 +591,8 @@ The same workflow applies to every execution model:
    Copy it before reloading; the server stores only its hash. Select **Test** on an endpoint, or call `/ex/hello`
    with the key in `X-MockAPI-Key`. Set `MOCKAPI_KEY` in the calling terminal for the request examples above.
 4. Edit, duplicate, enable, disable, or create an endpoint. Valid changes become active immediately.
-5. Select **Save** to write the complete active configuration to the selected persistence target.
+5. Changes are saved automatically to the selected persistence target. If saving fails, changes stay active
+   but unsaved; restore storage access and select **Retry save** without repeating the change.
 6. Restart or recreate the application and verify that the saved endpoint remains available.
 
 The built-in example merge adds missing endpoints, skips identical ones, preserves unrelated configuration, and requires explicit confirmation before replacing a conflicting example.

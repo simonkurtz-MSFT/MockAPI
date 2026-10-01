@@ -41,7 +41,7 @@ The new project should target .NET 10 and preserve the small, non-root, minimal-
 - Runtime CRUD and enable/disable operations through an internal management API.
 - Dashboard for endpoint management and statistics.
 - Startup loading from JSON.
-- Explicit save, import, and export operations.
+- Automatic configuration saving, explicit save retry, import, and export operations.
 - Schema validation before a configuration becomes active.
 - Dynamic mock dispatch without process restart.
 - Request matching by HTTP method and exact normalized path only.
@@ -180,8 +180,12 @@ JSON Schema validates document shape. A second semantic validator must detect cr
 - On startup, load and validate the configured file or blob when it exists.
 - Make missing-file behavior explicit through `MockApi__AllowEmptyConfiguration`; default to an empty valid registry for local use.
 - Fail startup on malformed or semantically invalid configured JSON rather than serving an unintended partial configuration.
-- Runtime edits update the active in-memory snapshot immediately and mark the configuration as having unsaved changes.
-- Persist runtime edits only through an explicit save command in the initial release. Do not autosave.
+- Runtime edits update the active in-memory snapshot immediately and automatically save the complete configuration.
+- Automatically persist endpoint CRUD, enable/disable and bulk changes, imports, applied built-in merges,
+  and API description edits. Validation failures, stale writes, conflict previews, and no-op merges do not save.
+- If automatic saving fails, retain the active revision as unsaved, return an explicit `autosave-failed`
+  problem, and offer **Retry save** without replaying the mutation. Keep saving independent of request
+  cancellation after activation. Serialized saves must converge on the latest active revision.
 - Save local files atomically by writing a temporary file in the same directory, flushing it, and replacing the target. Replace a configured blob with one complete upload.
 - Serialize deterministically for readable diffs: stable endpoint order, consistent property order, and indented JSON.
 - Import validates the entire candidate document and presents all actionable errors before replacement.
@@ -294,7 +298,7 @@ at 220px and align the collapse control with the first filter row when filters w
 - Filters for name, method, path, status, and enabled state.
 - Immediate validation with server-authoritative errors. The dashboard prevents applying a non-empty malformed
   response body when its content type identifies JSON, while direct configuration retains raw-body semantics.
-- Import, export, validate, save, and unsaved/persistence status controls.
+- Import, export, validate, automatic save, manual save retry, and unsaved/persistence status controls.
 - Load built-in example controls that report added and skipped endpoints, show a no-change result when everything is already present, and require a conflict preview plus explicit **Force update** confirmation before changing divergent entries.
 - Copyable endpoint URL and a compact request preview.
 
@@ -523,11 +527,14 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
 - Keep build and publish responsibilities separable so pull requests never require registry credentials and publishing can remain disabled until explicitly enabled.
 - Generate an SBOM, run vulnerability scanning, and retain per-architecture image metadata as release evidence before any image is published.
 - Keep the application version solely in the project file, not the private tooling package.
-  After successful quality validation, tag a version change on `main` as immutable `v<Version>`.
-  Preserve historical unprefixed tags. A version tag alone does not publish anything.
-- Require an explicitly approved manual release workflow, an opt-in repository variable, and
+  After successful quality validation, tag a version change on `main` as immutable `v<Version>`
+  and publish a GitHub release from its reviewed Keep a Changelog entry in `CHANGELOG.md`.
+  Validate the matching dated entry before creating the tag; never overwrite a published release.
+  Merging the reviewed version and changelog approves GitHub release metadata, not container publication.
+  Preserve historical unprefixed tags. Version tagging never implicitly publishes a container image.
+- Require an explicitly approved manual container release workflow, an opt-in repository variable, and
   successful quality evidence for the exact tagged commit. Build both native images from that
-  commit, publish the tested index, then publish GitHub release notes and durable evidence.
+  commit, publish the tested index, then attach durable evidence to the existing GitHub changelog release.
   Use a protected release environment when the repository's plan supports required reviewers.
 
 ### Public onboarding surfaces
@@ -611,7 +618,8 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
 
 - Use `MockAPI` as the product, repository, solution, and primary assembly name.
 - Support optional Basic authentication for management and dashboard routes. Require the username and PBKDF2-SHA256 password hash together; when both are absent, clearly warn that administrative routes are public and should remain on localhost or a protected network unless intentional public access is approved.
-- Persist runtime changes only when an operator explicitly saves them. Runtime changes remain active but visibly unsaved until save succeeds.
+- Automatically persist runtime configuration changes after immediate activation. If saving fails, changes
+  remain active but visibly unsaved until a subsequent automatic save or explicit **Retry save** succeeds.
 - Treat built-in example loading as an idempotent merge by stable endpoint ID, distinct from replacement import; require a conflict preview and explicit forced update before divergent built-in entries can replace active entries.
 - Match exact paths in the initial release while keeping the versioned endpoint contract open to future route templates and alternate path-matching modes.
 - Match requests by HTTP method and exact normalized path only in the initial release; query strings, request headers, and request bodies do not participate.

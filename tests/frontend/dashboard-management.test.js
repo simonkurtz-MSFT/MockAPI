@@ -186,6 +186,27 @@ describe("dashboard management command lifecycle", () => {
     expect(h.onError).not.toHaveBeenCalled();
   });
 
+  it.each([false, true])(
+    "reports an applied but unsaved change at page level without replaying the draft (refresh fails: %s)",
+    async (refreshFails) => {
+      const h = commandHarness();
+      const present = vi.fn();
+      const error = Object.assign(new Error("The change is active but unsaved. Retry save."), {
+        status: 500,
+        problem: { type: "https://mockapi.local/problems/autosave-failed" },
+      });
+      const action = vi.fn().mockRejectedValue(error);
+      if (refreshFails) h.synchronize.mockRejectedValue(new Error("Refresh failed"));
+
+      expect(await h.runner.run(action, present)).toEqual({ kind: "applied-unsaved" });
+      expect(h.onError).toHaveBeenCalledWith(error);
+      expect(present).not.toHaveBeenCalled();
+      expect(h.synchronize).toHaveBeenCalledTimes(1);
+      expect(action).toHaveBeenCalledTimes(1);
+      expect(h.onPendingChange.mock.calls).toEqual([[true], [false]]);
+    }
+  );
+
   it("reports refresh failure separately from the command failure", async () => {
     const h = commandHarness();
     const commandError = new Error("Mutation failed");

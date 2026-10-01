@@ -7,6 +7,7 @@ on:
       - ".devcontainer/**"
       - ".github/workflows/**"
       - ".dockerignore"
+      - "CHANGELOG.md"
       - "site/**"
       - "docs/images/01-dashboard-overview.png"
       - "config/**"
@@ -34,6 +35,7 @@ on:
       - ".devcontainer/**"
       - ".github/workflows/**"
       - ".dockerignore"
+      - "CHANGELOG.md"
       - "site/**"
       - "docs/images/01-dashboard-overview.png"
       - "config/**"
@@ -96,6 +98,8 @@ jobs:
       - run: dotnet restore MockAPI.slnx
       - name: Validate application version
         run: pnpm run validate:version
+      - name: Validate reviewed release notes
+        run: node scripts/release-notes.cjs check
       - name: Scan dependency vulnerabilities
         run: pnpm run validate:dependency-security
       - name: Frontend coverage
@@ -165,7 +169,7 @@ jobs:
           path: artifacts/playwright/**
 
   version-tag:
-    name: Tag validated version
+    name: Tag and release validated version
     needs: [coverage, browser-smoke, browser-chromium]
     if: >-
       github.ref == 'refs/heads/main' &&
@@ -185,9 +189,16 @@ jobs:
         with:
           node-version-file: .nvmrc
       - name: Create immutable tag only for a new version
+        id: version
         env:
           BEFORE_SHA: ${{ github.event.before }}
         run: node scripts/release-version.cjs tag
+      - name: Publish reviewed Keep a Changelog release notes
+        if: steps.version.outputs.decision != 'unchanged'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: node scripts/release-notes.cjs publish "$RELEASE_TAG"
 
   browser-chromium:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false

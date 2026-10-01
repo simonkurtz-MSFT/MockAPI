@@ -12,14 +12,16 @@
  * A 204 resolves to null. HTTP, network, cancellation, and malformed-JSON errors reject.
  */
 
-/** @typedef {{kind: "completed"|"failed"|"busy"}} CommandResult */
+/** @typedef {{kind: "completed"|"applied-unsaved"|"failed"|"busy"}} CommandResult */
 /** @typedef {(error: import("./dashboard-core.js").ManagementError) => void} ReportManagementError */
 
 /**
  * @typedef {object} DashboardCommandRunner
  * @property {(action: () => Promise<void>|void, reportError?: ReportManagementError) => Promise<CommandResult>} run
  * Runs one command through its authoritative refresh. The optional presenter handles action/busy errors;
- * refresh failures always reach the page-level presenter. Neither writes nor busy submissions are replayed.
+ * refresh failures and applied-but-unsaved changes always reach the page-level presenter.
+ * An applied-unsaved result closes an already-applied draft without presenting the save failure as success.
+ * Neither writes nor busy submissions are replayed.
  */
 
 /**
@@ -99,13 +101,18 @@ export function createDashboardCommandRunner({ synchronize, onError, onPendingCh
       try {
         await action();
       } catch (error) {
-        kind = "failed";
-        reportError(error);
+        if (error.status === 500 && error.problem?.type === "https://mockapi.local/problems/autosave-failed") {
+          kind = "applied-unsaved";
+          onError(error);
+        } else {
+          kind = "failed";
+          reportError(error);
+        }
       }
       try {
         await synchronize();
       } catch (error) {
-        kind = "failed";
+        if (kind !== "applied-unsaved") kind = "failed";
         onError(error);
       }
       return { kind };

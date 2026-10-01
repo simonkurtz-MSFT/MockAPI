@@ -45,7 +45,7 @@ test("keeps management commands pending through the authoritative refresh", asyn
   await expect(page.locator("#endpoint-dialog")).toBeHidden();
   await expect(page.locator(".endpoint-row")).toContainText("Refresh-bound command");
   await expect(page.locator("#load-example-button")).toBeEnabled();
-  await expect(page.locator("#save-button")).toBeEnabled();
+  await expect(page.locator("#save-button")).toBeDisabled();
   expect(writes).toHaveLength(1);
 });
 
@@ -183,7 +183,7 @@ test("preserves an open test blade through live edits and restores focus to the 
   await expect(row.getByRole("button", { name: "Test", exact: true })).toBeFocused();
 });
 
-test("@smoke dashboard synchronization is event-driven through idle time, external edits, and saves", async ({
+test("@smoke dashboard synchronization is event-driven through idle time, external edits, and automatic saves", async ({
   page,
   request,
 }) => {
@@ -207,13 +207,14 @@ test("@smoke dashboard synchronization is event-driven through idle time, extern
   const example = await (await request.get("/__mockapi/api/configuration/example")).json();
   await importDocument(request, example);
   await expect(page.locator(".endpoint-row")).not.toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Retry save", exact: true })).toBeDisabled();
   expect(reads).toEqual(["/__mockapi/api/endpoints", "/__mockapi/api/endpoints"]);
   const configuration = await (await request.get("/__mockapi/api/configuration")).json();
+  expect(configuration.hasUnsavedChanges).toBe(false);
   expect(
     (await request.post("/__mockapi/api/configuration/save", { headers: { "If-Match": configuration.etag } })).ok()
   ).toBe(true);
-  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Retry save", exact: true })).toBeDisabled();
   expect(reads).toEqual(["/__mockapi/api/endpoints", "/__mockapi/api/endpoints"]);
 });
 

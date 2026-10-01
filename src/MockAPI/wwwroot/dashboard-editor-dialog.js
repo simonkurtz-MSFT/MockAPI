@@ -331,7 +331,11 @@ export function createDashboardEditorDialog({ documentRoot, createId, copyToClip
         showFormError(formatProblem(error));
       }
     });
-    if (!disposed && generation === draftGeneration && result.kind === "completed") {
+    if (
+      !disposed &&
+      generation === draftGeneration &&
+      (result.kind === "completed" || result.kind === "applied-unsaved")
+    ) {
       elements["endpoint-dialog"].close();
     }
   }

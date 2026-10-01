@@ -6,7 +6,10 @@ Verify `/health/ready` first. If health succeeds but `/` returns `404`, ensure `
 
 ## Configuration Does Not Survive Restart
 
-Runtime changes are not automatically persisted. Select **Save** and confirm the dashboard no longer reports unsaved changes. Containers must mount a writable volume at `/data`; ephemeral container storage is lost during recreation.
+Runtime changes are saved automatically. If saving fails, they stay active but unsaved: check the displayed
+error, restore access to the configured file or Blob Storage, and select **Retry save**. A failed save does
+not undo the change, so do not repeat the original mutation. Containers must mount a writable volume at
+`/data`; ephemeral container storage is lost during recreation.
 
 ## A Write Returns 412 or 428
 

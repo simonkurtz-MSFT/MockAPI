@@ -15,6 +15,7 @@ public static class ManagementApiEndpoints
     internal const string RateLimitPolicyName = "management";
     private const string BasePath = "/__mockapi/api";
     private const string ProblemBase = "https://mockapi.local/problems/";
+    private const string AutoSaveDescription = " Changes activate immediately and are saved automatically. A 500 autosave-failed problem means the change is active but unsaved; retry persistence with configuration/save, not the mutation.";
     private static readonly ManagementJsonContext CompactJsonContext = new(
         new JsonSerializerOptions(ManagementJsonContext.Default.Options) { WriteIndented = false });
 
@@ -40,7 +41,7 @@ public static class ManagementApiEndpoints
             .RequireRateLimiting(RateLimitPolicyName);
 
         MapConfigurationEndpoints(group, service, configuration);
-        MapEndpointEndpoints(group, service);
+        MapEndpointEndpoints(group, service, configuration);
         MapStatisticsEndpoints(group, statistics);
         var dashboardEvents = new DashboardEventStream(app.Services.GetRequiredService<ConfigurationState>(), statistics);
         group.MapGet("/dashboard/events", (HttpContext context, CancellationToken _) => dashboardEvents.WriteAsync(context))
@@ -70,13 +71,14 @@ public static class ManagementApiEndpoints
                 group.MapPost("/configuration/example/merge", (HttpContext context, CancellationToken _) => MergeBuiltInConfigurationAsync(context, configuration, "example"))
                     .WithName("MergeBuiltInConfiguration")
                     .WithSummary("Merge the built-in example into the active configuration")
-                    .WithDescription("Requires the current strong ETag in If-Match. Use the force query parameter only after reviewing a conflict response.")
+                    .WithDescription("Requires the current strong ETag in If-Match. Use the force query parameter only after reviewing a conflict response." + AutoSaveDescription)
                     .Produces<BuiltInMergeResponse>(StatusCodes.Status200OK, "application/json")
                     .Produces<BuiltInMergeResponse>(StatusCodes.Status409Conflict, "application/json"),
                 StatusCodes.Status400BadRequest,
                 StatusCodes.Status412PreconditionFailed,
                 StatusCodes.Status422UnprocessableEntity,
-                StatusCodes.Status428PreconditionRequired);
+                StatusCodes.Status428PreconditionRequired,
+                StatusCodes.Status500InternalServerError);
 
         WithProblemResponses(
                 group.MapPost("/configuration/validate", (HttpContext context, CancellationToken _) => ValidateConfigurationAsync(context, configuration))
@@ -92,7 +94,7 @@ public static class ManagementApiEndpoints
                 group.MapPut("/configuration/import", (HttpContext context, CancellationToken _) => ImportConfigurationAsync(context, configuration))
                     .WithName("ImportConfiguration")
                     .WithSummary("Replace the active configuration")
-                    .WithDescription("Validates and atomically applies a complete configuration. Requires the current strong ETag in If-Match.")
+                    .WithDescription("Validates and atomically applies a complete configuration. Requires the current strong ETag in If-Match." + AutoSaveDescription)
                     .WithJsonRequestBody<MockApiConfigurationDocument>()
                     .Produces<ConfigurationStatusResponse>(StatusCodes.Status200OK, "application/json"),
                 StatusCodes.Status400BadRequest,
@@ -100,13 +102,14 @@ public static class ManagementApiEndpoints
                 StatusCodes.Status413PayloadTooLarge,
                 StatusCodes.Status415UnsupportedMediaType,
                 StatusCodes.Status422UnprocessableEntity,
-                StatusCodes.Status428PreconditionRequired);
+                StatusCodes.Status428PreconditionRequired,
+                StatusCodes.Status500InternalServerError);
 
         WithProblemResponses(
                 group.MapPut("/configuration/api-description", (HttpContext context, CancellationToken _) => SetApiDescriptionAsync(context, configuration))
                     .WithName("SetApiDescription")
                     .WithSummary("Edit a path-based API description")
-                    .WithDescription("Requires the current strong ETag in If-Match. Preserves all endpoints and other API descriptions. An empty description explicitly clears the displayed text.")
+                    .WithDescription("Requires the current strong ETag in If-Match. Preserves all endpoints and other API descriptions. An empty description explicitly clears the displayed text." + AutoSaveDescription)
                     .WithJsonRequestBody<ApiDescriptionRequest>()
                     .Produces<ConfigurationStatusResponse>(StatusCodes.Status200OK, "application/json"),
                 StatusCodes.Status400BadRequest,
@@ -114,7 +117,8 @@ public static class ManagementApiEndpoints
                 StatusCodes.Status413PayloadTooLarge,
                 StatusCodes.Status415UnsupportedMediaType,
                 StatusCodes.Status422UnprocessableEntity,
-                StatusCodes.Status428PreconditionRequired);
+                StatusCodes.Status428PreconditionRequired,
+                StatusCodes.Status500InternalServerError);
 
         group.MapGet("/configuration/export", (HttpContext context, CancellationToken _) => ExportConfigurationAsync(context, configuration))
             .WithName("ExportConfiguration")
@@ -133,7 +137,7 @@ public static class ManagementApiEndpoints
                 group.MapPost("/configuration/save", (HttpContext context, CancellationToken _) => SaveConfigurationAsync(context, configuration))
                     .WithName("SaveConfiguration")
                     .WithSummary("Persist the active configuration")
-                    .WithDescription("Persists one immutable snapshot and requires its current strong ETag in If-Match.")
+                    .WithDescription("Retries persistence of one immutable snapshot after an automatic save failure. Requires its current strong ETag in If-Match.")
                     .Produces<ConfigurationSaveResponse>(StatusCodes.Status200OK, "application/json"),
                 StatusCodes.Status400BadRequest,
                 StatusCodes.Status412PreconditionFailed,
@@ -141,7 +145,10 @@ public static class ManagementApiEndpoints
                 StatusCodes.Status500InternalServerError);
     }
 
-    private static void MapEndpointEndpoints(RouteGroupBuilder group, EndpointManagementService service)
+    private static void MapEndpointEndpoints(
+        RouteGroupBuilder group,
+        EndpointManagementService service,
+        ConfigurationManagementService configuration)
     {
         group.MapGet("/endpoints", (HttpContext context, CancellationToken _) => WriteEndpointsAsync(context, service))
             .WithName("GetEndpoints")
@@ -149,10 +156,10 @@ public static class ManagementApiEndpoints
             .Produces<MockEndpointDefinition[]>(StatusCodes.Status200OK, "application/json");
 
         WithProblemResponses(
-                group.MapPost("/endpoints/bulk", (HttpContext context, CancellationToken _) => ApplyBulkEndpointOperationAsync(context, service))
+                group.MapPost("/endpoints/bulk", (HttpContext context, CancellationToken _) => ApplyBulkEndpointOperationAsync(context, service, configuration))
                     .WithName("ApplyBulkEndpointOperation")
                     .WithSummary("Enable, disable, or delete multiple endpoints")
-                    .WithDescription("Applies the operation atomically and requires the current strong ETag in If-Match.")
+                    .WithDescription("Applies the operation atomically and requires the current strong ETag in If-Match." + AutoSaveDescription)
                     .WithJsonRequestBody<BulkEndpointRequest>()
                     .Produces(StatusCodes.Status204NoContent),
                 StatusCodes.Status400BadRequest,
@@ -161,7 +168,8 @@ public static class ManagementApiEndpoints
                 StatusCodes.Status413PayloadTooLarge,
                 StatusCodes.Status415UnsupportedMediaType,
                 StatusCodes.Status422UnprocessableEntity,
-                StatusCodes.Status428PreconditionRequired);
+                StatusCodes.Status428PreconditionRequired,
+                StatusCodes.Status500InternalServerError);
 
         WithProblemResponses(
                 group.MapGet("/endpoints/{id:guid}", (HttpContext context, CancellationToken _) => WriteEndpointAsync(context, service))
@@ -171,10 +179,10 @@ public static class ManagementApiEndpoints
                 StatusCodes.Status404NotFound);
 
         WithProblemResponses(
-                group.MapPost("/endpoints", (HttpContext context, CancellationToken _) => CreateEndpointAsync(context, service))
+                group.MapPost("/endpoints", (HttpContext context, CancellationToken _) => CreateEndpointAsync(context, service, configuration))
                     .WithName("CreateEndpoint")
                     .WithSummary("Create a mock endpoint")
-                    .WithDescription("Atomically creates an endpoint and requires the current strong ETag in If-Match.")
+                    .WithDescription("Atomically creates an endpoint and requires the current strong ETag in If-Match." + AutoSaveDescription)
                     .WithJsonRequestBody<MockEndpointDefinition>()
                     .Produces<MockEndpointDefinition>(StatusCodes.Status201Created, "application/json"),
                 StatusCodes.Status400BadRequest,
@@ -183,13 +191,14 @@ public static class ManagementApiEndpoints
                 StatusCodes.Status413PayloadTooLarge,
                 StatusCodes.Status415UnsupportedMediaType,
                 StatusCodes.Status422UnprocessableEntity,
-                StatusCodes.Status428PreconditionRequired);
+                StatusCodes.Status428PreconditionRequired,
+                StatusCodes.Status500InternalServerError);
 
         WithProblemResponses(
-                group.MapPut("/endpoints/{id:guid}", (HttpContext context, CancellationToken _) => ReplaceEndpointAsync(context, service))
+                group.MapPut("/endpoints/{id:guid}", (HttpContext context, CancellationToken _) => ReplaceEndpointAsync(context, service, configuration))
                     .WithName("ReplaceEndpoint")
                     .WithSummary("Replace a mock endpoint")
-                    .WithDescription("Atomically replaces an endpoint and requires the current strong ETag in If-Match.")
+                    .WithDescription("Atomically replaces an endpoint and requires the current strong ETag in If-Match." + AutoSaveDescription)
                     .WithJsonRequestBody<MockEndpointDefinition>()
                     .Produces<MockEndpointDefinition>(StatusCodes.Status200OK, "application/json"),
                 StatusCodes.Status400BadRequest,
@@ -199,13 +208,14 @@ public static class ManagementApiEndpoints
                 StatusCodes.Status413PayloadTooLarge,
                 StatusCodes.Status415UnsupportedMediaType,
                 StatusCodes.Status422UnprocessableEntity,
-                StatusCodes.Status428PreconditionRequired);
+                StatusCodes.Status428PreconditionRequired,
+                StatusCodes.Status500InternalServerError);
 
         WithProblemResponses(
-                group.MapPut("/endpoints/{id:guid}/enabled", (HttpContext context, CancellationToken _) => SetEnabledAsync(context, service))
+                group.MapPut("/endpoints/{id:guid}/enabled", (HttpContext context, CancellationToken _) => SetEnabledAsync(context, service, configuration))
                     .WithName("SetEndpointEnabled")
                     .WithSummary("Enable or disable a mock endpoint")
-                    .WithDescription("Atomically updates the enabled state and requires the current strong ETag in If-Match.")
+                    .WithDescription("Atomically updates the enabled state and requires the current strong ETag in If-Match." + AutoSaveDescription)
                     .WithJsonRequestBody<EndpointEnabledRequest>()
                     .Produces<MockEndpointDefinition>(StatusCodes.Status200OK, "application/json"),
                 StatusCodes.Status400BadRequest,
@@ -214,18 +224,20 @@ public static class ManagementApiEndpoints
                 StatusCodes.Status413PayloadTooLarge,
                 StatusCodes.Status415UnsupportedMediaType,
                 StatusCodes.Status422UnprocessableEntity,
-                StatusCodes.Status428PreconditionRequired);
+                StatusCodes.Status428PreconditionRequired,
+                StatusCodes.Status500InternalServerError);
 
         WithProblemResponses(
-                group.MapDelete("/endpoints/{id:guid}", (HttpContext context, CancellationToken _) => DeleteEndpointAsync(context, service))
+                group.MapDelete("/endpoints/{id:guid}", (HttpContext context, CancellationToken _) => DeleteEndpointAsync(context, service, configuration))
                     .WithName("DeleteEndpoint")
                     .WithSummary("Delete a mock endpoint")
-                    .WithDescription("Atomically deletes an endpoint and requires the current strong ETag in If-Match.")
+                    .WithDescription("Atomically deletes an endpoint and requires the current strong ETag in If-Match." + AutoSaveDescription)
                     .Produces(StatusCodes.Status204NoContent),
                 StatusCodes.Status400BadRequest,
                 StatusCodes.Status404NotFound,
                 StatusCodes.Status412PreconditionFailed,
-                StatusCodes.Status428PreconditionRequired);
+                StatusCodes.Status428PreconditionRequired,
+                StatusCodes.Status500InternalServerError);
     }
 
     private static void MapStatisticsEndpoints(RouteGroupBuilder group, RequestStatisticsCollector statistics)
@@ -330,6 +342,17 @@ public static class ManagementApiEndpoints
         }
 
         var snapshot = result.Snapshot!;
+        if (result.Status == BuiltInMergeStatus.Applied)
+        {
+            var saved = await AutoSaveConfigurationAsync(context, service, snapshot);
+            if (saved is null)
+            {
+                return;
+            }
+
+            snapshot = saved;
+        }
+
         SetETag(context, snapshot);
         await WriteJsonAsync(
             context,
@@ -440,11 +463,17 @@ public static class ManagementApiEndpoints
             return;
         }
 
-        SetETag(context, result.Snapshot!);
+        var snapshot = await AutoSaveConfigurationAsync(context, service, result.Snapshot!);
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        SetETag(context, snapshot);
         await WriteJsonAsync(
             context,
             StatusCodes.Status200OK,
-            ConfigurationStatusResponse.FromSnapshot(result.Snapshot!),
+            ConfigurationStatusResponse.FromSnapshot(snapshot),
             ManagementJsonContext.Default.ConfigurationStatusResponse);
     }
 
@@ -521,6 +550,33 @@ public static class ManagementApiEndpoints
                 "Configuration save failed",
                 "The active configuration could not be saved to the configured persistence location.",
                 service.Current);
+        }
+    }
+
+    private static async Task<ConfigurationStateSnapshot?> AutoSaveConfigurationAsync(
+        HttpContext context,
+        ConfigurationManagementService service,
+        ConfigurationStateSnapshot applied)
+    {
+        try
+        {
+            // Once activated, persistence must finish even if the originating browser disconnects.
+            await service.AutoSaveAsync(CancellationToken.None);
+            return applied.WithUnsavedChanges(hasUnsavedChanges: false);
+        }
+        catch (ConfigurationPersistenceException exception)
+        {
+            context.RequestServices.GetRequiredService<ILogger<ConfigurationManagementService>>()
+                .LogError("Automatic configuration save failed at revision {Revision}: {Error}",
+                    service.Current.Revision, exception.Error);
+            await WriteProblemAsync(
+                context,
+                StatusCodes.Status500InternalServerError,
+                "autosave-failed",
+                "Automatic configuration save failed",
+                "The configuration change is active, but automatic saving failed. Changes remain unsaved. Retry save to persist the current configuration; do not repeat the change.",
+                service.Current);
+            return null;
         }
     }
 
@@ -623,7 +679,8 @@ public static class ManagementApiEndpoints
             ManagementJsonContext.Default.MockEndpointDefinition);
     }
 
-    private static async Task CreateEndpointAsync(HttpContext context, EndpointManagementService service)
+    private static async Task CreateEndpointAsync(
+        HttpContext context, EndpointManagementService service, ConfigurationManagementService configuration)
     {
         var expectedRevision = await ReadExpectedRevisionAsync(context, service);
         if (expectedRevision is null)
@@ -646,7 +703,13 @@ public static class ManagementApiEndpoints
             return;
         }
 
-        SetETag(context, result.Snapshot!);
+        var snapshot = await AutoSaveConfigurationAsync(context, configuration, result.Snapshot!);
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        SetETag(context, snapshot);
         context.Response.Headers.Location = $"{BasePath}/endpoints/{endpoint.Id}";
         await WriteJsonAsync(
             context,
@@ -655,7 +718,8 @@ public static class ManagementApiEndpoints
             ManagementJsonContext.Default.MockEndpointDefinition);
     }
 
-    private static async Task ReplaceEndpointAsync(HttpContext context, EndpointManagementService service)
+    private static async Task ReplaceEndpointAsync(
+        HttpContext context, EndpointManagementService service, ConfigurationManagementService configuration)
     {
         var expectedRevision = await ReadExpectedRevisionAsync(context, service);
         if (expectedRevision is null)
@@ -678,7 +742,13 @@ public static class ManagementApiEndpoints
             return;
         }
 
-        SetETag(context, result.Snapshot!);
+        var snapshot = await AutoSaveConfigurationAsync(context, configuration, result.Snapshot!);
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        SetETag(context, snapshot);
         await WriteJsonAsync(
             context,
             StatusCodes.Status200OK,
@@ -686,7 +756,8 @@ public static class ManagementApiEndpoints
             ManagementJsonContext.Default.MockEndpointDefinition);
     }
 
-    private static async Task SetEnabledAsync(HttpContext context, EndpointManagementService service)
+    private static async Task SetEnabledAsync(
+        HttpContext context, EndpointManagementService service, ConfigurationManagementService configuration)
     {
         var expectedRevision = await ReadExpectedRevisionAsync(context, service);
         if (expectedRevision is null)
@@ -709,7 +780,13 @@ public static class ManagementApiEndpoints
             return;
         }
 
-        SetETag(context, result.Snapshot!);
+        var snapshot = await AutoSaveConfigurationAsync(context, configuration, result.Snapshot!);
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        SetETag(context, snapshot);
         await WriteJsonAsync(
             context,
             StatusCodes.Status200OK,
@@ -717,7 +794,8 @@ public static class ManagementApiEndpoints
             ManagementJsonContext.Default.MockEndpointDefinition);
     }
 
-    private static async Task DeleteEndpointAsync(HttpContext context, EndpointManagementService service)
+    private static async Task DeleteEndpointAsync(
+        HttpContext context, EndpointManagementService service, ConfigurationManagementService configuration)
     {
         var expectedRevision = await ReadExpectedRevisionAsync(context, service);
         if (expectedRevision is null)
@@ -732,11 +810,18 @@ public static class ManagementApiEndpoints
             return;
         }
 
-        SetETag(context, result.Snapshot!);
+        var snapshot = await AutoSaveConfigurationAsync(context, configuration, result.Snapshot!);
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        SetETag(context, snapshot);
         context.Response.StatusCode = StatusCodes.Status204NoContent;
     }
 
-    private static async Task ApplyBulkEndpointOperationAsync(HttpContext context, EndpointManagementService service)
+    private static async Task ApplyBulkEndpointOperationAsync(
+        HttpContext context, EndpointManagementService service, ConfigurationManagementService configuration)
     {
         var expectedRevision = await ReadExpectedRevisionAsync(context, service);
         if (expectedRevision is null)
@@ -795,7 +880,13 @@ public static class ManagementApiEndpoints
             return;
         }
 
-        SetETag(context, result.Snapshot!);
+        var snapshot = await AutoSaveConfigurationAsync(context, configuration, result.Snapshot!);
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        SetETag(context, snapshot);
         context.Response.StatusCode = StatusCodes.Status204NoContent;
     }
 

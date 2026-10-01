@@ -16,6 +16,10 @@ applyTo: "**/*.{cs,csproj,sln,props,targets}"
 - Route every runtime or management configuration mutation through `ConfigurationState`; do not publish routes independently of the active document and revision.
 - Load persisted configuration before serving requests, fail startup for required malformed or invalid files, and save by replacing a flushed same-directory temporary file.
 - Capture one configuration snapshot per save and clear its dirty state only when that revision is still current.
+- Automatically save every applied management configuration mutation, including imports, built-in merges,
+  bulk changes, and API descriptions. Activate immediately; on persistence failure keep changes active and
+  dirty, return an explicit `autosave-failed` problem, and offer manual save retry without replaying the mutation.
+  Serialize saves through the configured store and persist a superseding revision rather than overwriting it.
 - Keep request dispatch free of persistence and management concerns.
 - Require the instance API key before the mock dispatcher by default; leave health probes public.
   Security Settings require configured administrator credentials even when other administration is anonymous.
