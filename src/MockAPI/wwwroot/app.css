@@ -1099,6 +1099,7 @@ td {
   gap: 6px;
   font: inherit;
   text-transform: inherit;
+  white-space: nowrap;
 }
 .sort-button:hover {
   background: var(--cp-accent-soft);
@@ -2361,6 +2362,9 @@ html[data-theme="dark"] button:disabled {
   html[data-dashboard-layout="columns"] .table-wrap th,
   html[data-dashboard-layout="columns"] .table-wrap td {
     padding-inline: 8px;
+  }
+  html[data-dashboard-layout="columns"] .table-wrap .sortable-header {
+    padding-inline: 0;
   }
   html[data-dashboard-layout="columns"] .table-wrap th:nth-child(1) {
     width: 34px;

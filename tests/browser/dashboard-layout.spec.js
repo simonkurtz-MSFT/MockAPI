@@ -66,6 +66,19 @@ test("places the visible command groups at the left above Endpoints and flush wi
   }
 });
 
+test("keeps endpoint column headers on one line in the columns layout", async ({ page }) => {
+  await page.setViewportSize({ width: 2500, height: 1000 });
+  await expect(page.locator("html")).toHaveAttribute("data-dashboard-layout", "columns");
+
+  const headerButtons = page.locator(".table-wrap thead .sort-button");
+  const buttonHeights = await headerButtons.evaluateAll((buttons) =>
+    buttons.map((button) => button.getBoundingClientRect().height)
+  );
+
+  expect(buttonHeights).toHaveLength(7);
+  expect(buttonHeights.every((height) => height <= 41)).toBe(true);
+});
+
 for (const scenario of [
   {
     name: "saved collapsed panels",
