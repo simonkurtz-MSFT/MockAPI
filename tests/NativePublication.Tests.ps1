@@ -22,8 +22,11 @@ Assert-True ($releaseWorkflow.Contains('environment: release')) 'Registry secret
 Assert-True (([regex]::Matches($releaseWorkflow, 'ref: \$\{\{ needs\.preflight\.outputs\.commit \}\}')).Count -eq 2) 'Native build and publication must both check out the resolved tag commit.'
 Assert-True ($releaseWorkflow.Contains('actions/workflows/quality.yml/runs?head_sha=')) 'Publication must require quality evidence for the exact release commit.'
 Assert-True ($releaseWorkflow.Contains('ignore-unfixed: false')) 'Unfixed high and critical vulnerabilities must block publication.'
-Assert-True ($releaseWorkflow.Contains('gh release create "$IMAGE_TAG" --verify-tag')) 'GitHub releases must use the existing validated tag.'
-Assert-True ($releaseWorkflow.Contains('--prerelease --latest=false')) 'Prereleases must never become the latest stable GitHub release.'
+Assert-True ($releaseWorkflow.Contains('node scripts/release-notes.cjs verify "$IMAGE_TAG"')) 'Container publication must verify the existing release for the validated tag.'
+Assert-True ($releaseWorkflow.IndexOf('node scripts/release-notes.cjs verify "$IMAGE_TAG"') -lt $releaseWorkflow.IndexOf('docker login')) 'The existing release must be verified before registry login or image publication.'
+Assert-True ($releaseWorkflow.Contains('gh release upload "$IMAGE_TAG" --repo "$GITHUB_REPOSITORY"')) 'Container publication must attach evidence to the existing GitHub release.'
+Assert-True ($releaseWorkflow -notmatch 'gh release (create|edit)|release-notes\.cjs publish') 'GitHub release creation and notes must remain owned by the quality workflow.'
+Assert-True ($releaseWorkflow -notmatch '--generate-notes|--clobber') 'Container publication must not replace reviewed release notes or existing evidence assets.'
 Assert-True ($releaseWorkflow -notmatch '(?m)^  release:') 'GitHub release creation must not recursively trigger container publication.'
 foreach ($workflowName in @('container-pr.yml', 'container-release.yml')) {
   $workflow = Get-Content -LiteralPath (Join-Path $repositoryRoot ".github/workflows/$workflowName") -Raw
