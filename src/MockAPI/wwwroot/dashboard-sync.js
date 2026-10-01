@@ -114,16 +114,15 @@ export function createDashboardSynchronizer({
     endpointWork = (async () => {
       while (active(epoch) && configuration && endpointsRevision !== configuration.revision) {
         const target = configuration;
-        const sequence = configurationSequence;
         try {
           const endpoints = await request("/endpoints", { signal, expectedEtag: target.etag });
           if (!active(epoch)) return;
-          if (configurationSequence !== sequence) continue;
+          if (configuration.revision !== target.revision) continue;
           endpointsRevision = target.revision;
           onEndpoints(endpoints);
         } catch (error) {
           if (!active(epoch)) return;
-          if (configurationSequence !== sequence) continue;
+          if (configuration.revision !== target.revision) continue;
           throw error;
         }
       }

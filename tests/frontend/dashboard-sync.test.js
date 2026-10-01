@@ -160,6 +160,21 @@ describe("event-driven dashboard synchronization", () => {
     expect(h.callbacks.endpoints).toHaveBeenLastCalledWith([{ id: "endpoint-2" }]);
   });
 
+  it("accepts an in-flight endpoint response across a save-only notification", async () => {
+    const h = harness();
+    await h.connect();
+    h.request.mockClear();
+    const pending = deferred();
+    h.request.mockReturnValueOnce(pending.promise);
+    h.streams[0].emit("configuration", status(2, true));
+    h.streams[0].emit("configuration", status(2));
+    pending.resolve([{ id: "endpoint-2" }]);
+    await flush();
+    expect(h.request.mock.calls.map(([path]) => path)).toEqual(["/endpoints"]);
+    expect(h.callbacks.endpoints).toHaveBeenLastCalledWith([{ id: "endpoint-2" }]);
+    expect(h.callbacks.configuration).toHaveBeenLastCalledWith(status(2));
+  });
+
   it("uses one completion-scheduled fallback and stops it on stream recovery", async () => {
     const h = harness();
     await h.connect();

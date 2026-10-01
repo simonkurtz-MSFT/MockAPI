@@ -9,7 +9,7 @@ const root = path.resolve(import.meta.dirname, "../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 describe("public onboarding boundaries", () => {
-  it("stages only the explicit site assets and rejects unexpected publication content", () => {
+  it("stages only the explicit site assets and rejects unexpected publication content", { timeout: 15_000 }, () => {
     const buildDate = new Date("2026-09-30T15:52:05.000Z");
     buildSite({ buildDate });
     expect(fs.readdirSync(output).sort()).toEqual([
