@@ -150,7 +150,7 @@ public sealed class ConfigurationStartupTests : IDisposable
         Assert.Equal("unknown", MockApiHostConfiguration.GetRateLimitPartitionKey(unknown));
         Assert.Equal("127.0.0.1", MockApiHostConfiguration.GetRateLimitPartitionKey(known));
         Assert.Throws<ArgumentNullException>(() => MockApiHostConfiguration.GetRateLimitPartitionKey(null!));
-        Assert.Equal("1.0.1", MockApiHostConfiguration.GetVersion(typeof(Program).Assembly));
+        SemanticVersionAssert.IsValid(MockApiHostConfiguration.GetVersion(typeof(Program).Assembly));
         Assert.Equal(TimeSpan.Zero, MockApiHostConfiguration.GetBuildDate(typeof(Program).Assembly).Offset);
         Assert.Throws<InvalidOperationException>(() => MockApiHostConfiguration.GetVersion(dynamicAssembly));
         Assert.Throws<InvalidOperationException>(() => MockApiHostConfiguration.GetBuildDate(dynamicAssembly));

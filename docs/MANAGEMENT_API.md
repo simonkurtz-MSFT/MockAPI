@@ -166,6 +166,8 @@ controls persistence across restarts, not OpenAPI generation. An export already 
 preceding snapshot when a concurrent edit completes.
 
 Only enabled endpoints appear. Operations have stable IDs derived from the endpoint ID and method. The export includes configured response statuses and body examples, including both success and `429` outcomes for rate-limited endpoints. Management and health routes are not included.
+The exported `info.version` comes from MockAPI's assembly application version; it is independent of
+the OpenAPI protocol version and configuration `schemaVersion`.
 
 The `info.version` field is not a configuration revision. Use the response ETag to detect configuration changes, fetch a fresh export before importing, and avoid configuring a proxy cache in front of this administrative route. Previously downloaded files do not update themselves.
 

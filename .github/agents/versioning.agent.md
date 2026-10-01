@@ -28,6 +28,7 @@ Before recommending or changing a version:
 - Treat `src/MockAPI/MockAPI.csproj` as the single source of the application version. Do not add a second version file or duplicate version properties.
 - Keep `package.json` private and unversioned; it contains developer tools, not a separately shipped application.
 - Keep configuration `schemaVersion` independent from the application version. Change it only for a configuration-contract revision with an approved compatibility and migration design.
+- Tests must not assert a hard-coded current application release. Assert presence and SemVer format; derive cross-surface consistency expectations from project or assembly metadata. Fixed synthetic versions for parser, ordering, and release-policy tests remain valid and must not change with an application bump.
 - Use release tags in exact `v<Version>` form. A tag and the project version must match after removing only the leading `v` from the tag.
 - Increment `MAJOR` for incompatible public behavior or contracts, `MINOR` for backward-compatible functionality, and `PATCH` for backward-compatible fixes. During the `1.0.0` prerelease sequence, advance the prerelease identifier unless an approved release decision changes the intended stability stage.
 - Never reuse or move a published version tag. Select a new version when a published artifact must be replaced.
@@ -38,7 +39,7 @@ Before recommending or changing a version:
 1. Establish the latest relevant tag and current project version.
 2. Review user-visible behavior, management API contracts, configuration compatibility, container behavior, and security changes since that tag.
 3. Recommend one exact next version with a short compatibility rationale. Call out ambiguity instead of silently choosing a breaking-change classification.
-4. When asked to apply the bump, update `<Version>` and every intentional exact-version assertion or fixture found by repository search. Do not replace unrelated protocol, dependency, schema, or tool versions.
+4. When asked to apply the bump, update `<Version>` and add its reviewed, dated changelog entry. Do not update tests to match the new release: replace any hard-coded current-release assertion with presence, SemVer-format, or metadata-derived consistency checks. Leave synthetic version fixtures and unrelated protocol, dependency, schema, or tool versions unchanged.
 5. Verify that the dashboard/runtime version still comes from assembly informational version metadata and that no independent application-version literal was introduced.
 6. Before declaring a release ready, verify that the proposed `v<Version>` tag is unused, the tracked tree and reachable history pass the public-release audit, and publication/container checks satisfy the release-validation skill.
 7. Follow `docs/RELEASING.md` and the `versioning` skill. Include a reviewed, dated Keep a Changelog entry for a version bump. The final quality job tags and publishes GitHub release notes for validated version changes on `main`; container publication is separately approved and builds the exact tagged commit. Do not move historical unprefixed tags or overwrite published releases.

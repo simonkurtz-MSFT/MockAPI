@@ -14,8 +14,11 @@ description: Select, apply, or validate a MockAPI semantic application version, 
 4. Recommend one exact SemVer version with a compatibility rationale. During the 1.0 prerelease
    sequence, advance the prerelease identifier unless the user approves a different stability stage.
    Do not promote to `1.0.0` merely because release infrastructure is ready.
-5. Apply a bump only when requested. Search for intentional version assertions and update them;
-   add its reviewed, dated Keep a Changelog entry in `CHANGELOG.md`.
+5. Apply a bump only when requested and add its reviewed, dated Keep a Changelog entry in `CHANGELOG.md`.
+   Tests must assert application-version presence and SemVer format, not a hard-coded current release.
+   Derive cross-surface consistency expectations from project or assembly metadata. Replace any
+   current-release literal assertion with these checks rather than updating it to the next version.
+   Keep synthetic parser, ordering, and release-policy version fixtures unchanged; bumps need no test edits.
    Do not update examples to an image tag that has not been published.
 6. Run `node scripts/release-version.cjs check`, `node scripts/release-notes.cjs check`, and the
    focused release-version and release-notes tests, then the

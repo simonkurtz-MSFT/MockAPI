@@ -71,10 +71,17 @@ test("creates, edits, disables, and deletes an endpoint", async ({ page }) => {
   const row = page.getByRole("row", { name: /Browser endpoint/ });
   await expect(row).toBeVisible();
   await expect(row.getByText("Created through the dashboard", { exact: true })).toBeHidden();
-  await row.getByRole("button", { name: "Endpoint information for Browser endpoint", exact: true }).hover();
+  const informationButton = row.getByRole("button", {
+    name: "Endpoint information for Browser endpoint",
+    exact: true,
+  });
+  await informationButton.hover();
   await expect(row.getByText("Created through the dashboard", { exact: true })).toBeVisible();
-  await expect(row.locator(".endpoint-id")).toHaveText(/^ID [0-9a-f]{8}$/);
-  await expect(row.locator(".endpoint-id")).toHaveAttribute("title", /^Stable endpoint ID: [0-9a-f-]{36}$/);
+  await expect(row.locator(".endpoint-id")).toHaveCount(0);
+  await expect(row.locator(".api-description-detail")).toHaveText(/^Operation ID: [0-9a-f-]{36}$/);
+  await expect(informationButton).toHaveCSS("display", "flex");
+  await expect(informationButton).toHaveCSS("align-items", "center");
+  await expect(informationButton).toHaveCSS("justify-content", "center");
 
   await row.getByRole("button", { name: "Edit" }).click();
   await page.locator("#field-name").fill("Edited browser endpoint");

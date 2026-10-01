@@ -1160,6 +1160,10 @@ tbody tr:hover {
   font-family: Georgia, serif;
   font-size: 17px;
   font-weight: bold;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .api-description-button:hover {
   background: #004578;
@@ -1188,6 +1192,11 @@ tbody tr:hover {
 }
 .api-description-tooltip small {
   color: var(--cp-text-muted);
+}
+.api-description-detail {
+  display: block;
+  margin-bottom: 8px;
+  font-family: var(--cp-font-mono);
 }
 #api-description-text {
   width: 100%;
@@ -1270,10 +1279,6 @@ tbody tr:hover {
 }
 .endpoint-name-heading .api-description-button {
   margin: 0;
-}
-.endpoint-id {
-  color: var(--cp-text-muted);
-  font-family: var(--cp-font-mono);
 }
 .method-list {
   display: flex;

@@ -261,10 +261,10 @@ export function createDashboardEndpointTable({
 
   /**
    * Shares plain-text previews and their listener lifecycle between API groups and endpoints.
-   * @param {{id: string, title: string, description: string, label: string, onActivate: () => void}} options Preview content and editor action.
+   * @param {{id: string, title: string, description: string, label: string, detail?: string, onActivate: () => void}} options Preview content and editor action.
    * @returns {{info: HTMLButtonElement, tooltip: HTMLDivElement}} Nodes owned by the current row render.
    */
-  function createDescriptionControl({ id, title, description, label, onActivate }) {
+  function createDescriptionControl({ id, title, description, label, detail, onActivate }) {
     const info = makeElement("button", "api-description-button", "i");
     info.type = "button";
     info.setAttribute("aria-label", label);
@@ -273,11 +273,9 @@ export function createDashboardEndpointTable({
     tooltip.setAttribute("role", "tooltip");
     tooltip.setAttribute("popover", "manual");
     // Configuration is untrusted text, never HTML or executable JavaScript.
-    tooltip.append(
-      makeElement("strong", null, title),
-      makeElement("p", null, description),
-      makeElement("small", null, "Activate the information button to edit.")
-    );
+    tooltip.append(makeElement("strong", null, title), makeElement("p", null, description));
+    if (detail) tooltip.append(makeElement("small", "api-description-detail", detail));
+    tooltip.append(makeElement("small", null, "Activate the information button to edit."));
     info.setAttribute("aria-describedby", tooltip.id);
     function showDescription() {
       const bounds = info.getBoundingClientRect();
@@ -342,14 +340,12 @@ export function createDashboardEndpointTable({
       title: endpoint.name,
       description: endpoint.description || "No endpoint description yet.",
       label: `Endpoint information for ${endpoint.name}`,
+      detail: `Operation ID: ${endpoint.id}`,
       onActivate: () => onEdit(endpoint),
     });
     info.dataset.endpointFocus = `${endpoint.id}:info`;
     heading.append(makeElement("strong", null, endpoint.name), info);
     name.append(heading, tooltip);
-    const endpointId = makeElement("small", "endpoint-id", `ID ${endpoint.id.slice(0, 8)}`);
-    endpointId.title = `Stable endpoint ID: ${endpoint.id}`;
-    name.append(endpointId);
     nameCell.append(name);
 
     const methodCell = document.createElement("td");

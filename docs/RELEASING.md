@@ -1,8 +1,39 @@
 # Versioning and Releases
 
-MockAPI's stable 1.0.1 application version is approved. This version decision does not publish a
-release or replace the quality, public-release audit, native image validation, and publication
-approval gates below.
+MockAPI's next stable application version is 1.1.0. This version decision does not publish a release
+or replace the quality, public-release audit, native image validation, and publication approval
+gates below.
+
+## 1.1.0 release summary
+
+The planned release date is **2026-10-01**, with the immutable tag **`v1.1.0`**.
+The [1.1.0 changelog entry](../CHANGELOG.md#110---2026-10-01) supplies the GitHub release notes.
+
+- Configuration changes save automatically after activation, including endpoint edits, bulk
+  operations, imports, applied built-in merges, and API descriptions. The dashboard offers
+  **Retry save** when persistence fails.
+- Exported OpenAPI `info.version` derives from assembly application metadata rather than a
+  hard-coded release. It remains independent of the OpenAPI protocol version and configuration revision.
+- Endpoint table column headers stay on one line with consistent padding in the columns layout.
+- Version assertions and project instructions now avoid release-specific test literals; version
+  bumps do not require test updates.
+- Release automation validates dated changelog notes before tagging. Separately approved container
+  publication attaches evidence to the existing GitHub release without replacing its notes.
+
+### Compatibility and upgrade behavior
+
+Automatic configuration saving adds functionality without changing the configuration schema
+(`schemaVersion: "1.0"`) or existing routes, so 1.1.0 is a minor release.
+Existing configuration documents remain supported.
+
+Management clients must handle a `500` problem with type `autosave-failed` as an **already-active
+change**, not a rejected mutation. The active configuration remains unsaved; retry persistence
+through `POST /__mockapi/api/configuration/save` with the current strong ETag in `If-Match`, rather
+than replaying the mutation. A subsequent successful configuration write also saves previously
+unsaved changes. See [management API behavior](MANAGEMENT_API.md#concurrency).
+
+No container publication is implied by the version or changelog update. Keep pull examples on
+already-published image tags until approved native image validation and publication finish.
 
 ## One version, automatic release notes, approved images
 
@@ -10,6 +41,10 @@ approval gates below.
 source. [package.json](../package.json) is private, unversioned development tooling.
 Configuration `schemaVersion` is independent. Use SemVer without build metadata so the same version
 is a valid immutable Docker tag.
+
+Tests verify application-version presence, SemVer format, and metadata-derived consistency, not a
+hard-coded current release. A version bump must not require test updates. Fixed synthetic versions
+in parser, ordering, and release-policy tests are independent fixtures and remain unchanged.
 
 1. **Validate, tag, and release:** merge an approved version bump and its reviewed
    [changelog entry](../CHANGELOG.md) to `main`. The final
@@ -35,7 +70,7 @@ it validates, tags, and releases that commit. Do not use this to replace an alre
 
 Use the [versioning skill](../.github/skills/versioning/SKILL.md) and
 [versioning agent](../.github/agents/versioning.agent.md) for compatibility decisions.
-Creating the `v1.0.1` tag still requires the approved application-version bump to reach `main`.
+Creating the `v1.1.0` tag still requires the approved application-version bump to reach `main`.
 
 ## Reviewed changelog contract
 

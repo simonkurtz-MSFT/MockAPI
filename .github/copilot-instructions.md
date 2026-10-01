@@ -68,6 +68,7 @@
 - Use `.github/agents/versioning.agent.md` when selecting, applying, or validating an application version or release tag.
 - Use `.github/skills/versioning/SKILL.md` for version-bump and release-tag tasks; follow `docs/RELEASING.md`.
 - Treat `<Version>` in `src/MockAPI/MockAPI.csproj` as the single application-version source and use release tags in exact `v<Version>` form.
+- Never hard-code the current application release in test assertions. Test version presence and SemVer format; derive cross-surface consistency expectations from the project or assembly metadata. Keep fixed versions only as synthetic inputs and expected outputs for version-parser, ordering, and release-policy tests, or as independent protocol, schema, and tool contracts. Version bumps must not require test edits.
 - Keep `package.json` private and unversioned. Validated version changes on `main` are tagged and released by the final quality job using the matching reviewed, dated Keep a Changelog entry in `CHANGELOG.md`; ordinary commits never move a tag or rewrite a release.
 - Keep public container publication and Pages deployment opt-in. Container publication requires manual approval, exact-commit quality evidence, and native image validation; attach evidence to the existing GitHub release without replacing its changelog notes. Stage only the explicit static-site asset allowlist for Pages; never upload the repository root.
 - Keep Codespaces port 5080 private. The development container is not the production image and must not mount a Docker socket or request cloud credentials.

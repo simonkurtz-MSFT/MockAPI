@@ -45,6 +45,25 @@ public sealed class ConfigurationExportServiceTests
     }
 
     [Fact]
+    public void OpenApiExport_UsesApplicationVersionFromAssemblyMetadata()
+    {
+        var document = new MockApiConfigurationDocument
+        {
+            SchemaVersion = "1.0",
+            Endpoints = []
+        };
+
+        Assert.True(ConfigurationExportService.TryExport("openapi", document, out var export));
+        var openApi = JsonNode.Parse(export!.Content)!;
+        var expectedVersion = MockApiHostConfiguration.GetVersion(typeof(Program).Assembly);
+        var exportedVersion = openApi["info"]!["version"]!.GetValue<string>();
+
+        SemanticVersionAssert.IsValid(exportedVersion);
+        Assert.Equal(expectedVersion, exportedVersion);
+        Assert.Equal("3.1.0", openApi["openapi"]!.GetValue<string>());
+    }
+
+    [Fact]
     public void OpenApiExport_EmptyApiMetadataOmitsTags()
     {
         var document = new MockApiConfigurationDocument

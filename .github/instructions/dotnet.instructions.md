@@ -37,5 +37,6 @@ applyTo: "**/*.{cs,csproj,sln,props,targets}"
 - Container publication uses Native AOT; local managed development and diagnostic cross-publication remain CoreCLR. Keep single-file compression conditional on non-AOT publication and exclude native debug symbols at publish time.
 - Include source-generated JSON metadata for OpenAPI query-parameter types as well as request and response contracts; exercise optional OpenAPI and Swagger UI against the native binary.
 - Add unit tests for domain behavior and integration tests for HTTP/protocol behavior. Include a test proving runtime-created endpoints work without restart when changing dynamic routing.
+- Assert application-version presence and SemVer format, never a hard-coded current release. Use the shared `SemanticVersionAssert` test helper and derive any cross-surface equality expectations from assembly metadata so version bumps need no test updates.
 - Format touched C# files and run the narrowest affected tests before the full solution test suite.
 - Collect backend coverage with `tests/coverage.runsettings`, enforce the checked-in line and branch floors, and retain portable symbols for test instrumentation while removing PDBs from publish output.
