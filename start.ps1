@@ -2270,21 +2270,35 @@ function Show-Menu {
 }
 
 function Wait-ForMenuReturn {
+  param([switch] $OfferRetry)
+
   if ($script:DomainContinuationPrompted) {
     $script:DomainContinuationPrompted = $false
+    if ($OfferRetry) {
+      return $false
+    }
     return
   }
   Write-Host ''
   Write-Host ''
   Write-Host ('=' * 42) -ForegroundColor DarkCyan
-  Write-Host 'Press any key to return to the menu.' -ForegroundColor Cyan
+  if ($OfferRetry) {
+    Write-Host 'Press "r" for retry or any other key to return to the menu.' -ForegroundColor Cyan
+  }
+  else {
+    Write-Host 'Press any key to return to the menu.' -ForegroundColor Cyan
+  }
   Write-Host ('=' * 42) -ForegroundColor DarkCyan
 
   if ([Console]::IsInputRedirected) {
-    $null = Read-Host
+    $selection = Read-Host
   }
   else {
-    $null = [Console]::ReadKey($true)
+    $selection = [string] [Console]::ReadKey($true).KeyChar
+  }
+
+  if ($OfferRetry) {
+    return $selection -ceq 'r'
   }
 }
 
@@ -2354,15 +2368,18 @@ try {
       return
     }
 
-    try {
-      Invoke-Action -SelectedAction $selectedAction
-    }
-    catch {
-      Write-Host ''
-      Write-Host "Action failed: $($_.Exception.Message)" -ForegroundColor Red
-    }
-
-    Wait-ForMenuReturn
+    do {
+      $retryAction = $false
+      try {
+        Invoke-Action -SelectedAction $selectedAction
+        Wait-ForMenuReturn
+      }
+      catch {
+        Write-Host ''
+        Write-Host "Action failed: $($_.Exception.Message)" -ForegroundColor Red
+        $retryAction = Wait-ForMenuReturn -OfferRetry
+      }
+    } while ($retryAction)
   }
 }
 finally {

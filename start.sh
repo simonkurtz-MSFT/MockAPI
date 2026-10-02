@@ -1961,20 +1961,29 @@ show_menu() {
 }
 
 wait_for_menu_return() {
+  local offerRetry="${1:-false}"
   if [[ "$DOMAIN_CONTINUATION_PROMPTED" == true ]]; then
     DOMAIN_CONTINUATION_PROMPTED=false
+    [[ "$offerRetry" == false ]]
     return
   fi
   printf '\n\n'
   write_color dark '===================================='
-  write_color cyan 'Press any key to return to the menu.'
+  if [[ "$offerRetry" == true ]]; then
+    write_color cyan 'Press "r" for retry or any other key to return to the menu.'
+  else
+    write_color cyan 'Press any key to return to the menu.'
+  fi
   write_color dark '===================================='
 
+  local selection
   if [[ -t 0 ]]; then
-    IFS= read -r -s -n 1 _ || true
+    IFS= read -r -s -n 1 selection || true
   else
-    IFS= read -r _ || true
+    IFS= read -r selection || true
   fi
+
+  [[ "$offerRetry" == false || "$selection" == r ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -2027,6 +2036,24 @@ invoke_action() {
     all) invoke_all ;;
     *) die "Unknown action '$selectedAction'." ;;
   esac
+}
+
+run_menu_action() {
+  local selection="$1"
+  (
+    trap '
+      actionExitCode=$?
+      if (( actionExitCode != 0 )); then
+        write_color red "Action failed: $selection"
+        if wait_for_menu_return true; then
+          run_menu_action "$selection"
+        fi
+      else
+        wait_for_menu_return
+      fi
+    ' EXIT
+    invoke_action "$selection"
+  )
 }
 
 # ---------------------------------------------------------------------------
@@ -2203,16 +2230,7 @@ main() {
       continue
     fi
     # Keep the return handler in the action subshell so it sees domain-continuation state.
-    (
-      trap '
-        actionExitCode=$?
-        if (( actionExitCode != 0 )); then
-          write_color red "Action failed: $selection"
-        fi
-        wait_for_menu_return
-      ' EXIT
-      invoke_action "$selection"
-    ) || true
+    run_menu_action "$selection" || true
   done
 }
 

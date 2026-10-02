@@ -600,9 +600,10 @@ try {
   Assert-True (([regex]::Matches($bashCliSource, '(?m)^\s*clear\s*$')).Count -eq 1) 'The Bash interactive menu must not clear after actions or navigation.'
   Assert-True ($cliSource -match '(?s)function Show-Menu.*?while \(\$true\) \{\s+Reset-ConsoleColors\s+Write-Host') 'The PowerShell menu must reset console colors before every render.'
   Assert-True ($bashCliSource -match '(?s)show_menu\(\).*?while true; do\s+reset_console_colors\s+printf') 'The Bash menu must reset console colors before every render.'
-  Assert-True ($cliSource -match '(?s)catch \{.*?Action failed:.*?\}\s+Wait-ForMenuReturn') 'The PowerShell menu must pause after successful and failed actions.'
-  Assert-True (([regex]::Matches($bashCliSource, 'wait_for_menu_return')).Count -eq 4) 'The Bash menu must pause after actions and both container-engine selections.'
-  Assert-True ($bashCliSource -match "(?s)trap '\s+actionExitCode=.*?Action failed:.*?wait_for_menu_return\s+' EXIT\s+invoke_action") 'The Bash menu must report failures before waiting inside the action subshell.'
+  Assert-True ($cliSource -match '(?s)do \{.*?Invoke-Action.*?Wait-ForMenuReturn.*?catch \{.*?Action failed:.*?Wait-ForMenuReturn -OfferRetry.*?\} while \(\$retryAction\)') 'The PowerShell menu must offer to retry failed actions and pause after successful actions.'
+  Assert-True ($cliSource -match 'Press "r" for retry or any other key to return to the menu\.') 'The PowerShell failure prompt must describe retry and return behavior.'
+  Assert-True ($bashCliSource -match 'Press "r" for retry or any other key to return to the menu\.') 'The Bash failure prompt must describe retry and return behavior.'
+  Assert-True ($bashCliSource -match "(?s)run_menu_action\(\).*?trap '.*?Action failed:.*?wait_for_menu_return true.*?run_menu_action.*?else.*?wait_for_menu_return.*?' EXIT.*?invoke_action") 'The Bash menu must rerun failed actions when retry is selected and pause after successful actions.'
   Assert-True ($cliSource -match "Read-Host 'Select an action'\)\.ToLowerInvariant\(\)\s+Write-Host ''") 'The PowerShell menu must print a blank line after a selection.'
   Assert-True ($bashCliSource -match "read -r -p 'Select an action: ' selection \|\| true\s+printf '\\n'") 'The Bash menu must print a blank line after a selection.'
   $expectedActions = @(
