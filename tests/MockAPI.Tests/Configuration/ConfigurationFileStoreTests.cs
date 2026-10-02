@@ -350,6 +350,59 @@ public sealed class ConfigurationFileStoreTests : IDisposable
         Assert.True(File.Exists(path));
     }
 
+    [Fact]
+    public async Task AtomicReplacement_RetriesTransientAccessFailures()
+    {
+        var attempts = 0;
+        var delays = 0;
+
+        await AtomicFileReplacement.ReplaceAsync(
+            "temporary",
+            "target",
+            (_, _) =>
+            {
+                attempts++;
+                if (attempts == 1)
+                {
+                    throw new IOException("busy");
+                }
+
+                if (attempts == 2)
+                {
+                    throw new UnauthorizedAccessException("temporarily denied");
+                }
+            },
+            (_, _) =>
+            {
+                delays++;
+                return Task.CompletedTask;
+            },
+            CancellationToken.None);
+
+        Assert.Equal(3, attempts);
+        Assert.Equal(2, delays);
+    }
+
+    [Fact]
+    public async Task AtomicReplacement_SurfacesPersistentAccessFailure()
+    {
+        var attempts = 0;
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            AtomicFileReplacement.ReplaceAsync(
+                "temporary",
+                "target",
+                (_, _) =>
+                {
+                    attempts++;
+                    throw new UnauthorizedAccessException("denied");
+                },
+                (_, _) => Task.CompletedTask,
+                CancellationToken.None));
+
+        Assert.Equal(4, attempts);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_directory))

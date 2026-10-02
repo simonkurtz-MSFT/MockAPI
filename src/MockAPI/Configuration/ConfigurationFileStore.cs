@@ -159,7 +159,10 @@ public sealed class ConfigurationFileStore : IConfigurationStore
                         stream.Flush(flushToDisk: true);
                     }
 
-                    File.Move(temporaryPath, targetPath, overwrite: true);
+                    await AtomicFileReplacement.ReplaceAsync(
+                        temporaryPath,
+                        targetPath,
+                        saveCancellationToken);
                 }
                 catch (IOException exception)
                 {

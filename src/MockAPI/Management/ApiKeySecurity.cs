@@ -176,7 +176,7 @@ internal sealed class ApiKeySecurity(MockApiOptions options, BlobClient? blobCli
                 await stream.FlushAsync(cancellationToken);
                 stream.Flush(flushToDisk: true);
             }
-            File.Move(temporary, target, overwrite: true);
+            await AtomicFileReplacement.ReplaceAsync(temporary, target, cancellationToken);
         }
         finally
         {
