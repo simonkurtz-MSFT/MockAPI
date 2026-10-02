@@ -1,36 +1,30 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.1.0. This version decision does not publish a release
+MockAPI's next stable application version is 1.2.0. This version decision does not publish a release
 or replace the quality, public-release audit, native image validation, and publication approval
 gates below.
 
-## 1.1.0 release summary
+## 1.2.0 release summary
 
-The planned release date is **2026-10-01**, with the immutable tag **`v1.1.0`**.
-The [1.1.0 changelog entry](../CHANGELOG.md#110---2026-10-01) supplies the GitHub release notes.
+The planned release date is **2026-10-02**, with the immutable tag **`v1.2.0`**.
+The [1.2.0 changelog entry](../CHANGELOG.md#120---2026-10-02) supplies the GitHub release notes.
 
-- Configuration changes save automatically after activation, including endpoint edits, bulk
-  operations, imports, applied built-in merges, and API descriptions. The dashboard offers
-  **Retry save** when persistence fails.
-- Exported OpenAPI `info.version` derives from assembly application metadata rather than a
-  hard-coded release. It remains independent of the OpenAPI protocol version and configuration revision.
-- Endpoint table column headers stay on one line with consistent padding in the columns layout.
-- Version assertions and project instructions now avoid release-specific test literals; version
-  bumps do not require test updates.
-- Release automation validates dated changelog notes before tagging. Separately approved container
-  publication attaches evidence to the existing GitHub release without replacing its notes.
+- Operators can perform initial API-key setup without administrator credentials on anonymous local
+  installations. Configured administrator credentials continue to protect security settings.
+- Failed interactive developer-CLI actions can be retried directly in both PowerShell and Bash.
+- Configuration and security-document saves tolerate brief file replacement conflicts before
+  reporting a persistence failure.
+- API-key protection changes save when the dashboard checkbox changes, and Settings has clearer
+  status styling and outside-click dismissal.
+- The dashboard links to the public documentation site, whose approved direct GA4 tag remains
+  confined to the production origin and honors the browser opt-out flag.
 
 ### Compatibility and upgrade behavior
 
-Automatic configuration saving adds functionality without changing the configuration schema
-(`schemaVersion: "1.0"`) or existing routes, so 1.1.0 is a minor release.
-Existing configuration documents remain supported.
-
-Management clients must handle a `500` problem with type `autosave-failed` as an **already-active
-change**, not a rejected mutation. The active configuration remains unsaved; retry persistence
-through `POST /__mockapi/api/configuration/save` with the current strong ETag in `If-Match`, rather
-than replaying the mutation. A subsequent successful configuration write also saves previously
-unsaved changes. See [management API behavior](MANAGEMENT_API.md#concurrency).
+Anonymous initial API-key setup and developer-CLI retry add functionality without changing the
+configuration schema (`schemaVersion: "1.0"`) or existing mock routes, so 1.2.0 is a minor release.
+Existing configuration and security documents remain supported. Deployments with configured
+administrator credentials retain the prior authentication requirement for security settings.
 
 No container publication is implied by the version or changelog update. Keep pull examples on
 already-published image tags until approved native image validation and publication finish.
@@ -70,7 +64,7 @@ it validates, tags, and releases that commit. Do not use this to replace an alre
 
 Use the [versioning skill](../.github/skills/versioning/SKILL.md) and
 [versioning agent](../.github/agents/versioning.agent.md) for compatibility decisions.
-Creating the `v1.1.0` tag still requires the approved application-version bump to reach `main`.
+Creating the `v1.2.0` tag still requires the approved application-version bump to reach `main`.
 
 ## Reviewed changelog contract
 

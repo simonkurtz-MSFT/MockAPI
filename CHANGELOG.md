@@ -7,6 +7,26 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-02
+
+### Added
+
+- Anonymous initial API-key setup when administrator credentials are not configured, while preserving authentication for security settings when credentials are configured.
+- Interactive retry for failed developer CLI actions in both PowerShell and Bash.
+- A dashboard link to the public MockAPI documentation site.
+
+### Changed
+
+- API-key protection changes save automatically when the dashboard checkbox changes and restore the saved state after cancellation or failure.
+- Documentation-site analytics use the approved direct GA4 tag only on the production origin, omit query strings and referrers, disable advertising signals, and honor the browser opt-out flag.
+- Settings use clearer security status styling and can be dismissed by clicking outside the dialog.
+- Development dependencies were updated to their latest eligible compatible releases.
+
+### Fixed
+
+- Configuration and security-document saves retry transient file replacement failures before reporting an error.
+- Dashboard synchronization continues after an endpoint refresh fails, allowing a later refresh to recover.
+
 ## [1.1.0] - 2026-10-01
 
 ### Added
@@ -43,6 +63,7 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.1.0...v1.2.0
 [1.1.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.0.0...v1.0.1
