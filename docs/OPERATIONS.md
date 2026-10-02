@@ -31,15 +31,15 @@ on the server for all callers, including after a restart. Disabling protection s
 a cancelled or failed save restores the checkbox to the saved setting.
 When a key already exists, **Rotate key** replaces it after confirmation. The **Copy key** icon beside the textbox is available only
 when this page holds a valid key; the dashboard never retrieves an existing key from the server.
-The status badge explains whether protection is on, off, awaiting a key, or unavailable without administrator setup.
+The status badge explains whether protection is on, off, awaiting a key, or unavailable.
 Workspace preferences are separate and apply only to the current browser.
 Close Settings with **Done**, the close button, **Escape**, or a click outside the dialog.
 Closing Settings retains the dashboard test key in page memory until a reload.
 
-Security Settings require configured administrator credentials even when the rest of management is anonymous.
-Without administrator credentials, security management returns `403`; ordinary mock calls still fail closed.
-Leaving other management operations anonymous is not safe for an untrusted network: the key protects mock
-invocation, not configuration integrity. Configure administrative authentication for shared deployments.
+Security Settings use the same optional administrator credentials as the rest of management. Without administrator
+credentials, an operator can generate the initial key or change enforcement anonymously; ordinary mock calls still
+fail closed until a key is generated. Anonymous management is not safe for an untrusted network: the key protects
+mock invocation, not configuration integrity. Configure administrative authentication for shared deployments.
 
 Rotation generates 32 random bytes, enables enforcement, and immediately revokes the old key. Changes require
 the security settings' own strong ETag and are persisted before activation. Failed or stale writes leave active
@@ -52,8 +52,8 @@ configuration volume or private Blob container. Endpoint import/export/save neve
 document restores the fail-closed default; generate a replacement key as an administrator.
 
 For a deliberately unauthenticated local fixture, set `MockApi__RequireApiKey=false` before the first security
-document is saved. Persisted security settings take precedence over this bootstrap setting. Administrators can
-also explicitly disable enforcement in Settings after confirming the exposure warning. Do not opt a shared or
+document is saved. Persisted security settings take precedence over this bootstrap setting. Operators can also
+explicitly disable enforcement in Settings after confirming the exposure warning. Do not opt a shared or
 public deployment out of protection.
 
 Use HTTPS outside loopback, terminating TLS at the trusted host or ingress as described below. Neither API keys

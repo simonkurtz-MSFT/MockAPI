@@ -16,9 +16,8 @@ test("Settings keeps the mock key memory-only and attaches it to dashboard tests
   });
   await expect(page.getByRole("row", { name: /Key test/ })).toBeVisible();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await expect(page.locator("#settings-api-security-status")).toContainText("Configure dashboard administrator");
-  await expect(page.locator("#settings-api-security-summary")).toHaveText("Admin required");
-  await expect(page.locator("#settings-api-key-generate")).toBeDisabled();
+  await expect(page.locator("#settings-api-security-summary")).toHaveText("Protection off");
+  await expect(page.locator("#settings-api-key-generate")).toBeEnabled();
   const key = "a".repeat(43);
   await page.getByLabel("API key for dashboard tests").fill(key);
   await expectNoUnreviewedAccessibilityViolations(page, "#settings-dialog");
@@ -88,10 +87,10 @@ for (const theme of ["light", "dark"]) {
     await expect(page.getByRole("button", { name: "Close settings", exact: true })).toBeFocused();
     await expect(page.getByRole("heading", { name: "Mock API security", exact: true })).toBeInViewport();
     await expect(page.getByRole("heading", { name: "Request protection", exact: true })).toBeVisible();
-    await expect(page.locator("#settings-api-security-enabled")).toBeDisabled();
+    await expect(page.locator("#settings-api-security-enabled")).toBeEnabled();
     await expect(page.getByRole("button", { name: "Apply protection setting", exact: true })).toHaveCount(0);
     await expect(page.locator(".security-warning-icon")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Generate key", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Generate key", exact: true })).toBeEnabled();
     await expect(page.getByRole("button", { name: "Copy key", exact: true })).toBeDisabled();
     const dimensions = await page.locator("#settings-api-security-enabled").evaluate((input) => {
       const checkbox = input.getBoundingClientRect();
@@ -104,6 +103,8 @@ for (const theme of ["light", "dark"]) {
 
     const keyInput = page.getByLabel("API key for dashboard tests");
     await expect(keyInput).toHaveAttribute("maxlength", "43");
+    await page.keyboard.press("Tab");
+    await expect(page.locator("#settings-api-security-enabled")).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(keyInput).toBeFocused();
     await keyInput.fill("invalid");
@@ -160,6 +161,8 @@ test("Security Settings fits the minimum supported viewport and keeps preference
   expect(bounds.y + bounds.height).toBeLessThanOrEqual(640);
   const overflow = await page.locator(".settings-body").evaluate((body) => body.scrollWidth - body.clientWidth);
   expect(overflow).toBe(0);
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
   await expect(page.getByLabel("Workspace layout")).toBeFocused();

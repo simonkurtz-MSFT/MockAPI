@@ -80,7 +80,6 @@ const state = { etag: null, dirty: false, pendingConfirm: null, managementPendin
 const api = createDashboardManagementClient({ request: (url, options) => fetch(url, options) });
 const apiSecurity = createDashboardApiSecurity({
   documentRoot: document,
-  administratorConfigured: document.documentElement.dataset.securityAdministration === "true",
   api,
   showError: (message) => showToast(message, true),
   confirm: (message) => window.confirm(message),

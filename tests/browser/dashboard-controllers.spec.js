@@ -14,7 +14,6 @@ test("API security controller generates once, uses captured revisions, and ignor
     let current = { enabled: true, configured: false, etag: '"0"' };
     window.security = createDashboardApiSecurity({
       documentRoot: document,
-      administratorConfigured: true,
       api: async (path, options) => {
         window.securityCalls.push({ path, options });
         if (!options) return current;
@@ -79,7 +78,6 @@ test("API security controller reports write failures and confirms explicit opt-o
     window.confirmResult = false;
     window.security = createDashboardApiSecurity({
       documentRoot: document,
-      administratorConfigured: true,
       api: async (path, options) => {
         window.calls.push({ path, options });
         if (!options) return { enabled: true, configured: true, etag: '"3"' };
@@ -130,7 +128,6 @@ test("API security controller saves checkbox changes immediately and refreshes t
     let current = { enabled: false, configured: true, etag: '"4"' };
     window.security = createDashboardApiSecurity({
       documentRoot: document,
-      administratorConfigured: true,
       api: async (path, options) => {
         window.securityCalls.push({ path, options });
         if (!options) return current;

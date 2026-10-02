@@ -85,7 +85,6 @@ if (options.EnableDashboard)
             buildDate.ToString("yyyy-MM-dd HH:mm:ss 'UTC'", CultureInfo.InvariantCulture),
             StringComparison.Ordinal)
         .Replace("{{ASSET_VERSION}}", assetVersion, StringComparison.Ordinal)
-        .Replace("{{SECURITY_ADMINISTRATION}}", string.IsNullOrWhiteSpace(options.DashboardUsername) ? "false" : "true", StringComparison.Ordinal)
         .Replace("{{LOG_ANALYTICS_WORKSPACE_LINK}}", logAnalyticsWorkspaceLink, StringComparison.Ordinal);
 
     DashboardAssets.Map(app, "/app.css", "app.css", "text/css; charset=utf-8", assetVersion);

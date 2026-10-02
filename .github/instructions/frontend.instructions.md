@@ -14,7 +14,8 @@ applyTo: "src/MockAPI/wwwroot/**/*.{js,html,css},tests/{frontend,browser}/**/*.j
   Preserve description casing and whitespace; use text nodes, never evaluate or inject configured content as HTML.
   Endpoint information buttons open the existing endpoint editor. Group identity remains the
   case-sensitive first path segment, and live updates must not replace an open draft's revision.
-- Keep administrator-only security Settings and the memory-only mock key in `dashboard-api-security.js`.
+- Keep security Settings and the memory-only mock key in `dashboard-api-security.js`; rely on the management
+  transport for optional administrator authentication rather than disabling setup when credentials are absent.
   Never persist that key in browser storage or attach it to management calls, exports, or redirect targets.
   Exported requests reference caller-supplied variables; endpoint tests attach the key only after same-origin validation.
 - Give feature controllers explicit inputs, callbacks, and disposal. Use `dashboard-dom.js` event scopes for controller-owned listeners and separate scopes for replaceable rows/charts; delegate header-row removal rather than retaining removed rows. Invalidate asynchronous completions when an editor or blade closes, reopens, or is disposed.

@@ -172,7 +172,8 @@ MockAPI is intentionally narrower than a general-purpose API virtualization plat
 
 - **Flexible persistence:** Save configuration to a local file, a container volume, or private Azure Blob Storage.
 - **Independent administration security:** Protect mock calls with an instance API key by default, independently
-  of optional dashboard and management Basic authentication. Health stays public; security Settings require an administrator.
+  of optional dashboard and management Basic authentication. Health stays public; configured administrator
+  credentials protect security Settings, while anonymous local administration can perform initial setup.
 - **Hardened portable runtime:** Run as a trimmed, non-root Linux container on `amd64` and `arm64`, including with a read-only root filesystem.
 
 ![Annotated endpoint registry table listing the example endpoints with their methods, exact paths, configured responses, request counts, last-request times, and enabled state, plus per-row test, edit, duplicate, and delete actions.](docs/images/02-endpoints.png)
@@ -560,8 +561,8 @@ Choices `1` and `2` in the Azure submenu run these same pathways; `p1` and `p2` 
 
 `azure-import` reads `<Version>` from the application project, imports `docker.io/simonkurtzmsft/mockapi:v<Version>` as `mockapi:v<Version>` in the provisioned ACR without Docker Hub credentials, and updates the existing Container App to use that ACR image. It is an explicit per-version import, not a persistent upstream cache, and requires the Azure environment to be provisioned first.
 
-Set both dashboard credential values to protect administration and enable key generation in Settings. Leaving
-them empty leaves ordinary administration unauthenticated but does not unlock mock calls or security Settings.
+Set both dashboard credential values to protect administration, including key generation in Settings. Leaving
+them empty leaves administration and security setup unauthenticated but does not unlock mock calls.
 Passwords must contain at least 8 characters. The CLI derives the PBKDF2-SHA256 hash locally and never sends the
 plaintext password to azd, Bicep, ARM, or the application container.
 

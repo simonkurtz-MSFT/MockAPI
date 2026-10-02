@@ -22,7 +22,7 @@ applyTo: "**/*.{cs,csproj,sln,props,targets}"
   Serialize saves through the configured store and persist a superseding revision rather than overwriting it.
 - Keep request dispatch free of persistence and management concerns.
 - Require the instance API key before the mock dispatcher by default; leave health probes public.
-  Security Settings require configured administrator credentials even when other administration is anonymous.
+  Apply configured administrator credentials to Security Settings, but permit setup when administration is anonymous.
   Keep security persistence separate from endpoint configuration, activate only after a successful save,
   and require the independent current strong security ETag for writes. Never export a key or its hash.
 - Use cancellation tokens for asynchronous I/O and propagate them through application boundaries.

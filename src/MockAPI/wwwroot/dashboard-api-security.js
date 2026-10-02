@@ -7,21 +7,13 @@ import { createDashboardEventScope, getDashboardElements } from "./dashboard-dom
  *
  * @param {object} dependencies Controller dependencies.
  * @param {Document} dependencies.documentRoot Dashboard document.
- * @param {boolean} dependencies.administratorConfigured Whether the host has configured administrative credentials.
  * @param {import("./dashboard-management.js").ManagementClient} dependencies.api Management transport.
  * @param {(message: string) => void} dependencies.showError Error presenter.
  * @param {(message: string) => boolean} dependencies.confirm Confirmation before rotation or disabling protection.
  * @param {import("./dashboard-core.js").CopyToClipboard} dependencies.copyToClipboard Clipboard boundary.
  * @returns {{open: () => Promise<void>, close: () => void, getKey: () => string, dispose: () => void}} Controller lifecycle and key provider.
  */
-export function createDashboardApiSecurity({
-  documentRoot,
-  administratorConfigured,
-  api,
-  showError,
-  confirm,
-  copyToClipboard,
-}) {
+export function createDashboardApiSecurity({ documentRoot, api, showError, confirm, copyToClipboard }) {
   const elements = getDashboardElements(documentRoot, {
     "settings-api-security-status": "p",
     "settings-api-security-message": "span",
@@ -78,14 +70,6 @@ export function createDashboardApiSecurity({
     setKeyError("");
     setStatus("Loading", "loading", "Loading API security settings...");
     setControls();
-    if (!administratorConfigured) {
-      setStatus(
-        "Admin required",
-        "warning",
-        "Configure dashboard administrator credentials to generate keys or change protection. You can enter an existing key for dashboard tests."
-      );
-      return;
-    }
     try {
       /** @type {import("./dashboard-core.js").ApiSecurityStatus} */
       const result = await api("/security/");

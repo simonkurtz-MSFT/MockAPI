@@ -1699,17 +1699,18 @@ dialog::backdrop {
   cursor: not-allowed;
 }
 .security-key-control {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
+  display: flex;
+  align-items: center;
   gap: 8px;
   width: 100%;
   max-width: calc(43ch + 64px);
   font-family: var(--cp-font-mono);
 }
 .security-key-control .icon-button {
-  align-self: center;
+  flex: 0 0 36px;
 }
 .security-key-control input {
+  flex: 1 1 auto;
   min-width: 0;
   font-family: var(--cp-font-mono);
 }

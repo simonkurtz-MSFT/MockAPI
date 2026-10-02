@@ -39,10 +39,22 @@ public sealed class ApiKeySecurityTests : IDisposable
         Assert.Equal("ApiKey", mock.Headers.WwwAuthenticate.Single().Scheme);
         Assert.Equal(HttpStatusCode.OK, health.StatusCode);
         Assert.Equal(HttpStatusCode.OK, dashboard.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, settings.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, rotate.StatusCode);
-        Assert.Contains("administrator", await settings.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.OK, settings.StatusCode);
+        Assert.Equal((HttpStatusCode)428, rotate.StatusCode);
         Assert.Equal(0, factory.Services.GetRequiredService<RequestStatisticsCollector>().GetSnapshot().TotalRequests);
+    }
+
+    [Fact]
+    public async Task MissingAdministratorCredentials_AllowsInitialSecuritySetup()
+    {
+        await using var factory = CreateFactory(authenticated: false);
+        using var client = factory.CreateClient();
+
+        var created = await GenerateKeyAsync(client, "\"0\"");
+
+        Assert.True(created.Status.Enabled);
+        Assert.True(created.Status.Configured);
+        Assert.True(Authorizes(factory.Services.GetRequiredService<ApiKeySecurity>(), created.Key));
     }
 
     [Theory]
@@ -118,7 +130,7 @@ public sealed class ApiKeySecurityTests : IDisposable
     }
 
     [Fact]
-    public async Task SecurityWrites_RequireCredentialsAndCurrentIndependentETag()
+    public async Task ConfiguredAdministratorCredentialsAndCurrentIndependentETag_AreRequiredForSecurityWrites()
     {
         await using var factory = CreateFactory();
         using var client = factory.CreateClient();

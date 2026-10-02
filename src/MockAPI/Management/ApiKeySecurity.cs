@@ -203,18 +203,16 @@ internal static class ApiSecurityEndpoints
             .WithName("GetApiSecurity")
             .WithSummary("Get mock API-key security settings")
             .Produces<ApiSecurityStatus>()
-            .Produces<ManagementProblemDetails>(401, "application/problem+json")
-            .Produces<ManagementProblemDetails>(403, "application/problem+json");
+            .Produces<ManagementProblemDetails>(401, "application/problem+json");
         group.MapPut("/", (HttpContext context, ApiSecurityRequest request, ApiKeySecurity security, ILogger<ApiKeySecurity> logger) =>
             UpdateAsync(context, security, request.Enabled, false, logger))
             .WithName("SetApiSecurity")
             .WithSummary("Enable or explicitly disable mock API-key enforcement")
-            .WithDescription("Requires administrator credentials and the current security settings strong ETag in If-Match. Persists before activation.")
+            .WithDescription("Requires configured administrator credentials, if any, and the current security settings strong ETag in If-Match. Persists before activation.")
             .Produces<ApiSecurityStatus>()
             .Produces<ManagementProblemDetails>(400, "application/problem+json")
             .Produces<ManagementProblemDetails>(415, "application/problem+json")
             .Produces<ManagementProblemDetails>(401, "application/problem+json")
-            .Produces<ManagementProblemDetails>(403, "application/problem+json")
             .Produces<ManagementProblemDetails>(412, "application/problem+json")
             .Produces<ManagementProblemDetails>(428, "application/problem+json")
             .Produces<ManagementProblemDetails>(500, "application/problem+json");
@@ -222,10 +220,9 @@ internal static class ApiSecurityEndpoints
             UpdateAsync(context, security, true, true, logger))
             .WithName("RotateMockApiKey")
             .WithSummary("Generate a mock API key and revoke the previous key")
-            .WithDescription("Requires administrator credentials and the current security settings strong ETag in If-Match. Enables enforcement and returns the secret only in this no-store response.")
+            .WithDescription("Requires configured administrator credentials, if any, and the current security settings strong ETag in If-Match. Enables enforcement and returns the secret only in this no-store response.")
             .Produces<ApiKeyCreated>()
             .Produces<ManagementProblemDetails>(401, "application/problem+json")
-            .Produces<ManagementProblemDetails>(403, "application/problem+json")
             .Produces<ManagementProblemDetails>(412, "application/problem+json")
             .Produces<ManagementProblemDetails>(428, "application/problem+json")
             .Produces<ManagementProblemDetails>(500, "application/problem+json");

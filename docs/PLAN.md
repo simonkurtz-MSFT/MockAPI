@@ -376,8 +376,9 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
 - Use one `Dockerfile` for all deployments. Removing dashboard assets yields negligible image-size savings; deployments that do not need the dashboard disable it with `MockApi__EnableDashboard=false` and can disable the remaining administrative surfaces independently.
 - Support optional Basic authentication for administrative paths. Require the username and PBKDF2-SHA256 password hash together; when both are absent, leave administrative paths unauthenticated and clearly warn against direct exposure to untrusted networks.
 - Require `X-MockAPI-Key` for mock calls by default, separately from endpoint matching and administrative Basic authentication.
-  Health probes remain public. Only a configured administrator may read or change security Settings, generate a key,
-  or explicitly disable enforcement. Never let anonymous administration replace or disable the key.
+  Health probes remain public. When administrator credentials are configured, require them for security Settings;
+  when they are absent, allow the same anonymous administration as other management routes so an operator can
+  generate the initial key or change enforcement. Clearly warn against exposing anonymous administration.
 - Generate 32-byte random keys, compare SHA-256 hashes in constant time, and keep only the hash in a separate
   security document beside the configuration file or blob. Persist before atomic activation; use an independent
   strong ETag for security writes. Rotation enables protection and immediately revokes the previous key.
