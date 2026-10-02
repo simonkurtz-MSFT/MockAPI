@@ -9,8 +9,6 @@
         const measurementId = "G-XQZ0DQP020";
         if (
           location.origin !== "https://mockapi.simondoescloud.com" ||
-          navigator.globalPrivacyControl === true ||
-          navigator.doNotTrack === "1" ||
           window[`ga-disable-${measurementId}`] === true
         ) {
           return;
