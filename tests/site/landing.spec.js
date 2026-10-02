@@ -8,32 +8,102 @@ const dashboardRoot = path.join(__dirname, "..", "..", "src", "MockAPI", "wwwroo
 const dashboardStyles = fs.readFileSync(path.join(dashboardRoot, "app.css"), "utf8");
 
 test.beforeEach(async ({ page }) => {
-  // Exercise container initialization without sending preview or test traffic to Google.
-  await page.route("https://www.googletagmanager.com/gtm.js?*", (route) =>
+  // Exercise tag initialization without sending test traffic to Google.
+  await page.route("https://www.googletagmanager.com/**", (route) =>
     route.fulfill({ contentType: "application/javascript", body: "" })
   );
-  await page.route("https://www.googletagmanager.com/ns.html?*", (route) =>
-    route.fulfill({ contentType: "text/html", body: "" })
-  );
+  await page.route(/https:\/\/(?:[^/]+\.)?(?:google-analytics|analytics\.google)\.com\//, (route) => route.abort());
 });
 
-test("initializes the supplied Google Tag Manager container once", async ({ page }) => {
-  const tagUrl = "https://www.googletagmanager.com/gtm.js?id=GTM-N92H54N6";
+async function serveProductionSite(page, baseURL) {
+  await page.route("https://mockapi.simondoescloud.com/**", async (route) => {
+    const url = new URL(route.request().url());
+    const response = await route.fetch({ url: new URL(`.${url.pathname}${url.search}`, baseURL).href });
+    await route.fulfill({ response });
+  });
+}
+
+test("initializes direct GA4 once on production with one privacy-limited automatic page view", async ({
+  page,
+  baseURL,
+}) => {
+  await serveProductionSite(page, baseURL);
+  const tagUrl = "https://www.googletagmanager.com/gtag/js?id=G-XQZ0DQP020";
   const tagRequest = page.waitForRequest(tagUrl);
-  await page.goto("./");
+  await page.goto("https://mockapi.simondoescloud.com/?private=value#private-fragment");
   await tagRequest;
   const tag = page.locator(`script[src="${tagUrl}"]`);
   await expect(tag).toHaveCount(1);
   await expect(tag).toHaveAttribute("async", "");
-  const dataLayer = await page.evaluate(() => window.dataLayer);
-  expect(dataLayer).toEqual([{ event: "gtm.js", "gtm.start": expect.any(Number) }]);
+  const dataLayer = await page.evaluate(() => window.dataLayer.map((command) => Array.from(command)));
+  expect(dataLayer).toEqual([
+    [
+      "consent",
+      "default",
+      {
+        ad_storage: "denied",
+        ad_user_data: "denied",
+        ad_personalization: "denied",
+        analytics_storage: "granted",
+      },
+    ],
+    ["set", "ads_data_redaction", true],
+    ["js", expect.any(Date)],
+    [
+      "config",
+      "G-XQZ0DQP020",
+      {
+        allow_google_signals: false,
+        allow_ad_personalization_signals: false,
+        page_location: "https://mockapi.simondoescloud.com/",
+        page_referrer: "",
+        page_title: "MockAPI | Open-Source, Self-Hosted Mock API Server",
+        cookie_flags: "SameSite=Lax;Secure",
+      },
+    ],
+  ]);
+  await expect(page.locator('script[src*="/gtm.js"], iframe[src*="googletagmanager"]')).toHaveCount(0);
+});
 
-  const fallback = page.locator("body > noscript:first-child");
-  await expect(fallback).toHaveCount(1);
-  const fallbackMarkup = await fallback.evaluate((element) => element.textContent);
-  expect(fallbackMarkup).toContain("https://www.googletagmanager.com/ns.html?id=GTM-N92H54N6");
-  expect(fallbackMarkup).toContain('height="0"');
-  expect(fallbackMarkup).toContain('width="0"');
+test("does not load analytics or create its queue during local previews", async ({ page }) => {
+  const requests = [];
+  page.on("request", (request) => {
+    if (request.url().includes("googletagmanager.com")) requests.push(request.url());
+  });
+  await page.goto("./");
+  expect(await page.evaluate(() => window.dataLayer)).toBeUndefined();
+  expect(requests).toEqual([]);
+});
+
+for (const optOut of ["globalPrivacyControl", "doNotTrack", "ga-disable"]) {
+  test(`does not load analytics on production with ${optOut}`, async ({ page, baseURL }) => {
+    await serveProductionSite(page, baseURL);
+    await page.addInitScript((setting) => {
+      if (setting === "ga-disable") {
+        window["ga-disable-G-XQZ0DQP020"] = true;
+      } else {
+        Object.defineProperty(navigator, setting, { value: setting === "doNotTrack" ? "1" : true });
+      }
+    }, optOut);
+    const requests = [];
+    page.on("request", (request) => {
+      if (request.url().includes("googletagmanager.com")) requests.push(request.url());
+    });
+    await page.goto("https://mockapi.simondoescloud.com/");
+    expect(await page.evaluate(() => window.dataLayer)).toBeUndefined();
+    expect(requests).toEqual([]);
+  });
+}
+
+test("reports Google tag load failures without breaking the documentation", async ({ page, baseURL }) => {
+  await serveProductionSite(page, baseURL);
+  await page.route("https://www.googletagmanager.com/**", (route) => route.abort());
+  const warning = page.waitForEvent("console", {
+    predicate: (message) => message.text() === "Documentation site Google Analytics could not be loaded.",
+  });
+  await page.goto("https://mockapi.simondoescloud.com/");
+  expect((await warning).type()).toBe("warning");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Configure the response.");
 });
 
 test("quick starts, assets and accessibility work under the Pages repository prefix", async ({ page }) => {

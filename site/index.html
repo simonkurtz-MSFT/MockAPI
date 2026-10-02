@@ -5,16 +5,46 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="author" content="Simon Kurtz" />
     <script>
-      ((window, document, tagName, dataLayerName, containerId) => {
-        window[dataLayerName] = window[dataLayerName] || [];
-        window[dataLayerName].push({ "gtm.start": Date.now(), event: "gtm.js" });
-        const firstScript = document.getElementsByTagName(tagName)[0];
-        const tagManagerScript = document.createElement(tagName);
-        const dataLayerQuery = dataLayerName === "dataLayer" ? "" : `&l=${dataLayerName}`;
-        tagManagerScript.async = true;
-        tagManagerScript.src = `https://www.googletagmanager.com/gtm.js?id=${containerId}${dataLayerQuery}`;
-        firstScript.parentNode.insertBefore(tagManagerScript, firstScript);
-      })(window, document, "script", "dataLayer", "GTM-N92H54N6");
+      (() => {
+        const measurementId = "G-XQZ0DQP020";
+        if (
+          location.origin !== "https://mockapi.simondoescloud.com" ||
+          navigator.globalPrivacyControl === true ||
+          navigator.doNotTrack === "1" ||
+          window[`ga-disable-${measurementId}`] === true
+        ) {
+          return;
+        }
+
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = function gtag() {
+          window.dataLayer.push(arguments);
+        };
+        window.gtag("consent", "default", {
+          ad_storage: "denied",
+          ad_user_data: "denied",
+          ad_personalization: "denied",
+          analytics_storage: "granted",
+        });
+        window.gtag("set", "ads_data_redaction", true);
+        window.gtag("js", new Date());
+        // Use one automatic page view without forwarding query strings or fragment values.
+        window.gtag("config", measurementId, {
+          allow_google_signals: false,
+          allow_ad_personalization_signals: false,
+          page_location: `${location.origin}${location.pathname}`,
+          page_referrer: "",
+          page_title: "MockAPI | Open-Source, Self-Hosted Mock API Server",
+          cookie_flags: "SameSite=Lax;Secure",
+        });
+        const analyticsScript = document.createElement("script");
+        analyticsScript.async = true;
+        analyticsScript.src = `https://www.googletagmanager.com/gtag/js?id=${measurementId}`;
+        analyticsScript.addEventListener("error", () => {
+          console.warn("Documentation site Google Analytics could not be loaded.");
+        });
+        document.head.appendChild(analyticsScript);
+      })();
     </script>
     <meta
       name="description"
@@ -103,15 +133,6 @@
     <script src="./site.js" defer></script>
   </head>
   <body>
-    <noscript
-      ><iframe
-        src="https://www.googletagmanager.com/ns.html?id=GTM-N92H54N6"
-        height="0"
-        width="0"
-        style="display: none; visibility: hidden"
-        title="Google Tag Manager"
-      ></iframe
-    ></noscript>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header">
       <a class="brand" href="./" aria-label="MockAPI home"

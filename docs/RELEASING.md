@@ -199,13 +199,19 @@ budget, or SBOM disclosure review: those remain human release gates.
 ## Pages publication
 
 The [landing page](../site/index.html) is static documentation, not a public MockAPI service.
-It loads Google Tag Manager container `GTM-N92H54N6`; analytics tags are configured in that
-container rather than embedded directly in the site. The container loads automatically on the
-documentation page, including local previews unless blocked; it is not included in the runtime
-dashboard or mock endpoints.
+It initializes Google Analytics 4 directly with measurement ID `G-XQZ0DQP020`, only on
+`https://mockapi.simondoescloud.com`. Local previews and alternate hosts do not load analytics.
+The previous GTM container `GTM-N92H54N6` had an empty published configuration (no tags or rules),
+so loading it did not send GA4 page views. Do not add GTM alongside the direct Google tag:
+configuring the same GA4 destination in both can double-count page views.
+The tag queues one automatic page view, excludes query strings, fragments, and referrer values,
+disables Google signals and advertising personalization, and defaults advertising consent to denied.
+Global Privacy Control, Do Not Track, and `window["ga-disable-G-XQZ0DQP020"] = true` prevent loading.
+Analytics is not included in the runtime dashboard or mock endpoints.
 All other assets are self-hosted, with no externally loaded fonts.
-Before publishing or changing the container, review applicable privacy-disclosure and consent
-requirements; the site does not implement a consent banner or consent gating.
+Before publishing or changing analytics, review applicable privacy-disclosure and consent
+requirements; eligible visitors have analytics storage granted without a consent banner.
+Browser opt-outs are not a substitute for consent where prior consent is required.
 [The build](../scripts/build-site.cjs) copies only six approved assets to `artifacts/site`;
 unknown output files fail the build. Never upload the repository root or the whole `docs` directory.
 
@@ -219,6 +225,11 @@ Preview at `http://127.0.0.1:4173/MockAPI/`. The tests exercise this repository 
 keyboard navigation, desktop/mobile layouts, light/dark automated accessibility, and SEO metadata
 without JavaScript. Browser tests stub the Google tag to verify initialization without sending
 test traffic to Google. The allowlisted `robots.txt` and `sitemap.xml` provide crawler discovery.
+After deployment, use a browser without tracking blockers or privacy opt-outs and verify that
+`gtag/js?id=G-XQZ0DQP020` loads and a `google-analytics.com/g/collect` request contains
+`tid=G-XQZ0DQP020` and `en=page_view`. Confirm the visit in the matching GA4 property's Realtime
+report; check property data filters if requests succeed but the visit is absent.
+Stubbed tests verify site initialization, not Google ingestion or access to the GA4 property.
 HTML and structured-data author metadata credit Simon Kurtz.
 After enabling Pages and its opt-in variable, dispatch **Documentation site** or push a site change
 to `main`. The canonical public address is `https://mockapi.simondoescloud.com/`; keep this custom

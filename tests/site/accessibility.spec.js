@@ -2,11 +2,8 @@ const { test, expect } = require("@playwright/test");
 const AxeBuilder = require("@axe-core/playwright").default;
 
 test.beforeEach(async ({ page }) => {
-  await page.route("https://www.googletagmanager.com/gtm.js?*", (route) =>
+  await page.route("https://www.googletagmanager.com/**", (route) =>
     route.fulfill({ contentType: "application/javascript", body: "" })
-  );
-  await page.route("https://www.googletagmanager.com/ns.html?*", (route) =>
-    route.fulfill({ contentType: "text/html", body: "" })
   );
 });
 

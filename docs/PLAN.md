@@ -545,8 +545,9 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
   pnpm. Keep Codespaces ports private, preserve saved configuration, and do not require a Docker socket.
 - Keep the GitHub Pages landing page separate from the runtime dashboard. Use static, accessible,
   self-hosted assets, explicit publication allowlisting, and opt-in deployment after a public audit.
-  The public documentation page may load the approved Google Tag Manager container; keep analytics
-  out of the runtime dashboard and mock endpoints, and stub the container in browser tests.
+  The public documentation page may load the approved direct GA4 tag on its production origin,
+  honoring browser privacy opt-outs. Keep analytics out of the runtime dashboard and mock endpoints,
+  and stub the Google tag in browser tests.
 - Validate Pages assets under the repository URL prefix, keyboard navigation, mobile reflow,
   light/dark accessibility, and development-container startup independently of runtime releases.
 

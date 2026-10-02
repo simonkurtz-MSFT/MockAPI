@@ -14,8 +14,9 @@
 - Keep configuration models, registry, dispatcher, persistence, statistics, management API, and dashboard responsibilities distinct.
 - Preserve stable endpoint IDs across edits and use them for statistics attribution.
 - Keep statistics bounded and process-local; do not retain sensitive request or response content.
-- Keep the approved Google Tag Manager container confined to the public documentation site. Do not
-  add analytics to the runtime dashboard or mock endpoints; stub the container in site browser tests.
+- Keep the approved direct GA4 tag confined to the public documentation site's production origin
+  and honor browser privacy opt-outs. Do not add analytics to the runtime dashboard or mock endpoints;
+  stub the Google tag in site browser tests.
 
 ## Engineering Practices
 
