@@ -20,7 +20,6 @@ describe("public onboarding boundaries", () => {
       "index.html",
       "robots.txt",
       "site.css",
-      "site.js",
       "sitemap.xml",
     ]);
     for (const [destination, source] of Object.entries(assets)) {

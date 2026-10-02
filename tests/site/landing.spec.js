@@ -187,7 +187,6 @@ test("theme control uses the dashboard icon and works without browser storage", 
 });
 
 test("first paint applies only valid site preferences, independently of the dashboard", async ({ page }) => {
-  await page.route("**/site.js", (route) => route.fulfill({ contentType: "text/javascript", body: "" }));
   await page.emulateMedia({ colorScheme: "dark" });
   await page.addInitScript(() => {
     localStorage.setItem("mockapi.theme", "light");
@@ -297,12 +296,9 @@ test("bundles the dashboard theme tokens as the documentation theme source", () 
 });
 
 test("preview rejects assets outside the publication allowlist", async ({ request }) => {
-  for (const name of [".env", "start.ps1", "package.json", "unknown.js"]) {
+  for (const name of [".env", "start.ps1", "package.json", "site.js", "unknown.js"]) {
     expect((await request.get(name)).status()).toBe(404);
   }
-  const script = await request.get("site.js");
-  expect(script.status()).toBe(200);
-  expect(script.headers()["content-type"]).toBe("text/javascript");
 });
 
 test.describe("search engine discovery", () => {
