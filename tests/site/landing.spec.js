@@ -75,25 +75,32 @@ test("does not load analytics or create its queue during local previews", async 
   expect(requests).toEqual([]);
 });
 
-for (const optOut of ["globalPrivacyControl", "doNotTrack", "ga-disable"]) {
-  test(`does not load analytics on production with ${optOut}`, async ({ page, baseURL }) => {
+for (const privacySignal of ["globalPrivacyControl", "doNotTrack"]) {
+  test(`loads analytics on production with ${privacySignal}`, async ({ page, baseURL }) => {
     await serveProductionSite(page, baseURL);
     await page.addInitScript((setting) => {
-      if (setting === "ga-disable") {
-        window["ga-disable-G-XQZ0DQP020"] = true;
-      } else {
-        Object.defineProperty(navigator, setting, { value: setting === "doNotTrack" ? "1" : true });
-      }
-    }, optOut);
-    const requests = [];
-    page.on("request", (request) => {
-      if (request.url().includes("googletagmanager.com")) requests.push(request.url());
-    });
+      Object.defineProperty(navigator, setting, { value: setting === "doNotTrack" ? "1" : true });
+    }, privacySignal);
+    const tagRequest = page.waitForRequest("https://www.googletagmanager.com/gtag/js?id=G-XQZ0DQP020");
     await page.goto("https://mockapi.simondoescloud.com/");
-    expect(await page.evaluate(() => window.dataLayer)).toBeUndefined();
-    expect(requests).toEqual([]);
+    await tagRequest;
+    expect(await page.evaluate(() => window.dataLayer.length)).toBeGreaterThan(0);
   });
 }
+
+test("does not load analytics on production with the explicit Google Analytics opt-out", async ({ page, baseURL }) => {
+  await serveProductionSite(page, baseURL);
+  await page.addInitScript(() => {
+    window["ga-disable-G-XQZ0DQP020"] = true;
+  });
+  const requests = [];
+  page.on("request", (request) => {
+    if (request.url().includes("googletagmanager.com")) requests.push(request.url());
+  });
+  await page.goto("https://mockapi.simondoescloud.com/");
+  expect(await page.evaluate(() => window.dataLayer)).toBeUndefined();
+  expect(requests).toEqual([]);
+});
 
 test("reports Google tag load failures without breaking the documentation", async ({ page, baseURL }) => {
   await serveProductionSite(page, baseURL);

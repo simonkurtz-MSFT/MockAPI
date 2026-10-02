@@ -26,7 +26,9 @@ connection aborts, rate limiting, or mock statistics. Administrative credentials
    After a reload, enter the existing key in Settings or generate a replacement.
 
 Settings separates instance-wide **Request protection** from the memory-only **Dashboard test key**.
-Select **Apply protection setting** to save a protection change; changing the checkbox alone does not apply it.
+Changing the **Require X-MockAPI-Key on mock requests** checkbox automatically saves the protection setting
+on the server for all callers, including after a restart. Disabling protection still requires confirmation;
+a cancelled or failed save restores the checkbox to the saved setting.
 When a key already exists, **Rotate key** replaces it after confirmation. **Copy key** is available only
 when this page holds a valid key; the dashboard never retrieves an existing key from the server.
 The status badge explains whether protection is on, off, awaiting a key, or unavailable without administrator setup.

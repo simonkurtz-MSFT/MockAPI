@@ -95,18 +95,21 @@ test("API security controller reports write failures and confirms explicit opt-o
     await window.security.open();
   });
   await expect(frame.locator("#settings-api-security-summary")).toHaveText("Protection on");
-  await frame.locator("#settings-api-security-enabled").uncheck();
-  await frame.locator("#settings-api-security-apply").click();
+  await frame.locator("#settings-api-security-enabled").click();
+  await expect(frame.locator("#settings-api-security-enabled")).toBeChecked();
+  await expect(frame.locator("#settings-api-security-summary")).toHaveText("Protection on");
   expect(await frame.evaluate(() => window.calls.length)).toBe(1);
   await frame.evaluate(() => {
     window.confirmResult = true;
   });
-  await frame.locator("#settings-api-security-apply").click();
+  await frame.locator("#settings-api-security-enabled").click();
   await expect(frame.locator("#settings-api-security-status")).toContainText("changed");
   await expect(frame.locator("#settings-api-security-summary")).toHaveText("Update failed");
   expect(await frame.evaluate(() => window.calls[1].options.etag)).toBe('"3"');
   expect(await frame.evaluate(() => JSON.parse(window.calls[1].options.body))).toEqual({ enabled: false });
-  await expect(frame.locator("#settings-api-security-apply")).toBeEnabled();
+  await expect(frame.locator("#settings-api-security-enabled")).toBeEnabled();
+  await expect(frame.locator("#settings-api-security-enabled")).toBeChecked();
+  expect(await frame.evaluate(() => window.currentError)).toBe("Security settings changed. Reload Settings.");
   await frame.locator("#settings-api-key").fill("invalid");
   await expect(frame.locator("#settings-api-key-copy")).toBeDisabled();
   await expect(frame.locator("#settings-api-key")).toHaveAttribute("aria-invalid", "true");
@@ -114,7 +117,7 @@ test("API security controller reports write failures and confirms explicit opt-o
   expect(await frame.evaluate(() => window.security.getKey())).toBe("");
 });
 
-test("API security controller distinguishes saved protection from an unapplied checkbox change", async ({
+test("API security controller saves checkbox changes immediately and refreshes the saved protection", async ({
   page,
   request,
 }) => {
@@ -122,19 +125,29 @@ test("API security controller distinguishes saved protection from an unapplied c
   await frame.evaluate(async () => {
     const { createDashboardApiSecurity } = await import("/dashboard-api-security.js");
     window.securityCalls = [];
+    window.pendingSecurity = [];
+    window.confirmations = [];
     let current = { enabled: false, configured: true, etag: '"4"' };
     window.security = createDashboardApiSecurity({
       documentRoot: document,
       administratorConfigured: true,
       api: async (path, options) => {
         window.securityCalls.push({ path, options });
-        if (options) current = { ...current, enabled: JSON.parse(options.body).enabled, etag: '"5"' };
-        return current;
+        if (!options) return current;
+        return new Promise((resolve) =>
+          window.pendingSecurity.push(() => {
+            current = { ...current, enabled: JSON.parse(options.body).enabled, etag: '"5"' };
+            resolve(current);
+          })
+        );
       },
       showError: (message) => {
         throw new Error(message);
       },
-      confirm: () => true,
+      confirm: (message) => {
+        window.confirmations.push(message);
+        return true;
+      },
       copyToClipboard: async () => {},
     });
     document.getElementById("settings-dialog").showModal();
@@ -142,14 +155,34 @@ test("API security controller distinguishes saved protection from an unapplied c
   });
   await expect(frame.locator("#settings-api-security-summary")).toHaveText("Protection off");
   await expect(frame.locator("#settings-api-security-status")).toContainText("unauthenticated");
+  await expect(frame.locator(".security-warning-icon")).toBeVisible();
   await expect(frame.locator("#settings-api-key-generate")).toHaveText("Rotate key");
   await frame.getByLabel("Require X-MockAPI-Key on mock requests").check();
-  await expect(frame.locator("#settings-api-security-summary")).toHaveText("Protection off");
-  expect(await frame.evaluate(() => window.securityCalls.length)).toBe(1);
-  await frame.locator("#settings-api-security-apply").click();
-  await expect(frame.locator("#settings-api-security-summary")).toHaveText("Protection on");
+  await expect(frame.locator("#settings-api-security-summary")).toHaveText("Saving");
+  await expect(frame.locator("#settings-api-security-enabled")).toBeDisabled();
+  await frame.locator("#settings-api-security-enabled").evaluate((input) => input.dispatchEvent(new Event("change")));
+  expect(await frame.evaluate(() => window.securityCalls.length)).toBe(2);
+  expect(await frame.evaluate(() => window.confirmations.length)).toBe(0);
   expect(await frame.evaluate(() => window.securityCalls[1].options.etag)).toBe('"4"');
+  expect(await frame.evaluate(() => window.securityCalls[1].options.method)).toBe("PUT");
   expect(await frame.evaluate(() => JSON.parse(window.securityCalls[1].options.body))).toEqual({ enabled: true });
+  await frame.evaluate(() => window.pendingSecurity[0]());
+  await expect(frame.locator("#settings-api-security-summary")).toHaveText("Protection on");
+  await expect(frame.locator("#settings-api-security-enabled")).toBeEnabled();
+  await expect(frame.locator(".security-warning-icon")).toBeHidden();
+  await frame.locator("#settings-api-security-enabled").uncheck();
+  expect(await frame.evaluate(() => window.confirmations.length)).toBe(1);
+  expect(await frame.evaluate(() => window.securityCalls[3].options.etag)).toBe('"5"');
+  expect(await frame.evaluate(() => JSON.parse(window.securityCalls[3].options.body))).toEqual({ enabled: false });
+  await frame.evaluate(() => window.pendingSecurity[1]());
+  await expect(frame.locator("#settings-api-security-summary")).toHaveText("Protection off");
+  await expect(frame.locator(".security-warning-icon")).toBeVisible();
+  await frame.evaluate(async () => {
+    window.security.close();
+    await window.security.open();
+  });
+  await expect(frame.locator("#settings-api-security-enabled")).not.toBeChecked();
+  await expect(frame.locator("#settings-api-security-summary")).toHaveText("Protection off");
 });
 
 const endpoint = {

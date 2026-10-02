@@ -24,9 +24,9 @@ export function createDashboardApiSecurity({
 }) {
   const elements = getDashboardElements(documentRoot, {
     "settings-api-security-status": "p",
+    "settings-api-security-message": "span",
     "settings-api-security-summary": "span",
     "settings-api-security-enabled": "input",
-    "settings-api-security-apply": "button",
     "settings-api-key": "input",
     "settings-api-key-error": "p",
     "settings-api-key-generate": "button",
@@ -34,9 +34,9 @@ export function createDashboardApiSecurity({
   });
   const events = createDashboardEventScope();
   const status = elements["settings-api-security-status"];
+  const statusMessage = elements["settings-api-security-message"];
   const summary = elements["settings-api-security-summary"];
   const enabled = elements["settings-api-security-enabled"];
-  const apply = elements["settings-api-security-apply"];
   const input = elements["settings-api-key"];
   const keyError = elements["settings-api-key-error"];
   const generate = elements["settings-api-key-generate"];
@@ -51,7 +51,8 @@ export function createDashboardApiSecurity({
   function setStatus(title, state, message) {
     summary.textContent = title;
     summary.dataset.state = state;
-    status.textContent = message;
+    status.dataset.state = state;
+    statusMessage.textContent = message;
   }
 
   function setKeyError(message) {
@@ -63,7 +64,6 @@ export function createDashboardApiSecurity({
 
   function setControls() {
     enabled.disabled = busy || settings === null;
-    apply.disabled = busy || settings === null;
     generate.disabled = busy || settings === null;
     input.disabled = busy;
     copy.disabled = busy || !key;
@@ -117,7 +117,7 @@ export function createDashboardApiSecurity({
   }
 
   async function update(rotate) {
-    if (busy || settings === null) return;
+    if (disposed || busy || settings === null) return;
     if (
       rotate &&
       settings.configured &&
@@ -128,9 +128,12 @@ export function createDashboardApiSecurity({
       !rotate &&
       !enabled.checked &&
       !confirm("Disable API-key protection? Anyone able to reach this instance can invoke its mock endpoints.")
-    )
+    ) {
+      enabled.checked = settings.enabled;
       return;
+    }
     busy = true;
+    if (!rotate) setStatus("Saving", "loading", "Saving request protection...");
     setControls();
     const capturedGeneration = generation;
     try {
@@ -161,6 +164,7 @@ export function createDashboardApiSecurity({
         );
     } catch (error) {
       if (!disposed && capturedGeneration === generation) {
+        if (!rotate) enabled.checked = settings.enabled;
         setStatus("Update failed", "error", error.message);
         showError(error.message);
       }
@@ -182,7 +186,7 @@ export function createDashboardApiSecurity({
     setControls();
   });
   events.listen(generate, "click", () => update(true));
-  events.listen(apply, "click", () => update(false));
+  events.listen(enabled, "change", () => update(false));
   events.listen(copy, "click", () => copyToClipboard(key, "API key copied"));
   setControls();
 

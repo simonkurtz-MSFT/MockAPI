@@ -1596,8 +1596,7 @@ dialog::backdrop {
   border-top: 1px solid var(--cp-border);
   padding-top: 20px;
 }
-.settings-section-heading,
-.security-actions {
+.settings-section-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1641,10 +1640,30 @@ dialog::backdrop {
   color: var(--cp-danger);
 }
 .settings-body .security-status-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   padding: 12px 14px;
   border-left: 3px solid var(--cp-accent);
   border-radius: 0 8px 8px 0;
   background: var(--cp-bg-elevated);
+}
+.settings-body .security-status-message[data-state="warning"] {
+  border-left-color: var(--cp-warning);
+}
+.security-warning-icon {
+  display: none;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  fill: #ffc857;
+  stroke: #684400;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.security-status-message[data-state="warning"] .security-warning-icon {
+  display: block;
 }
 .security-card {
   display: grid;
@@ -1681,8 +1700,14 @@ dialog::backdrop {
 }
 .security-key-control {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 36px;
   gap: 8px;
+  width: 100%;
+  max-width: calc(43ch + 64px);
+  font-family: var(--cp-font-mono);
+}
+.security-key-control .icon-button {
+  align-self: center;
 }
 .security-key-control input {
   min-width: 0;

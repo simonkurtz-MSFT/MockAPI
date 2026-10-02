@@ -43,7 +43,8 @@ for (const theme of ["light", "dark"]) {
     await expect(page.getByRole("heading", { name: "Mock API security", exact: true })).toBeInViewport();
     await expect(page.getByRole("heading", { name: "Request protection", exact: true })).toBeVisible();
     await expect(page.locator("#settings-api-security-enabled")).toBeDisabled();
-    await expect(page.locator("#settings-api-security-apply")).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Apply protection setting", exact: true })).toHaveCount(0);
+    await expect(page.locator(".security-warning-icon")).toBeVisible();
     await expect(page.getByRole("button", { name: "Generate key", exact: true })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Copy key", exact: true })).toBeDisabled();
     const dimensions = await page.locator("#settings-api-security-enabled").evaluate((input) => {
@@ -56,6 +57,7 @@ for (const theme of ["light", "dark"]) {
     expect(dimensions.labelHeight).toBeGreaterThanOrEqual(44);
 
     const keyInput = page.getByLabel("API key for dashboard tests");
+    await expect(keyInput).toHaveAttribute("maxlength", "43");
     await page.keyboard.press("Tab");
     await expect(keyInput).toBeFocused();
     await keyInput.fill("invalid");
@@ -63,6 +65,9 @@ for (const theme of ["light", "dark"]) {
     await expect(page.locator("#settings-api-key-error")).toHaveText("Enter a generated 43-character MockAPI key.");
     await expect(page.getByRole("button", { name: "Copy key", exact: true })).toBeDisabled();
     await keyInput.fill("a".repeat(43));
+    await keyInput.press("End");
+    await keyInput.pressSequentially("b");
+    await expect(keyInput).toHaveValue("a".repeat(43));
     await expect(keyInput).toHaveAttribute("aria-invalid", "false");
     await expect(page.locator("#settings-api-key-error")).toBeHidden();
     await expect(page.getByRole("button", { name: "Copy key", exact: true })).toBeEnabled();
@@ -76,14 +81,22 @@ for (const theme of ["light", "dark"]) {
         contentWidth: body.scrollWidth,
         availableWidth: body.clientWidth,
         inputRight: input.right,
+        inputWidth: input.width,
         copyLeft: copy.left,
+        copyWidth: copy.width,
+        inputTop: input.top,
+        copyTop: copy.top,
         copyRight: copy.right,
         cardRight: card.right,
       };
     });
     expect(sizing.contentWidth).toBeLessThanOrEqual(sizing.availableWidth);
     expect(sizing.inputRight).toBeLessThan(sizing.copyLeft);
+    expect(sizing.inputWidth).toBeLessThanOrEqual(460);
+    expect(sizing.copyWidth).toBe(36);
+    expect(Math.abs(sizing.inputTop - sizing.copyTop)).toBeLessThanOrEqual(4);
     expect(sizing.copyRight).toBeLessThanOrEqual(sizing.cardRight);
+    await expect(page.locator("#settings-api-key-copy svg")).toBeVisible();
     await expectNoUnreviewedAccessibilityViolations(page, "#settings-dialog");
     await page.getByRole("button", { name: "Done", exact: true }).click();
     await expect(page.getByRole("button", { name: "Settings", exact: true })).toBeFocused();
@@ -109,5 +122,21 @@ test("Security Settings fits the minimum supported viewport and keeps preference
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(page.getByLabel("Workspace layout")).toHaveValue("stacked");
+  await page.getByLabel("API key for dashboard tests").fill("a".repeat(43));
+  const keyControlBounds = await page.locator(".security-key-control").evaluate((control) => {
+    const input = control.querySelector("input").getBoundingClientRect();
+    const copy = control.querySelector("button").getBoundingClientRect();
+    return {
+      inputRight: input.right,
+      inputCenterY: input.top + input.height / 2,
+      copyLeft: copy.left,
+      copyCenterY: copy.top + copy.height / 2,
+      copyWidth: copy.width,
+    };
+  });
+  expect(keyControlBounds.copyLeft).toBeGreaterThan(keyControlBounds.inputRight);
+  expect(keyControlBounds.copyCenterY).toBe(keyControlBounds.inputCenterY);
+  expect(keyControlBounds.copyWidth).toBe(36);
+  await expect(page.getByRole("button", { name: "Copy key", exact: true })).toBeEnabled();
   await expectNoUnreviewedAccessibilityViolations(page, "#settings-dialog");
 });
