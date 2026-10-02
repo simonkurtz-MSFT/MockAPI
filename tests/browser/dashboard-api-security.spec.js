@@ -33,6 +33,52 @@ test("Settings keeps the mock key memory-only and attaches it to dashboard tests
   await expect(page.getByLabel("API key for dashboard tests")).toHaveValue("");
 });
 
+test("Settings closes on an outside click, restores focus, and preserves the memory-only test key", async ({
+  page,
+  isMobile,
+}) => {
+  const settingsButton = page.getByRole("button", { name: "Settings", exact: true });
+  const dialog = page.getByRole("dialog", { name: "Settings", exact: true });
+  const keyInput = page.getByLabel("API key for dashboard tests");
+  const key = "a".repeat(43);
+  await settingsButton.click();
+  await keyInput.fill(key);
+  const heading = dialog.getByRole("heading", { name: "Mock API security", exact: true });
+  await heading.click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog).not.toHaveAttribute("closedby", "any");
+  await expect(keyInput).toHaveValue(key);
+
+  const bounds = await dialog.boundingBox();
+  expect(bounds.x).toBeGreaterThan(1);
+  expect(bounds.y).toBeGreaterThan(1);
+  const headingBounds = await heading.boundingBox();
+  await page.mouse.move(headingBounds.x + headingBounds.width / 2, headingBounds.y + headingBounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(1, 1);
+  await page.mouse.up();
+  await expect(dialog).toBeVisible();
+
+  await page.mouse.move(1, 1);
+  await page.mouse.down();
+  await page.mouse.move(headingBounds.x + headingBounds.width / 2, headingBounds.y + headingBounds.height / 2);
+  await page.mouse.up();
+  await expect(dialog).toBeVisible();
+  await page.mouse.click(bounds.x + 2, bounds.y + 2);
+  await expect(dialog).toBeVisible();
+
+  if (isMobile) await page.touchscreen.tap(1, 1);
+  else await page.mouse.click(1, 1);
+  await expect(dialog).toBeHidden();
+  await expect(settingsButton).toBeFocused();
+  await expect(page.locator("#settings-api-key")).toHaveValue("");
+  await settingsButton.click();
+  await expect(keyInput).toHaveValue(key);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(settingsButton).toBeFocused();
+});
+
 for (const theme of ["light", "dark"]) {
   test(`Security Settings has compact controls and accessible sections in ${theme} theme`, async ({ page }) => {
     await page.evaluate((selectedTheme) => {

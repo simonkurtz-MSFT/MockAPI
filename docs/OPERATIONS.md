@@ -29,10 +29,12 @@ Settings separates instance-wide **Request protection** from the memory-only **D
 Changing the **Require X-MockAPI-Key on mock requests** checkbox automatically saves the protection setting
 on the server for all callers, including after a restart. Disabling protection still requires confirmation;
 a cancelled or failed save restores the checkbox to the saved setting.
-When a key already exists, **Rotate key** replaces it after confirmation. **Copy key** is available only
+When a key already exists, **Rotate key** replaces it after confirmation. The **Copy key** icon beside the textbox is available only
 when this page holds a valid key; the dashboard never retrieves an existing key from the server.
 The status badge explains whether protection is on, off, awaiting a key, or unavailable without administrator setup.
 Workspace preferences are separate and apply only to the current browser.
+Close Settings with **Done**, the close button, **Escape**, or a click outside the dialog.
+Closing Settings retains the dashboard test key in page memory until a reload.
 
 Security Settings require configured administrator credentials even when the rest of management is anonymous.
 Without administrator credentials, security management returns `403`; ordinary mock calls still fail closed.

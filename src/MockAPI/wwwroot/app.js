@@ -410,7 +410,30 @@ function bindEvents() {
     elements["how-it-works-dialog"].close();
     endpointEditor.open(null, state.etag);
   });
+  const settingsDialog = elements["settings-dialog"];
+  let settingsPointerStartedOutside = false;
+
+  /** @param {MouseEvent} event Pointer coordinates relative to the viewport. */
+  function isOutsideSettingsDialog(event) {
+    const bounds = settingsDialog.getBoundingClientRect();
+    return (
+      event.clientX < bounds.left ||
+      event.clientX > bounds.right ||
+      event.clientY < bounds.top ||
+      event.clientY > bounds.bottom
+    );
+  }
+
+  pageEvents.listen(settingsDialog, "pointerdown", (event) => {
+    settingsPointerStartedOutside = event.target === settingsDialog && isOutsideSettingsDialog(event);
+  });
+  pageEvents.listen(settingsDialog, "click", (event) => {
+    const dismiss = settingsPointerStartedOutside && event.target === settingsDialog && isOutsideSettingsDialog(event);
+    settingsPointerStartedOutside = false;
+    if (dismiss) settingsDialog.close();
+  });
   pageEvents.listen(elements["settings-button"], "click", () => {
+    settingsPointerStartedOutside = false;
     const preferences = dashboardPreferencesStore.get();
     elements["settings-dashboard-layout"].value = preferences.dashboardLayout;
     elements["settings-endpoint-test-dialog-alignment"].value = preferences.endpointTestDialogAlignment;
@@ -420,6 +443,7 @@ function bindEvents() {
     void apiSecurity.open();
   });
   pageEvents.listen(elements["settings-dialog"], "close", () => {
+    settingsPointerStartedOutside = false;
     apiSecurity.close();
     elements["settings-button"].focus();
   });
