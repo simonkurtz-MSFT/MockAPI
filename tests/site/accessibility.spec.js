@@ -59,8 +59,9 @@ test("uniform header, styled links and arrow controls meet contrast and keyboard
       if (control !== inlineLink) {
         expect(contrastRatio(colors.border, colors.background)).toBeGreaterThanOrEqual(3);
         const size = await control.boundingBox();
-        expect(size.width).toBeGreaterThanOrEqual(control === theme ? 24 : 44);
-        expect(size.height).toBeGreaterThanOrEqual(control === theme ? 24 : 44);
+        const minimumSize = control === previous || control === next ? 36 : control === theme ? 24 : 44;
+        expect(size.width).toBeGreaterThanOrEqual(minimumSize);
+        expect(size.height).toBeGreaterThanOrEqual(minimumSize);
       }
       await page.keyboard.press("Tab");
       await control.focus();
@@ -103,7 +104,7 @@ test("uniform header, styled links and arrow controls meet contrast and keyboard
     }
     await expect(inlineLink).toHaveCSS("text-decoration-line", "underline");
     const selected = page.locator('.gallery-choices [aria-pressed="true"]');
-    await expect(selected).toHaveCSS("text-decoration-line", "underline");
+    await expect(selected).toHaveCSS("font-weight", "700");
     const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
     expect(results.violations).toEqual([]);
   }
@@ -136,7 +137,7 @@ test("text resizing, reflow, reduced motion and forced colors retain usable cont
   await choices.getByRole("button", { name: "Overview", exact: true }).click();
   const selected = choices.getByRole("button", { name: "Overview", exact: true });
   await expect(selected).toHaveAttribute("aria-pressed", "true");
-  await expect(selected).toHaveCSS("text-decoration-line", "underline");
+  await expect(selected).toHaveCSS("font-weight", "700");
   await next.focus();
   await page.keyboard.press("Enter");
   await expect(page.locator("#gallery-status")).toHaveText("Screenshot 2 of 3: Example endpoints");

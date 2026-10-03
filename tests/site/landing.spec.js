@@ -439,7 +439,7 @@ test("dashboard gallery supports named views, wrapping controls, keyboard naviga
   ).toEqual([
     [1920, 1200],
     [922, 906],
-    [1444, 875],
+    [1444, 480],
   ]);
 });
 
