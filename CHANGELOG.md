@@ -7,6 +7,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-08
+
 ### Changed
 
 - Built-in examples now form a cohesive Contoso Theme Parks (`/ctp`) API with linked park, attraction,
@@ -14,6 +16,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
   stable; previously loaded `/ex` routes migrate only after conflict review and explicit force update.
 - Both developer CLI showcases exercise the themed wait-times endpoint and detect legacy routes
   even when their stable endpoint ID is already loaded.
+- Documentation-site carousel controls are clearer and more compact across desktop and mobile layouts.
+- Development dependencies were updated to their latest eligible compatible releases.
 
 ### Fixed
 
@@ -75,7 +79,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.2.0...v1.3.0
 [1.2.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.1.0...v1.2.0
 [1.1.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.0.0...v1.0.1

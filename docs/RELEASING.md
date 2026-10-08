@@ -1,30 +1,28 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.2.0. This version decision does not publish a release
+MockAPI's next stable application version is 1.3.0. This version decision does not publish a release
 or replace the quality, public-release audit, native image validation, and publication approval
 gates below.
 
-## 1.2.0 release summary
+## 1.3.0 release summary
 
-The planned release date is **2026-10-02**, with the immutable tag **`v1.2.0`**.
-The [1.2.0 changelog entry](../CHANGELOG.md#120---2026-10-02) supplies the GitHub release notes.
+The planned release date is **2026-10-08**, with the immutable tag **`v1.3.0`**.
+The [1.3.0 changelog entry](../CHANGELOG.md#130---2026-10-08) supplies the GitHub release notes.
 
-- Operators can perform initial API-key setup without administrator credentials on anonymous local
-  installations. Configured administrator credentials continue to protect security settings.
-- Failed interactive developer-CLI actions can be retried directly in both PowerShell and Bash.
-- Configuration and security-document saves tolerate brief file replacement conflicts before
-  reporting a persistence failure.
-- API-key protection changes save when the dashboard checkbox changes, and Settings has clearer
-  status styling and outside-click dismissal.
-- The dashboard links to the public documentation site, whose approved direct GA4 tag remains
-  confined to the production origin and honors the browser opt-out flag.
+- Built-in examples form a cohesive Contoso Theme Parks API with linked fixtures and clearly
+  labeled fault demonstrations.
+- Both developer CLI showcases exercise the themed wait-times endpoint and identify legacy routes
+  even when a stable built-in endpoint ID is already loaded.
+- Documentation-site carousel controls are clearer and more compact across desktop and mobile layouts.
+- Dark-mode table hover backgrounds preserve accessible response-status contrast.
+- Development dependencies are updated to their latest eligible compatible releases.
 
 ### Compatibility and upgrade behavior
 
-Anonymous initial API-key setup and developer-CLI retry add functionality without changing the
-configuration schema (`schemaVersion: "1.0"`) or existing mock routes, so 1.2.0 is a minor release.
-Existing configuration and security documents remain supported. Deployments with configured
-administrator credentials retain the prior authentication requirement for security settings.
+The themed built-in API and developer-CLI behavior add functionality without changing the
+configuration schema (`schemaVersion: "1.0"`), so 1.3.0 is a minor release. Stable built-in endpoint
+IDs remain unchanged. Existing configurations remain supported, and previously loaded `/ex` routes
+migrate only after conflict review and explicit force update.
 
 No container publication is implied by the version or changelog update. Keep pull examples on
 already-published image tags until approved native image validation and publication finish.
@@ -64,7 +62,7 @@ it validates, tags, and releases that commit. Do not use this to replace an alre
 
 Use the [versioning skill](../.github/skills/versioning/SKILL.md) and
 [versioning agent](../.github/agents/versioning.agent.md) for compatibility decisions.
-Creating the `v1.2.0` tag still requires the approved application-version bump to reach `main`.
+Creating the `v1.3.0` tag still requires the approved application-version bump to reach `main`.
 
 ## Reviewed changelog contract
 
