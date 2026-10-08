@@ -20,49 +20,88 @@ public sealed class ConfigurationSchemaTests
         Assert.NotNull(document);
         Assert.True(ConfigurationValidator.Validate(document).IsValid);
 
-        Assert.Equal(7, document.Endpoints.Count);
-        Assert.Equal("This API demonstrates some of MockAPI's capabilities.", document.ApiDescriptions!["/ex"]);
+        Assert.Equal(9, document.Endpoints.Count);
+        Assert.StartsWith("CTP stands for Contoso Theme Parks", document.ApiDescriptions!["/ctp"]);
+        Assert.Contains("static", document.ApiDescriptions["/ctp"], StringComparison.OrdinalIgnoreCase);
         Assert.All(document.Endpoints, endpoint =>
         {
-            Assert.StartsWith("/ex/", endpoint.Path, StringComparison.Ordinal);
+            Assert.StartsWith("/ctp/", endpoint.Path, StringComparison.Ordinal);
             Assert.False(string.IsNullOrWhiteSpace(endpoint.Description));
         });
 
-        var hello = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ex/hello");
-        Assert.Equal(["GET"], hello.Methods);
-        Assert.Equal(200, hello.Response.StatusCode);
+        var parks = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ctp/parks");
+        Assert.Equal(["GET", "HEAD"], parks.Methods);
+        Assert.Equal(200, parks.Response.StatusCode);
+        using var parkBody = JsonDocument.Parse(parks.Response.Body);
+        var park = Assert.Single(parkBody.RootElement.GetProperty("parks").EnumerateArray());
+        var attractionId = Assert.Single(park.GetProperty("attractionIds").EnumerateArray()).GetString();
+        var attraction = Assert.Single(document.Endpoints, endpoint => endpoint.Path == $"/ctp/attractions/{attractionId}");
+        using var attractionBody = JsonDocument.Parse(attraction.Response.Body);
+        Assert.Equal(park.GetProperty("id").GetString(), attractionBody.RootElement.GetProperty("parkId").GetString());
 
-        var created = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ex/orders");
+        var created = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ctp/reservations");
         Assert.Equal(["POST"], created.Methods);
         Assert.Equal(201, created.Response.StatusCode);
+        var reservationLocation = Assert.Single(created.Response.Headers["Location"]);
+        var reservation = Assert.Single(document.Endpoints, endpoint =>
+            endpoint.Path == reservationLocation && endpoint.Methods.Contains("GET"));
+        Assert.Equal(200, reservation.Response.StatusCode);
+        Assert.Equal(created.Response.Body, reservation.Response.Body);
+        using var reservationBody = JsonDocument.Parse(reservation.Response.Body);
+        Assert.Equal(attractionId, reservationBody.RootElement.GetProperty("attractionId").GetString());
+        Assert.Equal(park.GetProperty("id").GetString(), reservationBody.RootElement.GetProperty("parkId").GetString());
 
-        var rateLimited = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ex/rate-limited");
+        var waitTimesPath = attractionBody.RootElement.GetProperty("waitTimesUrl").GetString();
+        var rateLimited = Assert.Single(document.Endpoints, endpoint => endpoint.Path == waitTimesPath);
         Assert.Equal(5, rateLimited.RequestCount);
         Assert.Equal(["10"], rateLimited.Response.Headers["Retry-After"]);
-        Assert.Equal("{\"error\":\"try again later\"}", rateLimited.Response.Body);
+        Assert.Equal(["MockAPI", "checked-in-example"], rateLimited.Response.Headers["X-Mock-Source"]);
+        Assert.Equal("{\"error\":\"wait_times_rate_limited\",\"message\":\"Take a little breather! Check back in 10 seconds.\"}", rateLimited.Response.Body);
         Assert.Equal(4, rateLimited.Response.RateLimit!.RequestLimit);
         Assert.Equal(10, rateLimited.Response.RateLimit.WindowSeconds);
         Assert.Equal(200, rateLimited.Response.RateLimit.SuccessResponse.StatusCode);
-        Assert.Equal("{\"status\":\"accepted\"}", rateLimited.Response.RateLimit.SuccessResponse.Body);
+        Assert.Equal("{\"attractionId\":\"cloud-cruiser\",\"waitMinutes\":15,\"status\":\"open\"}", rateLimited.Response.RateLimit.SuccessResponse.Body);
 
-        var noContent = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ex/orders/42");
+        var noContent = Assert.Single(document.Endpoints, endpoint =>
+            endpoint.Path == reservationLocation && endpoint.Methods.Contains("DELETE"));
         Assert.Equal(["DELETE"], noContent.Methods);
         Assert.Equal(204, noContent.Response.StatusCode);
+        Assert.Empty(noContent.Response.Body);
 
-        var redirect = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ex/redirect");
+        var redirect = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ctp/attractions/featured");
         Assert.Equal(["GET"], redirect.Methods);
         Assert.Equal(302, redirect.Response.StatusCode);
-        Assert.Equal(["/ex/hello"], redirect.Response.Headers["Location"]);
+        Assert.Equal([attraction.Path], redirect.Response.Headers["Location"]);
         Assert.Empty(redirect.Response.Body);
 
-        var serverError = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ex/server-error");
+        var serverError = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ctp/demo-faults/parade-schedule");
         Assert.Equal(["GET"], serverError.Methods);
         Assert.Equal(500, serverError.Response.StatusCode);
-        Assert.Equal("{\"error\":\"internal server error\"}", serverError.Response.Body);
+        Assert.Equal("{\"error\":\"parade_schedule_unavailable\",\"message\":\"The parade schedule hit a little hiccup. Please try again later.\"}", serverError.Response.Body);
 
-        var abort = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ex/abort-connection");
+        var abort = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ctp/demo-faults/ride-sensor");
         Assert.Equal(MockResponseBehavior.AbortConnection, abort.Response.Behavior);
         Assert.Null(abort.Response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("4cb6e141-5f4f-4a30-9715-ec2c68554ad0", "GET", "/ctp/parks")]
+    [InlineData("17a50c14-e67f-4770-9bf6-afb4a80e4609", "POST", "/ctp/reservations")]
+    [InlineData("7b2d425d-75f1-4ded-a74e-503374a7e99e", "GET", "/ctp/attractions/cloud-cruiser/wait-times")]
+    [InlineData("b53545e8-fd25-44cb-940b-0ce175547483", "DELETE", "/ctp/reservations/42")]
+    [InlineData("ec8d45cb-a095-4d7e-9540-c7d9d81fe426", "GET", "/ctp/attractions/featured")]
+    [InlineData("a276b184-ecf6-4377-bf45-5ef1dc8f7433", "GET", "/ctp/demo-faults/parade-schedule")]
+    [InlineData("5f8c908d-42e1-4af9-952a-35c77c408a26", "GET", "/ctp/demo-faults/ride-sensor")]
+    public void CheckedInExample_PreservesOriginalEndpointIds(string id, string method, string path)
+    {
+        var document = JsonSerializer.Deserialize(
+            File.ReadAllText(ConfigurationSchemaFixture.ExamplePath),
+            MockApiJsonContext.Default.MockApiConfigurationDocument)!;
+
+        var endpoint = Assert.Single(document.Endpoints, endpoint => endpoint.Id == Guid.Parse(id));
+
+        Assert.Equal(path, endpoint.Path);
+        Assert.Contains(method, endpoint.Methods);
     }
 
     [Fact]
@@ -142,6 +181,7 @@ public sealed class ConfigurationSchemaTests
 
     [Theory]
     [InlineData("/", true)]
+    [InlineData("/ctp", true)]
     [InlineData("/ex", true)]
     [InlineData("/EX", true)]
     [InlineData("ex", false)]
@@ -189,7 +229,7 @@ public sealed class ConfigurationSchemaTests
         var instance = JsonNode.Parse(File.ReadAllText(ConfigurationSchemaFixture.ExamplePath))!.AsObject();
         var abort = Assert.Single(
             instance["endpoints"]!.AsArray(),
-            endpoint => endpoint!["path"]!.GetValue<string>() == "/ex/abort-connection");
+            endpoint => endpoint!["path"]!.GetValue<string>() == "/ctp/demo-faults/ride-sensor");
         var response = abort!["response"]!.AsObject();
         response["statusCode"] = 200;
 

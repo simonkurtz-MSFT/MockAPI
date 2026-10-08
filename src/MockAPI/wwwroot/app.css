@@ -19,6 +19,7 @@
   --cp-accent: #075ea8;
   --cp-accent-hover: #004a87;
   --cp-accent-soft: rgba(7, 94, 168, 0.12);
+  --cp-table-hover: var(--cp-accent-soft);
   --cp-accent-fg: #ffffff;
   --cp-secondary: #c92f57;
   --cp-secondary-soft: rgba(201, 47, 87, 0.1);
@@ -62,6 +63,7 @@ html[data-theme="dark"] {
   --cp-accent: #69b8ff;
   --cp-accent-hover: #91ccff;
   --cp-accent-soft: rgba(105, 184, 255, 0.16);
+  --cp-table-hover: var(--cp-bg-elevated);
   --cp-accent-fg: #08213b;
   --cp-secondary: #ff7898;
   --cp-secondary-soft: rgba(255, 120, 152, 0.14);
@@ -1132,7 +1134,7 @@ td {
   font-size: 13px;
 }
 tbody tr:hover {
-  background: var(--cp-accent-soft);
+  background: var(--cp-table-hover);
 }
 .request-log-entry:hover {
   background: var(--cp-bg-elevated);
@@ -2242,6 +2244,7 @@ html[data-theme="dark"] button:disabled {
     --cp-accent: Highlight;
     --cp-accent-hover: Highlight;
     --cp-accent-soft: Canvas;
+    --cp-table-hover: Canvas;
     --cp-accent-fg: HighlightText;
     --cp-secondary: Highlight;
     --cp-secondary-soft: Canvas;

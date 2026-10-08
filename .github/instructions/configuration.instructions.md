@@ -25,4 +25,8 @@ applyTo: "{config,schemas}/**/*.json"
 - Keep schema validation and semantic validation distinct. The semantic layer owns cross-record method/path conflicts and reserved-route checks.
 - Keep serialization deterministic and verify generated configuration against the checked-in schema.
 - Keep the built-in example document as a checked-in, schema-valid embedded resource. Expose it read-only and activate it only through the normal validated, ETag-protected merge path.
+- Keep the built-in example cohesive under `/ctp` (Contoso Theme Parks), with fictional park, attraction,
+  reservation, and wait-time fixtures and clearly labeled `/ctp/demo-faults/` routes. Explain static behavior
+  and make advertised links resolvable. Preserve the original seven example IDs when changing their routes
+  so previously loaded examples require the normal reviewed conflict/force merge instead of duplication.
 - Any contract change must update the schema, models, source-generated JSON metadata, examples, management API/dashboard behavior, documentation, and tests together. Use the `mock-endpoint-change` skill.

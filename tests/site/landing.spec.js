@@ -437,10 +437,21 @@ test("dashboard gallery supports named views, wrapping controls, keyboard naviga
       .locator("img")
       .evaluateAll((images) => images.map((image) => [image.naturalWidth, image.naturalHeight]))
   ).toEqual([
-    [1920, 1200],
-    [922, 906],
-    [1444, 480],
+    [1920, 1500],
+    [922, 1000],
+    [922, 574],
   ]);
+  expect(
+    await gallery
+      .locator("img")
+      .evaluateAll((images) =>
+        images.every(
+          (image) =>
+            Number(image.getAttribute("width")) === image.naturalWidth &&
+            Number(image.getAttribute("height")) === image.naturalHeight
+        )
+      )
+  ).toBe(true);
 });
 
 test("every gallery view is accessible in light and dark mode and fits a narrow viewport", async ({ page }) => {

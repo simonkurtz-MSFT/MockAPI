@@ -54,19 +54,23 @@ test("positions and persists the endpoint test dialog alignment", async ({ page 
 test("tests a configured non-2xx response and restores focus", async ({ page, request }) => {
   const exampleResponse = await request.get("/__mockapi/api/configuration/example");
   const example = await exampleResponse.json();
-  expect(example.endpoints.find((endpoint) => endpoint.path === "/ex/rate-limited").requestCount).toBe(5);
+  expect(
+    example.endpoints.find((endpoint) => endpoint.path === "/ctp/attractions/cloud-cruiser/wait-times").requestCount
+  ).toBe(5);
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  const row = page.getByRole("row", { name: /Rate limited response/ });
+  const row = page.getByRole("row", { name: /Check Cloud Cruiser wait times/ });
   const trigger = row.getByRole("button", { name: "Test" });
   await trigger.click();
-  await page.getByLabel("Path and query").fill("/ex/rate-limited?browser=1");
+  await page.getByLabel("Path and query").fill("/ctp/attractions/cloud-cruiser/wait-times?browser=1");
   const requestCount = page.getByLabel("Number of requests");
   await expect(requestCount).toHaveValue("5");
   await expect(requestCount).toHaveAttribute("min", "1");
   await expect(requestCount).toHaveAttribute("max", "5");
   await page.getByRole("button", { name: "Send request" }).click();
   await expect(page.getByRole("status")).toHaveText("5 requests completed; final response HTTP 429.");
-  await expect(page.locator("#test-response-body")).toHaveText('{"error":"try again later"}');
+  await expect(page.locator("#test-response-body")).toHaveText(
+    '{"error":"wait_times_rate_limited","message":"Take a little breather! Check back in 10 seconds."}'
+  );
   await expect(page.locator("#test-response-headers")).toContainText("x-mock-source");
   const colonColumns = await page.locator("#test-response-headers").evaluate((element) =>
     element.textContent
@@ -82,15 +86,17 @@ test("tests a configured non-2xx response and restores focus", async ({ page, re
 
 test("tests body-bearing and empty-response endpoints", async ({ page }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  const createRow = page.getByRole("row", { name: /Create an order/ });
+  const createRow = page.getByRole("row", { name: /Reserve a ride/ });
   await createRow.getByRole("button", { name: "Test" }).click();
-  await page.getByLabel("Request body", { exact: true }).fill('{"sku":"browser"}');
+  await page.getByLabel("Request body", { exact: true }).fill('{"attractionId":"cloud-cruiser","partySize":2}');
   await page.getByRole("button", { name: "Send request" }).click();
   await expect(page.getByRole("status")).toHaveText("Request completed with HTTP 201.");
-  await expect(page.locator("#test-response-body")).toHaveText('{"id":42,"status":"created"}');
+  await expect(page.locator("#test-response-body")).toHaveText(
+    '{"id":42,"parkId":"starlight-gardens","attractionId":"cloud-cruiser","partySize":2,"status":"reserved"}'
+  );
   await page.keyboard.press("Escape");
 
-  const deleteRow = page.getByRole("row", { name: /Delete an order/ });
+  const deleteRow = page.getByRole("row", { name: /Cancel your ride reservation/ });
   await deleteRow.getByRole("button", { name: "Test" }).click();
   await page.getByRole("button", { name: "Send request" }).click();
   await expect(page.getByRole("status")).toHaveText("Request completed with HTTP 204.");
@@ -100,13 +106,13 @@ test("tests body-bearing and empty-response endpoints", async ({ page }) => {
 test("reports endpoint-test network errors", async ({ page, request }) => {
   await request.post("/__mockapi/api/statistics/reset");
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  const row = page.locator("#endpoint-rows").getByRole("row", { name: /Abort the connection/ });
+  const row = page.locator("#endpoint-rows").getByRole("row", { name: /Ride sensor connection fault demo/ });
   await expect(row).toContainText("DROP");
   await row.getByRole("button", { name: "Test" }).click();
   await page.getByRole("button", { name: "Send request" }).click();
   await expect(page.getByRole("status")).toContainText("Network error:");
   const requestLog = page.getByRole("region", { name: "Recent request log" });
-  const loggedRow = requestLog.getByRole("row", { name: /Abort the connection/ });
+  const loggedRow = requestLog.getByRole("row", { name: /Ride sensor connection fault demo/ });
   await expect(loggedRow).toHaveCount(1);
   await expect
     .poll(async () => Number(await loggedRow.locator(".request-log-attempts").textContent()))
@@ -126,13 +132,13 @@ test("reports endpoint-test network errors", async ({ page, request }) => {
 
 test("cancels an active endpoint test", async ({ page }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await page.route("**/ex/hello", async (route) => {
+  await page.route("**/ctp/parks", async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 2_000));
     await route.abort();
   });
-  const row = page.getByRole("row", { name: /Hello from MockAPI/ });
+  const row = page.getByRole("row", { name: /Discover the parks/ });
   await row.getByRole("button", { name: "Test" }).click();
   await page.getByRole("button", { name: "Send request" }).click();
-  await page.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Request cancelled.");
 });

@@ -187,7 +187,7 @@ test("shows keyboard focus on endpoint toggles across color modes", async ({ pag
 
   for (const theme of ["light", "dark"]) {
     await page.goto(`/?scoutTheme=${theme}`);
-    const toggle = page.getByRole("checkbox", { name: "Disable Rate limited response" });
+    const toggle = page.getByRole("checkbox", { name: "Disable Check Cloud Cruiser wait times" });
     await toggle.focus();
     await expect(toggle).toBeFocused();
     const visibleSwitch = toggle.locator("+ span");
@@ -218,7 +218,7 @@ test("shows keyboard focus on endpoint toggles across color modes", async ({ pag
 
   await page.emulateMedia({ forcedColors: "active" });
   await page.goto("/?scoutTheme=light");
-  const toggle = page.getByRole("checkbox", { name: "Disable Rate limited response" });
+  const toggle = page.getByRole("checkbox", { name: "Disable Check Cloud Cruiser wait times" });
   await toggle.focus();
   await expect(toggle).toBeFocused();
   await expect(toggle.locator("+ span")).toHaveCSS("outline-style", "solid");

@@ -258,7 +258,7 @@ test("aligns expanded column bottoms without horizontal scrolling on an empty da
 test("fits populated endpoint rows within the wide-screen endpoint column", async ({ page }) => {
   await page.setViewportSize({ width: 1760, height: 900 });
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator(".endpoint-row")).toHaveCount(7);
+  await expect(page.locator(".endpoint-row")).toHaveCount(9);
   await expect(page.locator("html")).toHaveAttribute("data-dashboard-layout", "columns");
 
   const dimensions = await page.locator(".table-wrap").evaluate((element) => ({

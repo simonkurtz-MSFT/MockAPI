@@ -187,10 +187,10 @@ public sealed class RemainingManagementApiTests : IDisposable
 
         var example = await ReadDocumentAsync(client, $"{BasePath}/configuration/example");
 
-        var rateLimited = Assert.Single(example.Endpoints, endpoint => endpoint.Path == "/ex/rate-limited");
+        var rateLimited = Assert.Single(example.Endpoints, endpoint => endpoint.Path == "/ctp/attractions/cloud-cruiser/wait-times");
         Assert.Equal(5, rateLimited.RequestCount);
         Assert.All(
-            example.Endpoints.Where(endpoint => endpoint.Path != "/ex/rate-limited"),
+            example.Endpoints.Where(endpoint => endpoint.Path != rateLimited.Path),
             endpoint => Assert.Null(endpoint.RequestCount));
 
         using var mergeRequest = new HttpRequestMessage(
@@ -206,7 +206,7 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.NotNull(activeEndpoints);
         Assert.Equal(
             5,
-            Assert.Single(activeEndpoints, endpoint => endpoint.Path == "/ex/rate-limited").RequestCount);
+            Assert.Single(activeEndpoints, endpoint => endpoint.Path == rateLimited.Path).RequestCount);
     }
 
     [Fact]
@@ -302,13 +302,13 @@ public sealed class RemainingManagementApiTests : IDisposable
             MockApiJsonContext.Default.MockApiConfigurationDocument)!;
 
         Assert.Equal(HttpStatusCode.OK, exampleResponse.StatusCode);
-        Assert.Equal(7, example.Endpoints.Count);
+        Assert.Equal(9, example.Endpoints.Count);
         var exampleEndpoint = Assert.Single(
             example.Endpoints,
-            endpoint => endpoint.Path == "/ex/rate-limited");
+            endpoint => endpoint.Path == "/ctp/attractions/cloud-cruiser/wait-times");
         var abortEndpoint = Assert.Single(
             example.Endpoints,
-            endpoint => endpoint.Path == "/ex/abort-connection");
+            endpoint => endpoint.Path == "/ctp/demo-faults/ride-sensor");
 
         using var imported = await SendDocumentAsync(
             client,
@@ -321,39 +321,68 @@ public sealed class RemainingManagementApiTests : IDisposable
         using var thirdAllowed = await client.GetAsync(exampleEndpoint.Path);
         using var fourthAllowed = await client.GetAsync(exampleEndpoint.Path);
         using var mocked = await client.GetAsync(exampleEndpoint.Path);
-        using var hello = await client.GetAsync("/ex/hello");
-        using var created = await client.PostAsync("/ex/orders", content: null);
-        using var deleted = await client.DeleteAsync("/ex/orders/42");
-        using var redirect = await client.GetAsync("/ex/redirect");
-        using var serverError = await client.GetAsync("/ex/server-error");
+        using var parks = await client.GetAsync("/ctp/parks?park=ignored");
+        using var head = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "/ctp/parks"));
+        using var reservationBeforeCreation = await client.GetAsync("/ctp/reservations/42");
+        using var created = await client.PostAsync("/ctp/reservations", new StringContent("{\"partySize\":99}"));
+        using var reservation = await client.GetAsync(created.Headers.Location);
+        using var deleted = await client.DeleteAsync("/ctp/reservations/42");
+        using var reservationAfterCancellation = await client.GetAsync("/ctp/reservations/42");
+        using var redirect = await client.GetAsync("/ctp/attractions/featured");
+        using var attraction = await client.GetAsync(redirect.Headers.Location);
+        using var serverError = await client.GetAsync("/ctp/demo-faults/parade-schedule");
+        using var unsupportedMethod = await client.PostAsync(exampleEndpoint.Path, content: null);
+        using var missing = await client.GetAsync("/ctp/reservations/43");
+        using var oldRoute = await client.GetAsync("/ex/hello");
         using var activeEndpoints = await client.GetAsync($"{BasePath}/endpoints");
         using var activated = await ReadJsonAsync(activeEndpoints);
 
         Assert.Equal(HttpStatusCode.OK, imported.StatusCode);
-        Assert.Equal(7, activated.RootElement.GetArrayLength());
+        Assert.Equal(9, activated.RootElement.GetArrayLength());
         await Assert.ThrowsAsync<OperationCanceledException>(() => client.GetAsync(abortEndpoint.Path));
-        Assert.Equal(HttpStatusCode.OK, hello.StatusCode);
-        Assert.Equal("{\"message\":\"Hello from MockAPI\"}", await hello.Content.ReadAsStringAsync());
+        var parksEndpoint = Assert.Single(example.Endpoints, endpoint => endpoint.Path == "/ctp/parks");
+        Assert.Equal(HttpStatusCode.OK, parks.StatusCode);
+        Assert.Equal(parksEndpoint.Response.Body, await parks.Content.ReadAsStringAsync());
+        Assert.Equal("application/json; charset=utf-8", parks.Content.Headers.ContentType!.ToString());
+        Assert.Equal(["MockAPI"], parks.Headers.GetValues("X-Mock-Source"));
+        Assert.Equal(parks.StatusCode, head.StatusCode);
+        Assert.Equal(parks.Content.Headers.ContentType, head.Content.Headers.ContentType);
+        Assert.Equal(["MockAPI"], head.Headers.GetValues("X-Mock-Source"));
+        Assert.Empty(await head.Content.ReadAsByteArrayAsync());
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
-        Assert.Equal("/ex/orders/42", created.Headers.Location!.OriginalString);
-        Assert.Equal("{\"id\":42,\"status\":\"created\"}", await created.Content.ReadAsStringAsync());
+        Assert.Equal("/ctp/reservations/42", created.Headers.Location!.OriginalString);
+        const string reservationBody = "{\"id\":42,\"parkId\":\"starlight-gardens\",\"attractionId\":\"cloud-cruiser\",\"partySize\":2,\"status\":\"reserved\"}";
+        Assert.Equal(reservationBody, await created.Content.ReadAsStringAsync());
+        Assert.Equal("application/json; charset=utf-8", created.Content.Headers.ContentType!.ToString());
+        foreach (var lookup in new[] { reservationBeforeCreation, reservation, reservationAfterCancellation })
+        {
+            Assert.Equal(HttpStatusCode.OK, lookup.StatusCode);
+            Assert.Equal(reservationBody, await lookup.Content.ReadAsStringAsync());
+        }
         Assert.All([firstAllowed, secondAllowed, thirdAllowed, fourthAllowed], response =>
             Assert.Equal(HttpStatusCode.OK, response.StatusCode));
-        Assert.Equal("{\"status\":\"accepted\"}", await firstAllowed.Content.ReadAsStringAsync());
+        Assert.Equal("{\"attractionId\":\"cloud-cruiser\",\"waitMinutes\":15,\"status\":\"open\"}", await firstAllowed.Content.ReadAsStringAsync());
+        Assert.Equal(["MockAPI", "checked-in-example"], firstAllowed.Headers.GetValues("X-Mock-Source"));
         Assert.Equal((HttpStatusCode)429, mocked.StatusCode);
         Assert.Equal(["10"], mocked.Headers.GetValues("Retry-After"));
         Assert.Equal(["MockAPI", "checked-in-example"], mocked.Headers.GetValues("X-Mock-Source"));
-        Assert.Equal("{\"error\":\"try again later\"}", await mocked.Content.ReadAsStringAsync());
+        Assert.Equal("application/json; charset=utf-8", mocked.Content.Headers.ContentType!.ToString());
+        Assert.Equal("{\"error\":\"wait_times_rate_limited\",\"message\":\"Take a little breather! Check back in 10 seconds.\"}", await mocked.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
         Assert.Empty(await deleted.Content.ReadAsByteArrayAsync());
         Assert.Equal(HttpStatusCode.Found, redirect.StatusCode);
-        Assert.Equal("/ex/hello", redirect.Headers.Location!.OriginalString);
+        Assert.Equal("/ctp/attractions/cloud-cruiser", redirect.Headers.Location!.OriginalString);
         Assert.Equal(["MockAPI"], redirect.Headers.GetValues("X-Mock-Source"));
         Assert.Empty(await redirect.Content.ReadAsByteArrayAsync());
+        Assert.Equal(HttpStatusCode.OK, attraction.StatusCode);
+        var attractionEndpoint = Assert.Single(example.Endpoints, endpoint => endpoint.Path == redirect.Headers.Location.OriginalString);
+        Assert.Equal(attractionEndpoint.Response.Body, await attraction.Content.ReadAsStringAsync());
+        Assert.Equal("application/json; charset=utf-8", attraction.Content.Headers.ContentType!.ToString());
         Assert.Equal(HttpStatusCode.InternalServerError, serverError.StatusCode);
         Assert.Equal(["MockAPI"], serverError.Headers.GetValues("X-Mock-Source"));
         Assert.Equal("application/json; charset=utf-8", serverError.Content.Headers.ContentType!.ToString());
-        Assert.Equal("{\"error\":\"internal server error\"}", await serverError.Content.ReadAsStringAsync());
+        Assert.Equal("{\"error\":\"parade_schedule_unavailable\",\"message\":\"The parade schedule hit a little hiccup. Please try again later.\"}", await serverError.Content.ReadAsStringAsync());
+        Assert.All([unsupportedMethod, missing, oldRoute], response => Assert.Equal(HttpStatusCode.NotFound, response.StatusCode));
     }
 
     [Fact]
@@ -386,8 +415,8 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Equal("\"2\"", firstExampleMerge.Headers.ETag!.Tag);
         Assert.Equal(HttpStatusCode.OK, secondExampleMerge.StatusCode);
         Assert.Equal("\"2\"", secondExampleMerge.Headers.ETag!.Tag);
-        Assert.Equal(8, active.RootElement.GetArrayLength());
-        Assert.Equal(8, active.RootElement.EnumerateArray().Select(endpoint => endpoint.GetProperty("id").GetGuid()).Distinct().Count());
+        Assert.Equal(10, active.RootElement.GetArrayLength());
+        Assert.Equal(10, active.RootElement.EnumerateArray().Select(endpoint => endpoint.GetProperty("id").GetGuid()).Distinct().Count());
         Assert.Equal("custom", await client.GetStringAsync(customEndpoint.Path));
     }
 
@@ -397,17 +426,17 @@ public sealed class RemainingManagementApiTests : IDisposable
         await using var factory = CreateFactory();
         using var client = factory.CreateClient();
         var example = await ReadDocumentAsync(client, $"{BasePath}/configuration/example");
-        var builtInHello = Assert.Single(example.Endpoints, endpoint => endpoint.Path == "/ex/hello");
-        var changedHello = builtInHello with
+        var builtInParks = Assert.Single(example.Endpoints, endpoint => endpoint.Path == "/ctp/parks");
+        var changedParks = builtInParks with
         {
-            Response = builtInHello.Response with { Body = "changed locally" }
+            Response = builtInParks.Response with { Body = "changed locally" }
         };
         var custom = CreateEndpoint("/custom", "custom");
         using var initialImport = await SendDocumentAsync(
             client,
             HttpMethod.Put,
             $"{BasePath}/configuration/import",
-            CreateDocument(changedHello, custom),
+            CreateDocument(changedParks, custom),
             "\"0\"");
 
         using var conflict = await SendAsync(
@@ -424,7 +453,7 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Equal("different", Assert.Single(conflictJson.RootElement.GetProperty("conflicts").EnumerateArray()).GetProperty("kind").GetString());
         Assert.Equal("\"1\"", conflict.Headers.ETag!.Tag);
         Assert.Equal(2, unchanged.RootElement.GetArrayLength());
-        Assert.Equal("changed locally", await client.GetStringAsync(changedHello.Path));
+        Assert.Equal("changed locally", await client.GetStringAsync(changedParks.Path));
 
         using var forced = await SendAsync(
             client,
@@ -437,11 +466,73 @@ public sealed class RemainingManagementApiTests : IDisposable
 
         Assert.Equal(HttpStatusCode.OK, forced.StatusCode);
         Assert.True(forcedJson.RootElement.GetProperty("applied").GetBoolean());
-        Assert.Equal(6, forcedJson.RootElement.GetProperty("added").GetInt32());
+        Assert.Equal(8, forcedJson.RootElement.GetProperty("added").GetInt32());
         Assert.Equal(1, forcedJson.RootElement.GetProperty("updated").GetInt32());
-        Assert.Equal(8, active.RootElement.GetArrayLength());
-        Assert.Equal("{\"message\":\"Hello from MockAPI\"}", await client.GetStringAsync(builtInHello.Path));
+        Assert.Equal(10, active.RootElement.GetArrayLength());
+        Assert.Equal(builtInParks.Response.Body, await client.GetStringAsync(builtInParks.Path));
         Assert.Equal("custom", await client.GetStringAsync(custom.Path));
+    }
+
+    [Fact]
+    public async Task BuiltInExample_MigratesLegacyRoutesOnlyAfterReviewAndPreservesMetadataAndStatistics()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var example = await ReadDocumentAsync(client, $"{BasePath}/configuration/example");
+        var legacyPaths = new Dictionary<Guid, string>
+        {
+            [Guid.Parse("4cb6e141-5f4f-4a30-9715-ec2c68554ad0")] = "/ex/hello",
+            [Guid.Parse("17a50c14-e67f-4770-9bf6-afb4a80e4609")] = "/ex/orders",
+            [Guid.Parse("7b2d425d-75f1-4ded-a74e-503374a7e99e")] = "/ex/rate-limited",
+            [Guid.Parse("b53545e8-fd25-44cb-940b-0ce175547483")] = "/ex/orders/42",
+            [Guid.Parse("ec8d45cb-a095-4d7e-9540-c7d9d81fe426")] = "/ex/redirect",
+            [Guid.Parse("a276b184-ecf6-4377-bf45-5ef1dc8f7433")] = "/ex/server-error",
+            [Guid.Parse("5f8c908d-42e1-4af9-952a-35c77c408a26")] = "/ex/abort-connection"
+        };
+        var legacyEndpoints = example.Endpoints
+            .Where(endpoint => legacyPaths.ContainsKey(endpoint.Id))
+            .Select(endpoint => endpoint with { Path = legacyPaths[endpoint.Id] })
+            .ToArray();
+        var custom = CreateEndpoint("/custom", "custom");
+        var legacy = CreateDocument([.. legacyEndpoints, custom]) with
+        {
+            ApiDescriptions = new() { ["/ex"] = "Legacy overview", ["/ctp"] = "My park overview" }
+        };
+        using var imported = await SendDocumentAsync(client, HttpMethod.Put, $"{BasePath}/configuration/import", legacy, "\"0\"");
+        Assert.Equal(HttpStatusCode.OK, imported.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/ex/hello")).StatusCode);
+
+        using var conflict = await SendAsync(client, HttpMethod.Post, $"{BasePath}/configuration/example/merge", "\"1\"");
+        using var preview = await ReadJsonAsync(conflict);
+
+        Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
+        Assert.Equal(7, preview.RootElement.GetProperty("conflicts").GetArrayLength());
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/ctp/parks")).StatusCode);
+        var unchanged = await ReadDocumentAsync(client, $"{BasePath}/configuration/export");
+        Assert.Equal(8, unchanged.Endpoints.Count);
+        Assert.Contains(unchanged.Endpoints, endpoint => endpoint.Path == "/ex/hello");
+
+        using var forced = await SendAsync(client, HttpMethod.Post, $"{BasePath}/configuration/example/merge?force=true", "\"1\"");
+        using var result = await ReadJsonAsync(forced);
+        var migrated = await ReadDocumentAsync(client, $"{BasePath}/configuration/export");
+
+        Assert.Equal(HttpStatusCode.OK, forced.StatusCode);
+        Assert.Equal(2, result.RootElement.GetProperty("added").GetInt32());
+        Assert.Equal(7, result.RootElement.GetProperty("updated").GetInt32());
+        Assert.Equal(10, migrated.Endpoints.Count);
+        Assert.Equal(10, migrated.Endpoints.Select(endpoint => endpoint.Id).Distinct().Count());
+        Assert.DoesNotContain(migrated.Endpoints, endpoint => endpoint.Path.StartsWith("/ex/", StringComparison.Ordinal));
+        Assert.Equal("Legacy overview", migrated.ApiDescriptions!["/ex"]);
+        Assert.Equal("My park overview", migrated.ApiDescriptions["/ctp"]);
+        Assert.Equal("custom", await client.GetStringAsync(custom.Path));
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/ctp/parks")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/ex/hello")).StatusCode);
+
+        using var statistics = await client.GetAsync($"{BasePath}/statistics");
+        using var statisticsJson = await ReadJsonAsync(statistics);
+        var parkStatistics = Assert.Single(statisticsJson.RootElement.GetProperty("endpoints").EnumerateArray(),
+            endpoint => endpoint.GetProperty("endpointId").GetGuid() == Guid.Parse("4cb6e141-5f4f-4a30-9715-ec2c68554ad0"));
+        Assert.Equal(2, parkStatistics.GetProperty("totalRequests").GetInt64());
     }
 
     [Fact]

@@ -28,7 +28,7 @@ forwarding and notification; GitHub's private default and your visibility settin
 Do not change it to Public without intentionally configuring application authentication and HTTPS.
 
 Select **Load examples**, configure administrator credentials, and generate a key in **Settings > Mock API
-security** before testing `/ex/hello`. Dashboard tests attach the memory-only key automatically; external
+security** before testing `/ctp/parks`. Dashboard tests attach the memory-only key automatically; external
 requests require `X-MockAPI-Key`. Edit a response; changes are saved automatically. Use **Retry save**
 if persistence fails. See
 [Mock API keys](OPERATIONS.md#mock-api-keys) for bootstrap and persistence.

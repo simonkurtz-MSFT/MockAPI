@@ -13,7 +13,7 @@ public sealed record MockApiConfigurationDocument
     /// <summary>Gets the configuration contract version. Version 1 documents use <c>1.0</c>.</summary>
     public required string SchemaVersion { get; init; }
 
-    /// <summary>Gets optional descriptions keyed by case-sensitive first-segment paths such as <c>/ex</c> or <c>/</c>.</summary>
+    /// <summary>Gets optional descriptions keyed by case-sensitive first-segment paths such as <c>/ctp</c> or <c>/</c>.</summary>
     /// <remarks>Metadata is independent of endpoint membership and survives deletion of a group's last endpoint.</remarks>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, string>? ApiDescriptions { get; init; }

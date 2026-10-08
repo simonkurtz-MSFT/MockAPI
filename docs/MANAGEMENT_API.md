@@ -73,7 +73,7 @@ Management routes allow 120 requests per client address in a rolling one-minute 
 
 Portable export formats are `postman`, `insomnia`, `curl`, `jmeter`, `openapi`, `k6`, and `http`. Only enabled endpoints are included. The generated artifacts use `http://localhost:8080` as their editable default base URL. Postman, JMeter, and k6 exports include assertions for configured responses; cURL, Insomnia, and HTTP exports provide runnable requests; OpenAPI describes the configured responses.
 
-API description edits accept `{"path":"/ex","description":"API overview"}` and require the
+API description edits accept `{"path":"/ctp","description":"Contoso Theme Parks overview"}` and require the
 editor's captured strong `If-Match` ETag. Both properties are required strings; an empty description
 clears its displayed text. Success returns `200` with the complete configuration status, including
 `apiDescriptions`. Invalid metadata returns `422` without changing any endpoints or descriptions.
@@ -182,7 +182,7 @@ In the Azure portal:
 3. For authenticated or private deployments, download the document from a trusted machine with access and upload the file instead. Keep Basic credentials out of URLs, source control, and command history; do not disable administrative authentication for import.
 4. Set **Web service URL** to `https://<mockapi-host>`, without the export route or APIM API suffix. The generated document currently uses `http://localhost:8080` in `servers`; APIM requires the actual backend URL to be supplied explicitly.
 5. Choose an API URL suffix such as `mockapi`, create the API, and verify its operations and backend setting.
-6. Call an imported operation through the gateway, for example `https://<apim-gateway>/mockapi/ex/hello`. Supply a subscription key if required by APIM. The gateway must have network access to the MockAPI backend independently of how the specification was imported.
+6. Call an imported operation through the gateway, for example `https://<apim-gateway>/mockapi/ctp/parks`. Supply a subscription key if required by APIM. The gateway must have network access to the MockAPI backend independently of how the specification was imported.
 
 For a protected export, these examples prompt for credentials rather than putting the password in the command. Replace the host placeholder and keep the downloaded artifact outside source control.
 

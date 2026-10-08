@@ -302,17 +302,17 @@ test.describe("revision-bound management commands", () => {
 
   test("rejects a stale force-merge preview rather than applying unreviewed conflicts", async ({ page, request }) => {
     const example = await (await request.get("/__mockapi/api/configuration/example")).json();
-    const hello = example.endpoints.find((candidate) => candidate.path === "/ex/hello");
-    const locallyChanged = { ...hello, response: { ...hello.response, body: "local change" } };
+    const parks = example.endpoints.find((candidate) => candidate.path === "/ctp/parks");
+    const locallyChanged = { ...parks, response: { ...parks.response, body: "local change" } };
     await importDocument(request, { ...emptyDocument, endpoints: [locallyChanged] });
-    await expect(page.locator(`.endpoint-row[data-endpoint-id="${hello.id}"]`)).toBeVisible();
+    await expect(page.locator(`.endpoint-row[data-endpoint-id="${parks.id}"]`)).toBeVisible();
     const { etag } = await (await request.get("/__mockapi/api/configuration")).json();
     await page.locator("#load-example-button").click();
     await expect(page.getByRole("heading", { name: "Built-in configuration conflicts" })).toBeVisible();
     await expect(page.locator("#confirm-accept")).toBeEnabled();
     const newer = { ...locallyChanged, name: "Newer conflict" };
     await importDocument(request, { ...emptyDocument, endpoints: [newer] });
-    await expect(page.locator(`.endpoint-row[data-endpoint-id="${hello.id}"]`)).toContainText(newer.name);
+    await expect(page.locator(`.endpoint-row[data-endpoint-id="${parks.id}"]`)).toContainText(newer.name);
 
     const rejected = page.waitForResponse((response) =>
       response.url().endsWith("/configuration/example/merge?force=true")
@@ -384,17 +384,18 @@ test.describe("revision-bound management commands", () => {
 test("previews a built-in conflict and force-updates only reviewed endpoints", async ({ page, request }) => {
   const exampleResponse = await request.get("/__mockapi/api/configuration/example");
   const example = await exampleResponse.json();
-  const changedHello = structuredClone(example.endpoints.find((endpoint) => endpoint.path === "/ex/hello"));
-  changedHello.response.body = "changed locally";
-  await importDocument(request, { ...emptyDocument, endpoints: [changedHello] });
+  const parks = example.endpoints.find((endpoint) => endpoint.path === "/ctp/parks");
+  const changedParks = structuredClone(parks);
+  changedParks.response.body = "changed locally";
+  await importDocument(request, { ...emptyDocument, endpoints: [changedParks] });
   await page.reload();
 
   await page.getByRole("button", { name: "Load examples" }).first().click();
   await expect(page.getByRole("heading", { name: "Built-in configuration conflicts" })).toBeVisible();
-  await expect(page.locator("#confirm-message")).toContainText("Hello from MockAPI conflicts");
+  await expect(page.locator("#confirm-message")).toContainText("Discover the parks conflicts");
   await expectNoUnreviewedAccessibilityViolations(page);
   await page.getByRole("button", { name: "Force update" }).click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(7);
-  const hello = await request.get("/ex/hello");
-  expect(await hello.text()).toBe('{"message":"Hello from MockAPI"}');
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(9);
+  const response = await request.get("/ctp/parks");
+  expect(await response.text()).toBe(parks.response.body);
 });

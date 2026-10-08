@@ -7,6 +7,18 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Changed
+
+- Built-in examples now form a cohesive Contoso Theme Parks (`/ctp`) API with linked park, attraction,
+  reservation, and wait-time fixtures, plus clearly labeled fault demos. Existing example IDs remain
+  stable; previously loaded `/ex` routes migrate only after conflict review and explicit force update.
+- Both developer CLI showcases exercise the themed wait-times endpoint and detect legacy routes
+  even when their stable endpoint ID is already loaded.
+
+### Fixed
+
+- Dark-mode table hover backgrounds preserve accessible contrast for colored response-status text.
+
 ## [1.2.0] - 2026-10-02
 
 ### Added

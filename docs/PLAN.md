@@ -146,10 +146,10 @@ The future configuration asset should be `config/mockapi.json`, with its JSON Sc
 ### Schema constraints
 
 - `schemaVersion` and `endpoints` are required.
-- Optional `apiDescriptions` maps case-sensitive first-segment paths (for example, `/ex`) to
-  freeform descriptions of at most 4,000 characters. Limit metadata to 25 groups and keys to 2,048
-  characters; keys use `/` or one absolute segment without whitespace, controls, query/fragment
-  delimiters, or backslashes. Reserved management and health group names are rejected.
+- - Optional `apiDescriptions` maps case-sensitive first-segment paths (for example, `/ctp`) to
+    freeform descriptions of at most 4,000 characters. Limit metadata to 25 groups and keys to 2,048
+    characters; keys use `/` or one absolute segment without whitespace, controls, query/fragment
+    delimiters, or backslashes. Reserved management and health group names are rejected.
 - API metadata is independent of endpoint membership; deleting or moving endpoints never deletes
   or moves descriptions. Omitted or null metadata means none; empty strings deliberately clear
   descriptions. Preserve text whitespace, sort keys ordinally for serialization, and retain native
@@ -285,7 +285,11 @@ at 220px and align the collapse control with the first filter row when filters w
 - Show a right-aligned blue/white circled information button in each API header. Its plain-text popover
   opens on hover and keyboard focus, remains hoverable, and dismisses with Escape. Activating the button
   opens a keyboard-accessible editor with the captured revision; stale writes cannot overwrite live edits.
-- The example `/ex` API description is "This API demonstrates some of MockAPI's capabilities."
+- The built-in `/ctp` API description spells out **Contoso Theme Parks** and introduces a cohesive
+  fictional park visit with static attraction, reservation, and wait-time fixtures. Clearly labeled
+  `/ctp/demo-faults/` routes preserve HTTP and transport-failure demonstrations. Retain the original
+  seven example IDs and add resolvable attraction and reservation lookups; existing configurations
+  migrate through the normal conflict-preview and explicit-force merge, not a silent rewrite.
 - Keep description drafts independent of live updates, restore focus after editing, and cover save/reload,
   native import/export, metadata preservation, merge defaults, stale writes, and accessible editing.
 - Dense endpoint table with name, methods, path, status, enabled state, request count, last request, and actions.
@@ -485,10 +489,10 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
 
 ### Developer CLI example showcase
 
-- Add a dedicated developer CLI action and interactive-menu entry that exercises the running built-in example at `/ex/rate-limited`; keep the existing container smoke test fast and separate.
+- Add a dedicated developer CLI action and interactive-menu entry that exercises the running built-in example at `/ctp/attractions/cloud-cruiser/wait-times`; keep the existing container smoke test fast and separate.
 - Do not silently import or replace the active configuration. Detect when the example endpoint is unavailable and explain how to load the built-in example from the dashboard before rerunning the showcase.
 - Treat the expected HTTP `429` response as a successful assertion rather than a native-command failure.
-- Verify the HTTP/1.1 reason phrase, `Retry-After: 10`, both `X-Mock-Source` values, JSON content type, and exact `{"error":"try again later"}` response body.
+- Verify the HTTP/1.1 reason phrase, `Retry-After: 10`, both `X-Mock-Source` values, JSON content type, and exact `{"error":"wait_times_rate_limited","message":"Take a little breather! Check back in 10 seconds."}` response body.
 - Send the same request with a query string and verify that query values do not affect exact method/path matching.
 - Send representative negative requests, including an unsupported method and an unmatched path, and verify the documented `404` behavior.
 - Capture statistics before and after the request set and verify the aggregate and stable endpoint-ID counters increase by the expected amounts without depending on prior totals.
@@ -603,7 +607,7 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
 - [x] One multi-platform image index provides functionally equivalent `linux/amd64` and `linux/arm64` images.
 - [x] The application passes local native container checks with a `0.5` CPU and `256 MiB` limit; deployment examples start with a `0.25` CPU and `128 MiB` request.
 - [x] The root filesystem can be read-only with `/data` as the sole writable application mount.
-- [x] The developer CLI can non-destructively showcase the loaded `/ex/rate-limited` example by verifying its status, reason phrase, repeated headers, content type, exact body, query-insensitive matching, negative `404` cases, and statistics deltas with clear pass/fail output.
+- [x] The developer CLI can non-destructively showcase the loaded `/ctp/attractions/cloud-cruiser/wait-times` example by verifying its status, reason phrase, repeated headers, content type, exact body, query-insensitive matching, negative `404` cases, and statistics deltas with clear pass/fail output.
 - [x] Dependabot covers NuGet, Docker, and GitHub Actions, with an eight-day cooldown applied to every update ecosystem.
 - [x] Local and CI dependency validation enforces an eight-day minimum release age for NuGet, Docker, GitHub Actions, and frontend/Playwright packages, with only explicit version-scoped, expiring emergency exceptions.
 - [x] GitHub pull-request automation builds and tests containers without registry credentials.

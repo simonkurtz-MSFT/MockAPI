@@ -37,7 +37,9 @@ HTTP reason phrases are transmitted only by HTTP/1.1. HTTP/2 and HTTP/3 omit the
 
 The local container is recreated when the `mockapi:dev` image ID changes. The named data volume is retained. WSLC `2.9.3.0` may warn that swap cannot be limited separately; the configured memory limit remains active.
 
-The example showcase intentionally fails when `/ex/rate-limited` is not loaded. Load examples from the dashboard and rerun:
+The example showcase tests `/ctp/attractions/cloud-cruiser/wait-times`. If older examples or local edits
+conflict with the built-in Contoso Theme Parks configuration, review **Load examples** in the dashboard,
+confirm the desired updates, and rerun:
 
 ```powershell
 .\start.ps1 -Action container-showcase

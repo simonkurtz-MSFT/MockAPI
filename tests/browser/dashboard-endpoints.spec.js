@@ -9,8 +9,8 @@ import {
 
 test("@smoke loads examples idempotently and filters by status", async ({ page, request }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(7);
-  await expect(page.locator("#endpoint-page-status")).toHaveText("1–7 of 7");
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(9);
+  await expect(page.locator("#endpoint-page-status")).toHaveText("1–9 of 9");
   await expect(page.locator("#endpoint-page-previous")).toBeDisabled();
   await expect(page.locator("#endpoint-page-next")).toBeDisabled();
   const responseHeader = page.getByRole("columnheader", { name: "Response" });
@@ -19,40 +19,47 @@ test("@smoke loads examples idempotently and filters by status", async ({ page, 
   await expect(responseHeader).toHaveAttribute("aria-sort", "descending");
   await expect(page.locator("#endpoint-rows .endpoint-row").first().locator(".status-badge")).toHaveText("DROP");
   await page.getByRole("columnheader", { name: "Endpoint" }).getByRole("button").click();
-  const exampleGroup = page.getByRole("button", { name: "Collapse ex/" });
-  await expect(exampleGroup).toContainText("7");
+  const exampleGroup = page.getByRole("button", { name: "Collapse ctp/" });
+  await expect(exampleGroup).toContainText("9");
   await page.locator("#endpoint-rows .endpoint-row").first().locator(".selection-checkbox").check();
   await expect(page.locator("#selection-count")).toHaveText("1");
   await exampleGroup.click();
   await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(0);
   await expect(page.locator("#selection-count")).toHaveText("1");
   await page.locator("#select-all-endpoints").check();
-  await expect(page.locator("#selection-count")).toHaveText("7");
-  await page.getByRole("button", { name: "Expand ex/" }).click();
-  await expect(page.locator("#endpoint-rows .selection-checkbox:checked")).toHaveCount(7);
+  await expect(page.locator("#selection-count")).toHaveText("9");
+  await page.getByRole("button", { name: "Expand ctp/" }).click();
+  await expect(page.locator("#endpoint-rows .selection-checkbox:checked")).toHaveCount(9);
   await page.locator("#select-all-endpoints").uncheck();
   await page.getByRole("button", { name: "Load examples" }).first().click();
   await expect(page.getByText("No example changes were needed")).toBeVisible();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(7);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(9);
 
   await page.locator("#filter-status").selectOption("3");
   await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(1);
-  await expect(page.getByRole("row", { name: /Redirect to hello/ }).locator(".status-badge")).toHaveText("302");
-  const redirect = await request.get("/ex/redirect", { maxRedirects: 0 });
+  await expect(page.getByRole("row", { name: /Find the featured attraction/ }).locator(".status-badge")).toHaveText(
+    "302"
+  );
+  const redirect = await request.get("/ctp/attractions/featured", { maxRedirects: 0 });
   expect(redirect.status()).toBe(302);
-  expect(redirect.headers().location).toBe("/ex/hello");
+  expect(redirect.headers().location).toBe("/ctp/attractions/cloud-cruiser");
 
   await page.locator("#filter-status").selectOption("5");
   await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(1);
-  await expect(page.getByRole("row", { name: /Server error/ }).locator(".status-badge")).toHaveText("500");
-  const serverError = await request.get("/ex/server-error");
+  await expect(page.getByRole("row", { name: /Parade schedule fault demo/ }).locator(".status-badge")).toHaveText(
+    "500"
+  );
+  const serverError = await request.get("/ctp/demo-faults/parade-schedule");
   expect(serverError.status()).toBe(500);
-  expect(await serverError.json()).toEqual({ error: "internal server error" });
+  expect(await serverError.json()).toEqual({
+    error: "parade_schedule_unavailable",
+    message: "The parade schedule hit a little hiccup. Please try again later.",
+  });
 
   await page.locator("#filter-status").selectOption("4");
   await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(1);
-  const rateLimitedRow = page.locator("#endpoint-rows").getByRole("row", { name: /Rate limited response/ });
-  await expect(rateLimitedRow.locator(".endpoint-name-heading > strong")).toHaveText("Rate limited response");
+  const rateLimitedRow = page.locator("#endpoint-rows").getByRole("row", { name: /Check Cloud Cruiser wait times/ });
+  await expect(rateLimitedRow.locator(".endpoint-name-heading > strong")).toHaveText("Check Cloud Cruiser wait times");
   const responseCode = rateLimitedRow.locator(".status-badge");
   await responseCode.hover();
   await expect(responseCode).toHaveAttribute("title", "Too Many Requests");
@@ -106,7 +113,7 @@ test("creates, edits, disables, and deletes an endpoint", async ({ page }) => {
 test("selects multiple or all endpoints for bulk actions", async ({ page }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
   const rows = page.locator("#endpoint-rows .endpoint-row");
-  await expect(rows).toHaveCount(7);
+  await expect(rows).toHaveCount(9);
 
   await rows.nth(0).locator(".selection-checkbox").check();
   await rows.nth(1).locator(".selection-checkbox").check();
@@ -118,16 +125,16 @@ test("selects multiple or all endpoints for bulk actions", async ({ page }) => {
   await expect(rows.nth(1).getByRole("checkbox", { name: /^Enable |^Disable / })).not.toBeChecked();
 
   await page.locator("#select-all-endpoints").check();
-  await expect(page.locator("#selection-count")).toHaveText("7");
+  await expect(page.locator("#selection-count")).toHaveText("9");
   await page.getByRole("button", { name: "Enable", exact: true }).click();
-  await expect(page.getByText("Enabled 7 endpoints", { exact: true })).toBeVisible();
-  await expect(rows.getByRole("checkbox", { name: /^Disable / })).toHaveCount(7);
+  await expect(page.getByText("Enabled 9 endpoints", { exact: true })).toBeVisible();
+  await expect(rows.getByRole("checkbox", { name: /^Disable / })).toHaveCount(9);
 
   await page.locator("#select-all-endpoints").check();
   await page.locator("#bulk-delete").click();
-  await expect(page.getByRole("dialog", { name: "Delete 7 selected endpoints" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Delete 9 selected endpoints" })).toBeVisible();
   await page
-    .getByRole("dialog", { name: "Delete 7 selected endpoints" })
+    .getByRole("dialog", { name: "Delete 9 selected endpoints" })
     .getByRole("button", { name: "Delete", exact: true })
     .click();
   await expect(rows).toHaveCount(0);
@@ -151,7 +158,10 @@ test("offers standard and custom status codes with synchronized reason phrases",
   await expect(page.getByRole("row", { name: /Custom status endpoint/ })).toContainText("599");
 });
 
-test("color-codes response status families with accessible contrast", async ({ page, request }) => {
+test("color-codes response status families with accessible contrast, including hovered rows", async ({
+  page,
+  request,
+}) => {
   const endpoints = [101, 200, 302, 404, 503].map((statusCode) => ({
     id: `${statusCode}00000-0000-4000-8000-000000000000`,
     name: `Status ${statusCode}`,
@@ -181,6 +191,8 @@ test("color-codes response status families with accessible contrast", async ({ p
       });
       expect(contrastRatio(colors.foreground, colors.background)).toBeGreaterThanOrEqual(4.5);
     }
+    await page.getByRole("row", { name: /Status 503/ }).hover();
+    await expectNoUnreviewedAccessibilityViolations(page, "#endpoint-rows");
   }
 });
 
@@ -295,7 +307,7 @@ test("reports denied clipboard access when copying an endpoint URL", async ({ pa
 
 test("@smoke collapses endpoints and restores the preference", async ({ page }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(7);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(9);
 
   await page.getByRole("button", { name: "Collapse endpoints" }).click();
   await expect(page.locator("#endpoint-body")).toBeHidden();
@@ -308,7 +320,7 @@ test("@smoke collapses endpoints and restores the preference", async ({ page }) 
   const expand = page.getByRole("button", { name: "Expand endpoints" });
   await expect(expand).toHaveAttribute("aria-expanded", "false");
   await expand.click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(7);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(9);
   await expect(page.locator("#endpoint-controls")).toBeVisible();
   await expect(page.locator("#endpoint-toggle")).toBeFocused();
 });

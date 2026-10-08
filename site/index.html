@@ -76,7 +76,7 @@
     <meta property="og:image" content="https://mockapi.simondoescloud.com/dashboard.png" />
     <meta
       property="og:image:alt"
-      content="MockAPI dashboard with seven example endpoints, request statistics, and a populated request log."
+      content="MockAPI dashboard with nine Contoso Theme Parks example endpoints, request statistics, and a populated request log."
     />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="MockAPI | Open-Source, Self-Hosted Mock API Server" />
@@ -87,7 +87,7 @@
     <meta name="twitter:image" content="https://mockapi.simondoescloud.com/dashboard.png" />
     <meta
       name="twitter:image:alt"
-      content="MockAPI dashboard with seven example endpoints, request statistics, and a populated request log."
+      content="MockAPI dashboard with nine Contoso Theme Parks example endpoints, request statistics, and a populated request log."
     />
     <script type="application/ld+json">
       {
@@ -205,8 +205,8 @@
               <img
                 src="./dashboard.png"
                 width="1920"
-                height="1200"
-                alt="MockAPI dashboard with seven example endpoints, request statistics, and a populated request log."
+                height="1500"
+                alt="MockAPI dashboard with nine Contoso Theme Parks example endpoints, request statistics, and a populated request log."
               />
             </a>
             <figcaption>
@@ -230,8 +230,8 @@
               <img
                 src="./dashboard-endpoints.png"
                 width="922"
-                height="906"
-                alt="Seven configured example endpoints showing HTTP methods, paths, response codes, attempt counts, and editing controls."
+                height="1000"
+                alt="Nine Contoso Theme Parks endpoints under /ctp showing HTTP methods, paths, response codes, attempt counts, and editing controls."
               />
             </a>
             <figcaption>
@@ -254,9 +254,9 @@
             >
               <img
                 src="./dashboard-request-log.png"
-                width="1444"
-                height="480"
-                alt="Request log with a 16-request sample and recent HTTP 200, 201, and 302 outcomes."
+                width="922"
+                height="574"
+                alt="Contoso Theme Parks request log with a 16-request sample and recent HTTP 200, 429, and 500 outcomes."
               />
             </a>
             <figcaption>
@@ -361,8 +361,9 @@ cd MockAPI</code></pre>
               <strong>Settings &gt; Mock API security</strong>.
             </li>
             <li>
-              Select <strong>Test</strong> for <code>/ex/hello</code>, or send an external request with the
-              <code>X-MockAPI-Key</code> header. Mock calls without a key return <code>401</code> by default.
+              Select <strong>Test</strong> for <code>/ctp/parks</code> (Contoso Theme Parks), or send an external
+              request with the <code>X-MockAPI-Key</code> header. Mock calls without a key return <code>401</code> by
+              default.
             </li>
             <li>Edit the response, repeat the request, and check the response and request statistics.</li>
             <li>

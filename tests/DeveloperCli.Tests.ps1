@@ -646,7 +646,7 @@ try {
   }
   foreach ($requiredBashContract in @(
       '/__mockapi/api/configuration', '/__mockapi/api/endpoints',
-      '/__mockapi/api/statistics', '/ex/rate-limited',
+      '/__mockapi/api/statistics', '/ctp/attractions/cloud-cruiser/wait-times',
       'build --pull --tag', 'image tag', 'MockApi__DashboardUsername=',
       'MockApi__DashboardPasswordHash=', 'publish mockapi --environment',
       'az bicep build', 'should_process'
@@ -711,6 +711,14 @@ try {
   Assert-True ($bashCliSource -match 'for attempt in 1 2 3 4 5') 'Bash showcase must make five requests before asserting HTTP 429.'
   Assert-True ($cliSource -match '\$retryAfter -eq ''10''') 'PowerShell showcase must assert the checked-in Retry-After value.'
   Assert-True ($bashCliSource -match '\$retryAfter" == "10') 'Bash showcase must assert the checked-in Retry-After value.'
+  $example = Get-Content -LiteralPath (Join-Path $repositoryRoot 'config\mockapi.json') -Raw | ConvertFrom-Json
+  $waitTimes = $example.endpoints | Where-Object { $_.path -eq '/ctp/attractions/cloud-cruiser/wait-times' }
+  foreach ($source in @($cliSource, $bashCliSource)) {
+    Assert-True ($source.Contains($waitTimes.path)) 'Both showcases must use the Contoso Theme Parks wait-times route.'
+    Assert-True ($source.Contains($waitTimes.response.body)) 'Both showcases must assert the exact configured wait-times error body.'
+  }
+  Assert-True ($cliSource.Contains('[string] $_.path -ceq $examplePath')) 'PowerShell showcase must detect older routes even when the stable ID exists.'
+  Assert-True ($bashCliSource.Contains('entry.get("path") == os.environ["MOCKAPI_EXAMPLE_PATH"]')) 'Bash showcase must detect older routes even when the stable ID exists.'
   foreach ($source in @($cliSource, $bashCliSource)) {
     Assert-True ($source.Contains('MOCKAPI_KEY') -and $source.Contains('X-MockAPI-Key')) 'Both showcases must support the instance API key.'
     Assert-True ($source.Contains('MOCKAPI_DASHBOARD_USERNAME') -and $source.Contains('MOCKAPI_DASHBOARD_PASSWORD')) 'Both showcases must support paired administrator credentials.'

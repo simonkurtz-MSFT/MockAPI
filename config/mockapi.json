@@ -2,16 +2,16 @@
   "$schema": "../schemas/mockapi.schema.json",
   "schemaVersion": "1.0",
   "apiDescriptions": {
-    "/ex": "This API demonstrates some of MockAPI's capabilities."
+    "/ctp": "CTP stands for Contoso Theme Parks, a fictional theme park company where a little wonder awaits every visitor. Discover Starlight Gardens and its Cloud Cruiser ride, check sample wait times, and explore a ride reservation from creation to cancellation. These static MockAPI examples do not store reservations or provide live availability; request bodies and query strings are ignored. Clearly labeled demo-faults routes demonstrate HTTP and connection failures."
   },
   "endpoints": [
     {
       "id": "4cb6e141-5f4f-4a30-9715-ec2c68554ad0",
-      "name": "Hello from MockAPI",
-      "description": "Returns a static JSON greeting with 200 OK and an X-Mock-Source header. Use this endpoint to verify connectivity and inspect a successful JSON response.",
+      "name": "Discover the parks",
+      "description": "Welcome to Contoso Theme Parks! Discover the fictional Starlight Gardens park and its Cloud Cruiser attraction through a static 200 OK JSON response with an X-Mock-Source header. HEAD returns the same status and headers without a body.",
       "enabled": true,
-      "methods": ["GET"],
-      "path": "/ex/hello",
+      "methods": ["GET", "HEAD"],
+      "path": "/ctp/parks",
       "response": {
         "statusCode": 200,
         "reasonPhrase": "OK",
@@ -19,34 +19,68 @@
           "X-Mock-Source": ["MockAPI"]
         },
         "contentType": "application/json; charset=utf-8",
-        "body": "{\"message\":\"Hello from MockAPI\"}"
+        "body": "{\"parks\":[{\"id\":\"starlight-gardens\",\"name\":\"Starlight Gardens\",\"tagline\":\"A little wonder in every visit.\",\"attractionIds\":[\"cloud-cruiser\"]}]}"
+      }
+    },
+    {
+      "id": "e4d94382-7645-4e3b-9ee3-d7da24e3879b",
+      "name": "Explore Cloud Cruiser",
+      "description": "Discover Cloud Cruiser in Starlight Gardens' Skyward Summit land. Returns static ride details with 200 OK, including its park ID, operating status, minimum height, and a link to sample wait times. No live ride, weather, or maintenance data is queried.",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/ctp/attractions/cloud-cruiser",
+      "response": {
+        "statusCode": 200,
+        "reasonPhrase": "OK",
+        "headers": {
+          "X-Mock-Source": ["MockAPI"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"id\":\"cloud-cruiser\",\"parkId\":\"starlight-gardens\",\"name\":\"Cloud Cruiser\",\"type\":\"roller-coaster\",\"land\":\"Skyward Summit\",\"status\":\"open\",\"minimumHeightCm\":110,\"waitTimesUrl\":\"/ctp/attractions/cloud-cruiser/wait-times\"}"
       }
     },
     {
       "id": "17a50c14-e67f-4770-9bf6-afb4a80e4609",
-      "name": "Create an order",
-      "description": "Simulates successful order creation with 201 Created, a fixed JSON response for order 42, and a Location header pointing to /ex/orders/42. The request body is ignored; no order is stored or changed.",
+      "name": "Reserve a ride",
+      "description": "Make room for a little adventure! Simulates a Cloud Cruiser reservation for two visitors with 201 Created and Location: /ctp/reservations/42. The request body is ignored and every call returns the same sample reservation; nothing is stored or changed.",
       "enabled": true,
       "methods": ["POST"],
-      "path": "/ex/orders",
+      "path": "/ctp/reservations",
       "response": {
         "statusCode": 201,
         "reasonPhrase": "Created",
         "headers": {
-          "Location": ["/ex/orders/42"],
+          "Location": ["/ctp/reservations/42"],
           "X-Mock-Source": ["MockAPI"]
         },
         "contentType": "application/json; charset=utf-8",
-        "body": "{\"id\":42,\"status\":\"created\"}"
+        "body": "{\"id\":42,\"parkId\":\"starlight-gardens\",\"attractionId\":\"cloud-cruiser\",\"partySize\":2,\"status\":\"reserved\"}"
+      }
+    },
+    {
+      "id": "f902cd75-7fa4-41bc-a167-7019e3c96f8e",
+      "name": "View your ride reservation",
+      "description": "Returns sample reservation 42 for Cloud Cruiser with 200 OK. This is the destination of the creation response's Location header. The fixture is always available, even before creation or after cancellation; it is not a stored reservation.",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/ctp/reservations/42",
+      "response": {
+        "statusCode": 200,
+        "reasonPhrase": "OK",
+        "headers": {
+          "X-Mock-Source": ["MockAPI"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"id\":42,\"parkId\":\"starlight-gardens\",\"attractionId\":\"cloud-cruiser\",\"partySize\":2,\"status\":\"reserved\"}"
       }
     },
     {
       "id": "7b2d425d-75f1-4ded-a74e-503374a7e99e",
-      "name": "Rate limited response",
-      "description": "Demonstrates rolling-window rate limiting: up to four requests in a 10-second window return 200 OK with an accepted JSON response; additional requests return 429 Too Many Requests with a JSON error and Retry-After: 10. The dashboard preselects five requests to demonstrate the limit. Both responses include repeated X-Mock-Source header values.",
+      "name": "Check Cloud Cruiser wait times",
+      "description": "Check a sample 15-minute wait for Cloud Cruiser. Up to four requests in a rolling 10-second window return 200 OK; additional requests return 429 Too Many Requests with a themed JSON error and Retry-After: 10. The wait time is static, not live. The dashboard preselects five requests to demonstrate the limit, and both responses include repeated X-Mock-Source header values.",
       "enabled": true,
       "methods": ["GET"],
-      "path": "/ex/rate-limited",
+      "path": "/ctp/attractions/cloud-cruiser/wait-times",
       "requestCount": 5,
       "response": {
         "statusCode": 429,
@@ -56,7 +90,7 @@
           "X-Mock-Source": ["MockAPI", "checked-in-example"]
         },
         "contentType": "application/json; charset=utf-8",
-        "body": "{\"error\":\"try again later\"}",
+        "body": "{\"error\":\"wait_times_rate_limited\",\"message\":\"Take a little breather! Check back in 10 seconds.\"}",
         "rateLimit": {
           "requestLimit": 4,
           "windowSeconds": 10,
@@ -67,18 +101,18 @@
               "X-Mock-Source": ["MockAPI", "checked-in-example"]
             },
             "contentType": "application/json; charset=utf-8",
-            "body": "{\"status\":\"accepted\"}"
+            "body": "{\"attractionId\":\"cloud-cruiser\",\"waitMinutes\":15,\"status\":\"open\"}"
           }
         }
       }
     },
     {
       "id": "b53545e8-fd25-44cb-940b-0ce175547483",
-      "name": "Delete an order",
-      "description": "Simulates successful deletion of order 42 with 204 No Content and an empty response body. No order is actually deleted; repeated requests return the same configured response.",
+      "name": "Cancel your ride reservation",
+      "description": "Plans change, and more adventures await. Simulates cancellation of reservation 42 with 204 No Content and an empty body. Nothing is deleted; repeated cancellations return the same response and GET /ctp/reservations/42 still returns the sample reservation.",
       "enabled": true,
       "methods": ["DELETE"],
-      "path": "/ex/orders/42",
+      "path": "/ctp/reservations/42",
       "response": {
         "statusCode": 204,
         "reasonPhrase": "No Content",
@@ -91,16 +125,16 @@
     },
     {
       "id": "ec8d45cb-a095-4d7e-9540-c7d9d81fe426",
-      "name": "Redirect to hello",
-      "description": "Returns 302 Found with Location: /ex/hello and an empty body to demonstrate an HTTP redirect. Clients that follow redirects automatically receive the destination endpoint's 200 OK JSON greeting.",
+      "name": "Find the featured attraction",
+      "description": "Follow today's spotlight to Cloud Cruiser. Returns 302 Found with Location: /ctp/attractions/cloud-cruiser and an empty body. Clients that follow redirects receive the ride's static 200 OK JSON details.",
       "enabled": true,
       "methods": ["GET"],
-      "path": "/ex/redirect",
+      "path": "/ctp/attractions/featured",
       "response": {
         "statusCode": 302,
         "reasonPhrase": "Found",
         "headers": {
-          "Location": ["/ex/hello"],
+          "Location": ["/ctp/attractions/cloud-cruiser"],
           "X-Mock-Source": ["MockAPI"]
         },
         "contentType": null,
@@ -109,11 +143,11 @@
     },
     {
       "id": "a276b184-ecf6-4377-bf45-5ef1dc8f7433",
-      "name": "Server error",
-      "description": "Always returns 500 Internal Server Error with a static JSON error body. Use this endpoint to test how clients handle server failures without causing a real application error.",
+      "name": "Parade schedule fault demo",
+      "description": "Intentional HTTP failure demo: the fictional parade schedule service always returns 500 Internal Server Error with a themed JSON error. Use it to test client error handling; it does not cause a real application error or represent live park operations.",
       "enabled": true,
       "methods": ["GET"],
-      "path": "/ex/server-error",
+      "path": "/ctp/demo-faults/parade-schedule",
       "response": {
         "statusCode": 500,
         "reasonPhrase": "Internal Server Error",
@@ -121,16 +155,16 @@
           "X-Mock-Source": ["MockAPI"]
         },
         "contentType": "application/json; charset=utf-8",
-        "body": "{\"error\":\"internal server error\"}"
+        "body": "{\"error\":\"parade_schedule_unavailable\",\"message\":\"The parade schedule hit a little hiccup. Please try again later.\"}"
       }
     },
     {
       "id": "5f8c908d-42e1-4af9-952a-35c77c408a26",
-      "name": "Abort the connection",
-      "description": "Immediately aborts the connection without sending an HTTP status, headers, or body. Use this endpoint to test transport-failure handling rather than HTTP error-response handling.",
+      "name": "Ride sensor connection fault demo",
+      "description": "Intentional transport failure demo: the fictional Cloud Cruiser sensor connection is immediately aborted without an HTTP status, headers, or body. Test network-failure handling separately from HTTP errors. No real ride sensors or safety systems are involved.",
       "enabled": true,
       "methods": ["GET"],
-      "path": "/ex/abort-connection",
+      "path": "/ctp/demo-faults/ride-sensor",
       "response": {
         "behavior": "abortConnection",
         "headers": {},

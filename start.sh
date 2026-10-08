@@ -833,7 +833,8 @@ invoke_container_showcase() {
   local configurationUrl="${baseUrl}/__mockapi/api/configuration"
   local endpointsUrl="${baseUrl}/__mockapi/api/endpoints"
   local statisticsUrl="${baseUrl}/__mockapi/api/statistics"
-  local exampleUrl="${baseUrl}/ex/rate-limited"
+  local examplePath='/ctp/attractions/cloud-cruiser/wait-times'
+  local exampleUrl="${baseUrl}${examplePath}"
   local endpointId='7b2d425d-75f1-4ded-a74e-503374a7e99e'
   local administrativeHeader='' mockHeader=''
   if [[ -n "${MOCKAPI_DASHBOARD_USERNAME:-}" && -z "${MOCKAPI_DASHBOARD_PASSWORD:-}" ]] ||
@@ -857,10 +858,12 @@ invoke_container_showcase() {
   [[ "$status" == '200' ]] || die "Reading the active endpoints returned HTTP $status."
   local hasEndpoint
   # Native Windows Python emits CRLF even when launched from Bash.
-  hasEndpoint="$(MOCKAPI_JSON="$(cat "$bodyFile")" MOCKAPI_ENDPOINT_ID="$endpointId" python3 -c '
+  hasEndpoint="$(MOCKAPI_JSON="$(cat "$bodyFile")" MOCKAPI_ENDPOINT_ID="$endpointId" MOCKAPI_EXAMPLE_PATH="$examplePath" python3 -c '
 import json,os
 data = json.loads(os.environ["MOCKAPI_JSON"])
-print("true" if any(str(entry.get("id", "")) == os.environ["MOCKAPI_ENDPOINT_ID"] for entry in data) else "false")
+print("true" if any(str(entry.get("id", "")) == os.environ["MOCKAPI_ENDPOINT_ID"]
+    and entry.get("path") == os.environ["MOCKAPI_EXAMPLE_PATH"] and entry.get("enabled")
+    for entry in data) else "false")
 ' | tr -d '\r')"
   if [[ "$hasEndpoint" != 'true' ]]; then
     status="$(printf '%s\n' "$administrativeHeader" | curl --config - -s --max-time 5 -D "$headersFile" -o "$bodyFile" -w '%{http_code}' "$configurationUrl" || true)"
@@ -915,12 +918,12 @@ print(total, matched, unmatched, endpoint)
   [[ "$reasonPhrase" == "Too Many Requests" ]] || die "Expected reason phrase 'Too Many Requests' but received '$reasonPhrase'."
   [[ "$retryAfter" == "10" ]] || die "Expected Retry-After: 10 but received '$retryAfter'."
   [[ "$contentType" == "application/json; charset=utf-8" ]] || die "Expected content type 'application/json; charset=utf-8' but received '$contentType'."
-  [[ "$body" == '{"error":"try again later"}' ]] || die "Unexpected response body: $body"
+  [[ "$body" == '{"error":"wait_times_rate_limited","message":"Take a little breather! Check back in 10 seconds."}' ]] || die "Unexpected response body: $body"
   [[ "$mockSources" == *MockAPI* && "$mockSources" == *checked-in-example* ]] || die "Expected repeated X-Mock-Source values but received '$mockSources'."
 
   [[ "$(printf '%s\n' "$mockHeader" | curl --config - -s --max-time 5 -o /dev/null -w '%{http_code}' "${exampleUrl}?request=showcase" || true)" == '429' ]] || die 'Query-insensitive match assertion failed.'
   [[ "$(printf '%s\n' "$mockHeader" | curl --config - -s --max-time 5 -X POST -o /dev/null -w '%{http_code}' "$exampleUrl" || true)" == '404' ]] || die 'Unsupported method assertion failed.'
-  [[ "$(printf '%s\n' "$mockHeader" | curl --config - -s --max-time 5 -o /dev/null -w '%{http_code}' "${baseUrl}/ex/not-configured" || true)" == '404' ]] || die 'Unmatched path assertion failed.'
+  [[ "$(printf '%s\n' "$mockHeader" | curl --config - -s --max-time 5 -o /dev/null -w '%{http_code}' "${baseUrl}/ctp/not-configured" || true)" == '404' ]] || die 'Unmatched path assertion failed.'
 
   local statsAfter
   statsAfter="$(printf '%s\n' "$administrativeHeader" | curl --config - -s --max-time 5 "$statisticsUrl")" || die "Reading statistics from '$statisticsUrl' failed."

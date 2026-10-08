@@ -1676,7 +1676,8 @@ function Invoke-ContainerShowcase {
   $configurationUri = "$baseUri/__mockapi/api/configuration"
   $endpointsUri = "$baseUri/__mockapi/api/endpoints"
   $statisticsUri = "$baseUri/__mockapi/api/statistics"
-  $exampleUri = "$baseUri/ex/rate-limited"
+  $examplePath = '/ctp/attractions/cloud-cruiser/wait-times'
+  $exampleUri = "$baseUri$examplePath"
   $endpointId = '7b2d425d-75f1-4ded-a74e-503374a7e99e'
   $administrativeHeaders = @{}
   $mockHeaders = @{}
@@ -1705,7 +1706,9 @@ function Invoke-ContainerShowcase {
     $showcaseEndpoint = $activeEndpoints | Where-Object {
       $null -ne $_ -and
       $null -ne $_.PSObject.Properties['id'] -and
-      [string] $_.id -eq $endpointId
+      [string] $_.id -eq $endpointId -and
+      [string] $_.path -ceq $examplePath -and
+      $_.enabled
     }
     if (-not $showcaseEndpoint) {
       $configuration = Invoke-WebRequest -Uri $configurationUri -Headers $administrativeHeaders -TimeoutSec 5 -SkipHttpErrorCheck
@@ -1804,7 +1807,7 @@ function Invoke-ContainerShowcase {
     Add-ShowcaseCheck 'Retry-After' ($retryAfter -eq '10') $retryAfter
     Add-ShowcaseCheck 'Repeated headers' ($sourceValues.Contains('MockAPI') -and $sourceValues.Contains('checked-in-example')) $sourceValues
     Add-ShowcaseCheck 'Content type' ($contentType -eq 'application/json; charset=utf-8') $contentType
-    Add-ShowcaseCheck 'Exact body' ($responseBody -ceq '{"error":"try again later"}') $responseBody
+    Add-ShowcaseCheck 'Exact body' ($responseBody -ceq '{"error":"wait_times_rate_limited","message":"Take a little breather! Check back in 10 seconds."}') $responseBody
   }
   catch {
     throw "Container '$ContainerName' is not responding correctly at '$exampleUri'. Run '.\start.ps1 -Action container-logs' and verify the configured port. $($_.Exception.Message)"
@@ -1820,7 +1823,7 @@ function Invoke-ContainerShowcase {
   Add-ShowcaseCheck 'Query-insensitive match' ($queryResponse.StatusCode -eq 429) "HTTP $($queryResponse.StatusCode)"
   $wrongMethod = Invoke-WebRequest -Uri $exampleUri -Method Post -Headers $mockHeaders -MaximumRedirection 0 -TimeoutSec 5 -SkipHttpErrorCheck
   Add-ShowcaseCheck 'Unsupported method' ($wrongMethod.StatusCode -eq 404) "HTTP $($wrongMethod.StatusCode)"
-  $unmatched = Invoke-WebRequest -Uri "$baseUri/ex/not-configured" -Headers $mockHeaders -MaximumRedirection 0 -TimeoutSec 5 -SkipHttpErrorCheck
+  $unmatched = Invoke-WebRequest -Uri "$baseUri/ctp/not-configured" -Headers $mockHeaders -MaximumRedirection 0 -TimeoutSec 5 -SkipHttpErrorCheck
   Add-ShowcaseCheck 'Unmatched path' ($unmatched.StatusCode -eq 404) "HTTP $($unmatched.StatusCode)"
 
   $after = Invoke-RestMethod -Uri $statisticsUri -Headers $administrativeHeaders -TimeoutSec 5

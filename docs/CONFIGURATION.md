@@ -26,14 +26,14 @@ Optional `apiDescriptions` supplies API/group metadata separately from each endp
 {
   "schemaVersion": "1.0",
   "apiDescriptions": {
-    "/ex": "This API demonstrates some of MockAPI's capabilities."
+    "/ctp": "CTP stands for Contoso Theme Parks. Discover a fictional park, explore its attractions, and try static ride reservations and wait times."
   },
   "endpoints": []
 }
 ```
 
-Groups retain the dashboard's existing first-path-segment identity: `/ex`, `/ex/hello`, and
-`/ex/orders/42` belong to `/ex`; `/EX` is a different group. Keys are `/` or one absolute segment
+Groups retain the dashboard's existing first-path-segment identity: `/ctp`, `/ctp/parks`, and
+`/ctp/reservations/42` belong to `/ctp`; `/CTP` is a different group. Keys are `/` or one absolute segment
 of at most 2,048 characters, without whitespace, control characters, backslashes, query strings,
 or fragments. Management and health names are reserved. Metadata never creates a mock route.
 At most 25 descriptions may be stored, each containing at most 4,000 characters of plain text.
@@ -151,9 +151,46 @@ The dashboard checks response bodies whose content type is `application/json` or
 
 Uploaded imports replace the entire active document after validation and ETag verification. The built-in example action is different: it merges by stable endpoint ID, adds missing entries, skips identical entries, preserves unrelated endpoints, and requires a conflict preview plus explicit forced update before applying divergent examples.
 
-The checked-in example contains seven `/ex/` endpoints covering `200`, `201`, `204`, `302`, a conditional `429`, and `500` responses plus `/ex/abort-connection`, which intentionally sends no response. `GET /ex/redirect` returns `302 Found` with `Location: /ex/hello`; clients that automatically follow redirects will receive the destination's `200` response. `GET /ex/server-error` returns `500 Internal Server Error` with the JSON body `{"error":"internal server error"}`.
+## Contoso Theme Parks Example
 
-Each example endpoint includes a semantic description explaining its purpose, configured response, and relevant client behavior. The order endpoints simulate creation and deletion without storing or changing orders. View these descriptions through the endpoint information buttons in the dashboard.
+The checked-in [example](../config/mockapi.json) contains nine endpoints in one cohesive API.
+**CTP stands for Contoso Theme Parks**, a fictional company where a little wonder awaits every visitor.
+Discover Starlight Gardens, explore its Cloud Cruiser roller coaster, and try a sample reservation.
+The fixtures are newly invented for MockAPI, inspired by the cohesive learning approach of the
+[Contoso Theme Parks project](https://github.com/contoso-theme-parks); they do not reproduce its original
+service contracts or require its Azure infrastructure.
+
+| Method        | Route                                       | Behavior                                                         |
+| ------------- | ------------------------------------------- | ---------------------------------------------------------------- |
+| `GET`, `HEAD` | `/ctp/parks`                                | Park discovery, `200`; `HEAD` omits the body                     |
+| `GET`         | `/ctp/attractions/cloud-cruiser`            | Ride details and a wait-times link, `200`                        |
+| `POST`        | `/ctp/reservations`                         | Sample reservation, `201`, with `Location: /ctp/reservations/42` |
+| `GET`         | `/ctp/reservations/42`                      | Retrieve the same sample reservation, `200`                      |
+| `DELETE`      | `/ctp/reservations/42`                      | Simulate cancellation, `204`, with no body                       |
+| `GET`         | `/ctp/attractions/featured`                 | Redirect to Cloud Cruiser, `302`                                 |
+| `GET`         | `/ctp/attractions/cloud-cruiser/wait-times` | Static wait time, `200`; excessive polling returns `429`         |
+| `GET`         | `/ctp/demo-faults/parade-schedule`          | Intentional parade-service HTTP failure, `500`                   |
+| `GET`         | `/ctp/demo-faults/ride-sensor`              | Intentional connection abort; no HTTP response                   |
+
+All park information and wait times are static. Reservation creation ignores the request body and
+stores nothing; cancellation changes nothing, and the sample reservation remains retrievable before
+creation and after cancellation. Query strings do not select different responses. All paths are exact
+literals, not route templates. The featured-attraction redirect and reservation `Location` resolve to
+configured `GET` endpoints.
+
+Wait-time polling permits four requests in a rolling 10-second window. Further requests return
+`429 Too Many Requests`, `Retry-After: 10`, and
+`{"error":"wait_times_rate_limited","message":"Take a little breather! Check back in 10 seconds."}`.
+Both outcomes demonstrate repeated `X-Mock-Source` header values. The dashboard preselects five requests.
+Fault routes are deliberately separated under `/ctp/demo-faults/`; no real park operations or safety
+systems are involved. Each endpoint's dashboard information button explains its behavior.
+
+The seven earlier `/ex` example IDs are retained so existing statistics attribution and built-in merge
+identity remain stable. On an instance with those examples already loaded, **Load examples** previews
+conflicts rather than silently moving routes. After reviewing, **Force update** replaces those seven
+definitions and adds the two new lookup endpoints without deleting unrelated endpoints. API descriptions
+remain independent: old `/ex` metadata is retained, and an existing custom or empty `/ctp` description
+is preserved.
 
 ## Azure OpenAI Sample
 

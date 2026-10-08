@@ -92,7 +92,7 @@ public static class ConfigurationValidator
             if (!IsApiGroupPath(groupPath))
             {
                 AddError(errors, path, "format",
-                    "API paths must be '/' or one absolute, non-reserved path segment, such as '/ex'.");
+                    "API paths must be '/' or one absolute, non-reserved path segment, such as '/ctp'.");
             }
 
             if (description is null || description.Length > ConfigurationLimits.MaximumDescriptionLength)

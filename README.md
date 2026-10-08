@@ -47,7 +47,9 @@ export ASPNETCORE_URLS='http://localhost:5080'
 1. Open **[the dashboard](http://localhost:5080/__mockapi/)** and select **Load examples**.
 2. Configure [dashboard administrator credentials](docs/OPERATIONS.md#mock-api-keys), then open
    **Settings > Mock API security** and generate a key. Mock calls fail with `401` until a key is generated.
-3. Select **Test** on `/ex/hello`. Dashboard tests use the generated key automatically.
+3. Select **Test** on `/ctp/parks`. CTP stands for **Contoso Theme Parks**; the examples follow a
+   fictional park visit, from discovering attractions to reserving a ride. Dashboard tests use the
+   generated key automatically.
    External callers must send it in `X-MockAPI-Key`; opening a mock URL without that header returns `401`.
 4. Edit its response in the dashboard and repeat the test. No restart needed.
 5. Changes are saved automatically to your [writable file or volume](#22-run-directly-with-net). Use **Retry save** if saving fails.
@@ -65,7 +67,7 @@ Keep administrative access on localhost or a protected network unless you config
 > MockAPI is pre-1.0. The published `v1.0.0-alpha.1` image is an older preview, not the current beta source.
 > Use the source quick start for current features. A version in the project does not mean that image has been published.
 
-![Annotated MockAPI dashboard showing the import, export, and save command bar, live request metrics, the last-60-minutes activity graph, per-endpoint statistics, and the endpoint registry table.](docs/images/01-dashboard-overview.png)
+![Annotated MockAPI dashboard showing nine Contoso Theme Parks endpoints under /ctp, configuration commands, live request metrics, the last-60-minutes activity graph, and recent request outcomes.](docs/images/01-dashboard-overview.png)
 
 The browser dashboard is the operations console: load or import a configuration, watch live request metrics, and manage every mock endpoint in one place.
 
@@ -261,7 +263,7 @@ $env:ASPNETCORE_URLS = 'http://localhost:5080'
 
 # Terminal 2: verify readiness, then call the first mock endpoint
 Invoke-WebRequest http://localhost:5080/health/ready
-Invoke-RestMethod http://localhost:5080/ex/hello -Headers @{ 'X-MockAPI-Key' = $env:MOCKAPI_KEY }
+Invoke-RestMethod http://localhost:5080/ctp/parks -Headers @{ 'X-MockAPI-Key' = $env:MOCKAPI_KEY }
 ```
 
 </details>
@@ -276,7 +278,7 @@ export ASPNETCORE_URLS='http://localhost:5080'
 
 # Terminal 2: verify readiness, then call the first mock endpoint
 curl -fsS http://localhost:5080/health/ready
-curl -fsS -H "X-MockAPI-Key: $MOCKAPI_KEY" http://localhost:5080/ex/hello
+curl -fsS -H "X-MockAPI-Key: $MOCKAPI_KEY" http://localhost:5080/ctp/parks
 ```
 
 </details>
@@ -394,7 +396,7 @@ Open `http://localhost:8080/`, select **Load examples**, and verify the first re
 <summary><strong>PowerShell 7</strong></summary>
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/ex/hello -Headers @{ 'X-MockAPI-Key' = $env:MOCKAPI_KEY }
+Invoke-RestMethod http://localhost:8080/ctp/parks -Headers @{ 'X-MockAPI-Key' = $env:MOCKAPI_KEY }
 ```
 
 </details>
@@ -403,7 +405,7 @@ Invoke-RestMethod http://localhost:8080/ex/hello -Headers @{ 'X-MockAPI-Key' = $
 <summary><strong>Bash</strong></summary>
 
 ```bash
-curl -fsS -H "X-MockAPI-Key: $MOCKAPI_KEY" http://localhost:8080/ex/hello
+curl -fsS -H "X-MockAPI-Key: $MOCKAPI_KEY" http://localhost:8080/ctp/parks
 ```
 
 </details>
@@ -587,9 +589,9 @@ The image runs as the non-root `app` user. `/data` is the only required writable
 The same workflow applies to every execution model:
 
 1. Open the dashboard at the application root.
-2. Select **Load examples** to add the built-in `/ex/*` endpoints.
+2. Select **Load examples** to add the built-in Contoso Theme Parks (`/ctp/*`) endpoints.
 3. With administrator credentials configured, generate a key in **Settings > Mock API security**.
-   Copy it before reloading; the server stores only its hash. Select **Test** on an endpoint, or call `/ex/hello`
+   Copy it before reloading; the server stores only its hash. Select **Test** on an endpoint, or call `/ctp/parks`
    with the key in `X-MockAPI-Key`. Set `MOCKAPI_KEY` in the calling terminal for the request examples above.
 4. Edit, duplicate, enable, disable, or create an endpoint. Valid changes become active immediately.
 5. Changes are saved automatically to the selected persistence target. If saving fails, changes stay active
@@ -598,11 +600,11 @@ The same workflow applies to every execution model:
 
 The built-in example merge adds missing endpoints, skips identical ones, preserves unrelated configuration, and requires explicit confirmation before replacing a conflicting example.
 
-![Annotated endpoint editor dialog highlighting the name, methods, exact path, response behavior, status code, response headers, enabled toggle, and the apply-endpoint action.](docs/images/03-endpoint-editor.png)
+![Annotated endpoint editor for /ctp/parks showing its description, GET and HEAD methods, exact path, response behavior, status code, headers, raw body, enabled toggle, and the apply-endpoint action.](docs/images/03-endpoint-editor.png)
 
 The endpoint editor defines everything a response returns: methods, exact path, status code, reason phrase, headers, content type, and body. Valid changes apply immediately.
 
-![Annotated endpoint test drawer showing the request method, path, request headers and body, the send action, and the live response banner reporting the returned HTTP status.](docs/images/04-endpoint-test.png)
+![Annotated endpoint test drawer for /ctp/parks showing the request controls and a local HTTP 200 response with headers, timing, effective URL, and the static park discovery body.](docs/images/04-endpoint-test.png)
 
 The built-in test drawer sends a real request to any endpoint and shows the live response — status, elapsed time, effective URL, and headers — without leaving the dashboard.
 
@@ -622,8 +624,8 @@ Each request generates the document from one current active configuration snapsh
 2. In APIM, choose **APIs > Add API > OpenAPI** and supply the deployed export URL, or upload a freshly downloaded file if the export requires authentication or is private.
 3. Set APIM's **Web service URL** to the deployed MockAPI HTTPS base URL. The export's `servers` value is a local-development placeholder, not deployment discovery.
 4. Configure the backend call to supply `X-MockAPI-Key`, using a secret value rather than embedding the key in
-   the export. Choose an API URL suffix, such as `mockapi`. An enabled `/ex/hello` route is then called through
-   `https://<apim-gateway>/mockapi/ex/hello`.
+   the export. Choose an API URL suffix, such as `mockapi`. An enabled `/ctp/parks` route is then called through
+   `https://<apim-gateway>/mockapi/ctp/parks`.
 5. Test through APIM with its required subscription key or other caller credentials. MockAPI still serves the response; importing the document does not reproduce its behavior inside APIM.
 
 **Runtime generation is not APIM synchronization.** APIM imports a snapshot and does not watch the source URL. Re-import into the same APIM API when its operations or documented responses need updating. Existing imported routes forward to the current MockAPI behavior immediately, subject to APIM policies and caching.
@@ -640,7 +642,7 @@ MockAPI accepts complete JSON documents conforming to [schemas/mockapi.schema.js
 
 The primary runtime switches control persistence and independently expose the dashboard, management API, OpenAPI document, and Swagger UI. Detailed settings, limits, endpoint fields, and persistence behavior are documented in the [configuration reference](docs/CONFIGURATION.md).
 
-![Annotated import, export, and save controls showing example seeding, JSON import, the export-format selector listing MockAPI JSON, Postman, Insomnia, cURL, JMeter, OpenAPI, k6, and HTTP file, the export action, and the save-to-disk action.](docs/images/07-export-formats.png)
+![Annotated configuration commands showing example loading, JSON import, export, and Retry save, with a guide listing all eight export formats and explaining automatic persistence.](docs/images/07-export-formats.png)
 
 Export the active configuration as MockAPI JSON or as a ready-to-use Postman, Insomnia, cURL, JMeter, OpenAPI, k6, or HTTP-file collection, import a saved configuration, and save valid changes to the selected persistence target.
 
@@ -750,7 +752,7 @@ To review the GitHub Pages documentation locally, run `.\start.ps1 -Action site-
 
 The documentation site's **Toggle color theme** sun-icon button matches the dashboard. On first load, the theme follows the operating system unless a Light or Dark choice was saved. Clicking toggles between Light and Dark and saves the choice independently of dashboard preferences.
 
-The documentation gallery shows a populated dashboard overview, all seven example endpoints, and an expanded log of 16 sample requests. Use the left/right arrow buttons, the named view buttons, or the left/right arrow keys within the gallery to switch screenshots. Images open at full size in a new tab. The carousel does not advance automatically; without JavaScript, all three screenshots remain visible. Captures use only the checked-in example configuration and generated local requests, not a running deployment's data.
+The documentation gallery shows a populated dashboard overview, all nine Contoso Theme Parks (`/ctp`) example endpoints, and an expanded log of 16 sample requests. Use the left/right arrow buttons, the named view buttons, or the left/right arrow keys within the gallery to switch screenshots. Images open at full size in a new tab. The carousel does not advance automatically; without JavaScript, all three screenshots remain visible. Captures use only the checked-in example configuration and generated local requests, not a running deployment's data.
 
 Site browser checks target WCAG 2.2 AA in light and dark themes, including text and control contrast, visible keyboard focus, control sizes, 320-pixel reflow, 200% text resizing with system and wider fallback fonts, reduced motion, and forced colors. Automated accessibility checks supplement manual review; they are not a conformance certification.
 

@@ -29,7 +29,7 @@ public sealed class ConfigurationManagementService(
         state.TryReplace(candidate, expectedRevision);
 
     /// <summary>Sets a path-based API description without changing endpoints or other API metadata.</summary>
-    /// <param name="path">The case-sensitive group path, such as <c>/ex</c>.</param>
+    /// <param name="path">The case-sensitive group path, such as <c>/ctp</c>.</param>
     /// <param name="description">Freeform text, including an empty string to suppress a built-in description.</param>
     /// <param name="expectedRevision">The revision captured when the editor opened.</param>
     /// <returns>The atomic update result. Validation or revision failure leaves all active state unchanged.</returns>

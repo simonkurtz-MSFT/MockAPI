@@ -17,11 +17,13 @@ test("API description supports hover, keyboard editing, whitespace, and native e
   request,
 }, testInfo) => {
   await loadExample(request);
-  const info = page.getByRole("button", { name: "Edit API description for /ex", exact: true });
+  const info = page.getByRole("button", { name: "Edit API description for /ctp", exact: true });
   await expect(info).toBeVisible();
   await info.hover();
   const tooltip = page.getByRole("tooltip");
-  await expect(tooltip).toContainText("This API demonstrates some of MockAPI's capabilities.");
+  await expect(tooltip).toContainText("CTP stands for Contoso Theme Parks");
+  await expect(tooltip).toContainText("Starlight Gardens");
+  await expect(tooltip).toContainText("static MockAPI examples");
   await expect(tooltip).toHaveCSS("text-transform", "none");
   await tooltip.hover();
   await expect(tooltip).toBeVisible();
@@ -49,9 +51,9 @@ test("API description supports hover, keyboard editing, whitespace, and native e
   await expect(tooltip).toContainText("<img src=x onerror=alert(1)>");
   await expect(tooltip.locator("img")).toHaveCount(0);
   const exported = await (await request.get("/__mockapi/api/configuration/export")).json();
-  expect(exported.apiDescriptions["/ex"]).toBe(description);
-  expect(exported.endpoints).toHaveLength(7);
-  expect((await request.get("/ex/hello")).status()).toBe(200);
+  expect(exported.apiDescriptions["/ctp"]).toBe(description);
+  expect(exported.endpoints).toHaveLength(9);
+  expect((await request.get("/ctp/parks")).status()).toBe(200);
   await page.reload();
   await info.focus();
   await expect(tooltip).toContainText("Second line");
@@ -66,13 +68,13 @@ test("API description supports hover, keyboard editing, whitespace, and native e
 
 test("API description stale drafts never overwrite live updates", async ({ page, request }) => {
   await loadExample(request);
-  const info = page.getByRole("button", { name: "Edit API description for /ex", exact: true });
+  const info = page.getByRole("button", { name: "Edit API description for /ctp", exact: true });
   await info.click();
   await page.locator("#api-description-text").fill("Stale draft");
   const configuration = await (await request.get("/__mockapi/api/configuration")).json();
   const winner = await request.put("/__mockapi/api/configuration/api-description", {
     headers: { "If-Match": configuration.etag },
-    data: { path: "/ex", description: "Winning description" },
+    data: { path: "/ctp", description: "Winning description" },
   });
   expect(winner.ok()).toBeTruthy();
   await expect(page.locator(".endpoint-group-row .api-description-tooltip p")).toHaveText("Winning description");
@@ -80,7 +82,7 @@ test("API description stale drafts never overwrite live updates", async ({ page,
   await expect(page.locator("#api-description-error")).toBeVisible();
   await expect(page.locator("#api-description-dialog")).toBeVisible();
   const current = await (await request.get("/__mockapi/api/configuration")).json();
-  expect(current.apiDescriptions["/ex"]).toBe("Winning description");
+  expect(current.apiDescriptions["/ctp"]).toBe("Winning description");
   expect(current.revision).toBe((await winner.json()).revision);
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await info.click();
@@ -92,7 +94,7 @@ test("empty descriptions stay cleared on example merges and retained metadata re
   request,
 }) => {
   const example = await loadExample(request);
-  const info = page.getByRole("button", { name: "Edit API description for /ex", exact: true });
+  const info = page.getByRole("button", { name: "Edit API description for /ctp", exact: true });
   await info.click();
   await page.locator("#api-description-text").fill("");
   await page.getByRole("button", { name: "Apply description", exact: true }).click();
@@ -103,7 +105,7 @@ test("empty descriptions stay cleared on example merges and retained metadata re
   });
   expect((await merge.json()).applied).toBe(false);
   const exported = await (await request.get("/__mockapi/api/configuration/export")).json();
-  expect(exported.apiDescriptions["/ex"]).toBe("");
+  expect(exported.apiDescriptions["/ctp"]).toBe("");
   const deleted = await request.post("/__mockapi/api/endpoints/bulk", {
     headers: { "If-Match": current.etag },
     data: { endpointIds: example.endpoints.map((endpoint) => endpoint.id), operation: "delete" },
@@ -111,7 +113,7 @@ test("empty descriptions stay cleared on example merges and retained metadata re
   expect(deleted.ok()).toBeTruthy();
   await expect(info).toHaveCount(0);
   const remaining = await (await request.get("/__mockapi/api/configuration")).json();
-  expect(remaining.apiDescriptions["/ex"]).toBe("");
+  expect(remaining.apiDescriptions["/ctp"]).toBe("");
   const restored = await request.post("/__mockapi/api/configuration/example/merge", {
     headers: { "If-Match": remaining.etag },
   });
@@ -125,7 +127,7 @@ test("endpoint information is keyboard accessible and untrusted descriptions and
   request,
 }) => {
   const example = await (await request.get("/__mockapi/api/configuration/example")).json();
-  const endpoint = example.endpoints.find((item) => item.path === "/ex/hello");
+  const endpoint = example.endpoints.find((item) => item.path === "/ctp/parks");
   const marker = "document.documentElement.dataset.descriptionExecuted='yes'";
   const payload = `Mixed Case\n<img src=x onerror="${marker}"><svg onload="${marker}"></svg><script>eval("${marker}")</script>`;
   endpoint.name = "Untrusted <img src=x onerror=alert(1)>";
@@ -133,7 +135,7 @@ test("endpoint information is keyboard accessible and untrusted descriptions and
   endpoint.response.contentType = "text/html";
   endpoint.response.body = payload;
   endpoint.response.headers = { "X-Untrusted-Text": ["<img src=x onerror=alert(1)>"] };
-  await importDocument(request, { ...example, endpoints: [endpoint], apiDescriptions: { "/ex": payload } });
+  await importDocument(request, { ...example, endpoints: [endpoint], apiDescriptions: { "/ctp": payload } });
   await page.reload();
 
   const row = page.locator(".endpoint-row");
@@ -165,7 +167,7 @@ test("endpoint information is keyboard accessible and untrusted descriptions and
   await expect(info).toBeFocused();
   await page.keyboard.press("Escape");
 
-  const groupInfo = page.getByRole("button", { name: "Edit API description for /ex", exact: true });
+  const groupInfo = page.getByRole("button", { name: "Edit API description for /ctp", exact: true });
   await groupInfo.click();
   await expect(page.locator("#api-description-text")).toHaveValue(payload);
   await page.locator("#api-description-text").fill(edited);
@@ -173,7 +175,7 @@ test("endpoint information is keyboard accessible and untrusted descriptions and
   await expect(page.locator(".endpoint-group-row .api-description-tooltip p")).toHaveText(edited);
   await page.keyboard.press("Escape");
   const exported = await (await request.get("/__mockapi/api/configuration/export")).json();
-  expect(exported.apiDescriptions["/ex"]).toBe(edited);
+  expect(exported.apiDescriptions["/ctp"]).toBe(edited);
   expect(exported.endpoints[0].description).toBe(edited);
   await page.reload();
   await info.focus();

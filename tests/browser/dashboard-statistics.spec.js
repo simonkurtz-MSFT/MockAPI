@@ -56,8 +56,10 @@ test("uses the consolidated Statistics reset control for overall and endpoint sc
   await page.getByRole("button", { name: "By endpoint", exact: true }).click();
   await expect(page.getByRole("button", { name: "Reset endpoint", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await page.getByLabel("Endpoint statistics").selectOption({ label: "Rate limited response · /ex/rate-limited" });
-  expect((await request.get("/ex/rate-limited")).status()).toBe(200);
+  await page
+    .getByLabel("Endpoint statistics")
+    .selectOption({ label: "Check Cloud Cruiser wait times · /ctp/attractions/cloud-cruiser/wait-times" });
+  expect((await request.get("/ctp/attractions/cloud-cruiser/wait-times")).status()).toBe(200);
   await expect(page.locator("#metric-total")).toHaveText("1");
   const endpointId = await page.getByLabel("Endpoint statistics").inputValue();
   await page.getByRole("button", { name: "Reset endpoint", exact: true }).click();
@@ -86,10 +88,10 @@ test("uses the consolidated Statistics reset control for overall and endpoint sc
 
 test("shows only configured endpoint requests without retaining query values", async ({ page, request }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(7);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(9);
   await request.post("/__mockapi/api/statistics/reset");
 
-  const matchedResponse = await request.get("/ex/hello?token=private-value");
+  const matchedResponse = await request.get("/ctp/parks?token=private-value");
   expect(matchedResponse.status()).toBe(200);
   const unmatchedResponse = await request.get("/missing-latest?token=private-value");
   expect(unmatchedResponse.status()).toBe(404);
@@ -115,8 +117,8 @@ test("shows only configured endpoint requests without retaining query values", a
   await expect(rows.nth(0)).toBeHidden();
   await bucketToggle.click();
   await expect(rows.nth(0)).toBeVisible();
-  await expect(rows.nth(0)).toContainText("Hello from MockAPI");
-  await expect(rows.nth(0)).toContainText("/ex/hello");
+  await expect(rows.nth(0)).toContainText("Discover the parks");
+  await expect(rows.nth(0)).toContainText("/ctp/parks");
   await expect(rows.nth(0).locator(".request-log-result")).toHaveClass(/status-2xx/);
   await expect(rows.nth(0).locator(".request-log-result")).toHaveCSS("text-align", "center");
   await expect(page.locator("#metric-unmatched")).toHaveText("1");
@@ -127,9 +129,9 @@ test("shows only configured endpoint requests without retaining query values", a
 
 test("collapses request log buckets and opens them from statistics columns", async ({ page, request }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(7);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(9);
   await request.post("/__mockapi/api/statistics/reset");
-  const response = await request.get("/ex/hello");
+  const response = await request.get("/ctp/parks");
   expect(response.status()).toBe(200);
 
   const bucketToggle = page.locator(".request-log-bucket-toggle");
@@ -268,18 +270,22 @@ test("bulk bucket controls preserve column widths through collapse, expansion, a
 
 test("shows grounded endpoint statistics as a graph and table", async ({ page, request }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator("#endpoint-rows").getByRole("row", { name: /Rate limited response/ })).toBeVisible();
+  await expect(
+    page.locator("#endpoint-rows").getByRole("row", { name: /Check Cloud Cruiser wait times/ })
+  ).toBeVisible();
   await request.post("/__mockapi/api/statistics/reset");
   for (let attempt = 0; attempt < 4; attempt += 1) {
-    const response = await request.get("/ex/rate-limited");
+    const response = await request.get("/ctp/attractions/cloud-cruiser/wait-times");
     expect(response.status()).toBe(200);
   }
-  const limitedResponse = await request.get("/ex/rate-limited");
+  const limitedResponse = await request.get("/ctp/attractions/cloud-cruiser/wait-times");
   expect(limitedResponse.status()).toBe(429);
 
   await page.getByRole("button", { name: "By endpoint" }).click();
-  await page.getByLabel("Endpoint statistics").selectOption({ label: "Rate limited response · /ex/rate-limited" });
-  await expect(page.locator("#statistics-chart-title")).toHaveText("Rate limited response attempt activity");
+  await page
+    .getByLabel("Endpoint statistics")
+    .selectOption({ label: "Check Cloud Cruiser wait times · /ctp/attractions/cloud-cruiser/wait-times" });
+  await expect(page.locator("#statistics-chart-title")).toHaveText("Check Cloud Cruiser wait times attempt activity");
   await expect(page.locator("#statistics-chart")).toHaveAttribute(
     "aria-label",
     /The first 4 requests within 10 seconds return HTTP 200; later requests return HTTP 429\./
@@ -326,12 +332,14 @@ test("shows grounded endpoint statistics as a graph and table", async ({ page, r
   await page.getByRole("button", { name: "Table", exact: true }).click();
   const statisticsTable = page.getByRole("region", { name: "Detailed attempt statistics" });
   await expect(statisticsTable.getByRole("columnheader", { name: "Attempts" })).toBeVisible();
-  const statisticsRow = page.locator("#statistics-table-view tbody tr").filter({ hasText: "Rate limited response" });
+  const statisticsRow = page
+    .locator("#statistics-table-view tbody tr")
+    .filter({ hasText: "Check Cloud Cruiser wait times" });
   await expect(statisticsRow).toContainText("5");
   await expect(statisticsRow).toContainText("attempts/min");
   await page
     .locator(".request-log-entry")
-    .filter({ hasText: "/ex/rate-limited" })
+    .filter({ hasText: "/ctp/attractions/cloud-cruiser/wait-times" })
     .filter({ has: page.locator(".status-4xx") })
     .hover();
   await expectNoUnreviewedAccessibilityViolations(page);
