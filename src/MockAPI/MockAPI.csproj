@@ -14,7 +14,7 @@
     <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <WarningsAsErrors>$(WarningsAsErrors);1591</WarningsAsErrors>
-    <Version>1.3.0</Version>
+    <Version>1.4.0</Version>
     <BuildDateUtc Condition="'$(BuildDateUtc)' == ''">$([System.DateTime]::UtcNow.ToString('O'))</BuildDateUtc>
     <RepositoryUrl>https://github.com/simonkurtz-MSFT/MockAPI</RepositoryUrl>
   </PropertyGroup>

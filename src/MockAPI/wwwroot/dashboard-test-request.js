@@ -3,6 +3,43 @@
 import { methodSupportsBody, parseHeaderLines } from "./dashboard-core.js?v={{ASSET_VERSION}}";
 
 /**
+ * Explains missing credentials without interpreting configured mock 401/403 responses as authentication failures.
+ * Explicit headers take precedence over the memory-only Settings key, including an explicitly empty header.
+ * @param {import("./dashboard-core.js").ApiSecurityStatus} security Current server protection status.
+ * @param {string} headerLines Newline-delimited request headers.
+ * @param {string} apiKey Memory-only Settings key.
+ * @returns {string} Actionable warning, or an empty string when no missing-key problem is known.
+ * @throws {Error} Request headers are malformed.
+ */
+export function getEndpointTestSecurityWarning(security, headerLines, apiKey) {
+  if (!security.enabled) return "";
+  if (!security.configured)
+    return "API-key protection is enabled, but no key has been generated. Requests will be rejected before the endpoint runs. Generate a key in Settings > Mock API security, or disable Require X-MockAPI-Key on mock requests there.";
+  const headers = createTestHeaders(headerLines, apiKey);
+  const suppliedKey = headers.get("X-MockAPI-Key");
+  if (suppliedKey?.trim()) return "";
+  return [
+    "X-MockAPI-Key is presently required, but this test will not send a key. Requests will be rejected before the endpoint runs. Please take one of the following actions:",
+    "",
+    "- Add X-MockAPI-Key to Request headers, or",
+    "- enter the existing key in Settings > Dashboard test key, or",
+    "- disable Require X-MockAPI-Key on mock requests in Settings.",
+  ].join("\n");
+}
+
+/**
+ * @param {string} headerLines Request headers entered by the user.
+ * @param {string} apiKey Memory-only Settings key.
+ * @returns {Headers} Headers with the same credential precedence for guidance and sending.
+ */
+function createTestHeaders(headerLines, apiKey) {
+  const headers = new Headers();
+  for (const [name, value] of parseHeaderLines(headerLines)) headers.append(name, value);
+  if (apiKey && !headers.has("X-MockAPI-Key")) headers.set("X-MockAPI-Key", apiKey);
+  return headers;
+}
+
+/**
  * @typedef {Object} EndpointTestRequest
  * @property {string} method HTTP method.
  * @property {string} path Same-origin endpoint path or URL.
@@ -72,14 +109,11 @@ export function createEndpointTestRequestController({
 
     let headers;
     try {
-      headers = new Headers();
-      for (const [name, value] of parseHeaderLines(headerLines)) headers.append(name, value);
+      headers = createTestHeaders(headerLines, getApiKey());
     } catch (error) {
       return { kind: "validationError", message: error.message };
     }
     headers.set("X-MockAPI-Dashboard-Request-Id", createRequestId());
-    const apiKey = getApiKey();
-    if (apiKey && !headers.has("X-MockAPI-Key")) headers.set("X-MockAPI-Key", apiKey);
 
     const controller = createAbortController();
     activeController = controller;

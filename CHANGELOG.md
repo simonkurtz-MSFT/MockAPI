@@ -7,6 +7,37 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-09
+
+### Added
+
+- A persistent dashboard header indicator distinguishes unprotected mock APIs, API-key protection,
+  a missing server key, and unavailable protection status without opening Settings.
+- Endpoint tests check current API-key protection and show actionable missing-key guidance with
+  emphasized header names and separate actions. Explicit request headers retain precedence over
+  the memory-only Settings key, and deliberate unauthorized tests remain available.
+- Existing operations display their stable operation ID as read-only in the edit dialog.
+
+### Changed
+
+- Information previews close when the pointer leaves their information button, including when it
+  moves onto the preview.
+- Supported HTTP methods appear in separate bordered badges.
+- Endpoint information buttons precede operation names, and compact status and action columns leave
+  more room for names and paths.
+- Path now appears immediately after the selection checkbox, before the information button and
+  operation name. Paths omit their API group prefix for display only; configured paths, editing,
+  filtering, exports, and request URLs remain unchanged.
+- Endpoint paging is replaced by vertical scrolling with sticky headers, showing all matching
+  operations. API groups remain alphabetical, operations default to alphabetical name order within
+  each group, and header clicks sort operations without reordering or expanding API groups.
+- The separate Last attempt column is replaced by a hover tooltip on each operation's attempt count.
+
+### Fixed
+
+- Endpoint table columns remain stable when API groups collapse.
+- Sort indicators stay within their headers, and the Attempts heading and values are centered.
+
 ## [1.3.0] - 2026-10-08
 
 ### Changed
@@ -79,7 +110,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.2.0...v1.3.0
 [1.2.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.1.0...v1.2.0
 [1.1.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.0.1...v1.1.0

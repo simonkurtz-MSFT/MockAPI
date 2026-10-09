@@ -32,6 +32,10 @@ a cancelled or failed save restores the checkbox to the saved setting.
 When a key already exists, **Rotate key** replaces it after confirmation. The **Copy key** icon beside the textbox is available only
 when this page holds a valid key; the dashboard never retrieves an existing key from the server.
 The status badge explains whether protection is on, off, awaiting a key, or unavailable.
+The dashboard header shows **APIs unprotected** beside the connection and Settings controls when request
+protection is off, without opening Settings or testing an endpoint. It also distinguishes **APIs protected**,
+**APIs blocked: key needed**, and **Protection unknown**. The indicator checks on page load, returning to
+the dashboard, opening Settings, and endpoint tests; saved security changes refresh it immediately.
 Workspace preferences are separate and apply only to the current browser.
 Close Settings with **Done**, the close button, **Escape**, or a click outside the dialog.
 Closing Settings retains the dashboard test key in page memory until a reload.
@@ -45,6 +49,14 @@ Rotation generates 32 random bytes, enables enforcement, and immediately revokes
 the security settings' own strong ETag and are persisted before activation. Failed or stale writes leave active
 authorization unchanged. Keys are never retained in browser storage, endpoint configuration, or statistics.
 Endpoint tests reject redirects rather than forwarding a key to another target.
+Opening an endpoint's **Test** blade checks current request protection, and sending rechecks it.
+If protection is enabled but the test has no key, an inline warning emphasizes `X-MockAPI-Key`
+and lists three actions: add the header
+in **Request headers**, enter the existing key in **Settings > Dashboard test key**, or disable
+**Require X-MockAPI-Key on mock requests** in Settings. Explicit request headers override the memory-only
+key, including an explicitly empty key. The warning does not block deliberate unauthorized tests;
+responses remain inspectable. A supplied key is not validated locally, and configured mock `401`/`403`
+responses are not treated as evidence of a missing key. Failed protection checks are displayed explicitly.
 
 The hash and enforcement setting are saved in `<ConfigurationPath>.security.json`, or in a sibling
 `<configuration-blob-name>.security.json` when Blob persistence is configured. Retain this document with the
@@ -69,6 +81,22 @@ The supported WSLC creation workflow prompts for an optional username and reads 
 HTTP Basic authentication is sufficient for low-sensitivity administration on loopback or behind HTTPS with a strong unique password. It does not provide transport encryption, MFA, centralized identity, roles, audit history, or account lockout. Do not expose authenticated administrative surfaces over plain HTTP. For an internet-facing or sensitive deployment, keep them disabled or place them behind an identity-aware, rate-limited ingress.
 
 MockAPI suppresses the Kestrel `Server` header. It does not log configured request or response bodies, authorization headers, cookies, or query values. Statistics and the newest-first feed of at most 100 request summaries are bounded, process-local, and reset on restart.
+
+## Browsing Endpoints
+
+The endpoint table shows all matching operations without paging. Scroll vertically to browse long
+lists; column headers remain visible. API groups stay alphabetical, and operations default to
+alphabetical name order within each group. Column header clicks sort operations inside expanded
+groups without reordering or expanding API groups. Filters and bulk selection cover the complete
+matching list, including collapsed groups.
+
+Hover over an operation's Attempts count to see its last-attempt time, or `Never` before any attempts.
+The count and tooltip update together as new attempts arrive.
+
+Path appears immediately after the selection checkbox, before the information button and operation
+name. It omits the API group prefix: `/ctp/parks` appears as `/parks` under `ctp/`, and `/ctp` appears
+as `/`. Hovering the path shows its full configured value. Editing, filtering, exports, and endpoint
+tests continue to use the full path; the shorter display does not change routing.
 
 ## Container Operation
 

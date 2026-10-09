@@ -13,11 +13,11 @@ import {
   formatTime,
   formatTransportAttemptInsight,
   formatUtcTime,
+  getEndpointDisplayPath,
   groupEndpointsByPath,
   groupRequestsByMinute,
   hasScrollableStatisticsHistory,
   methodSupportsBody,
-  paginateItems,
   parseHeaderLines,
   sortEndpoints,
 } from "../../src/MockAPI/wwwroot/dashboard-core.js";
@@ -104,7 +104,6 @@ describe("sortEndpoints", () => {
 
     expect(sortEndpoints(source, { key: "response", direction: "ascending" }, statistics)[0].id).toBe("ok");
     expect(sortEndpoints(source, { key: "requests", direction: "descending" }, statistics)[0].id).toBe("ok");
-    expect(sortEndpoints(source, { key: "lastRequest", direction: "descending" }, statistics)[0].id).toBe("ok");
   });
 
   it.each([
@@ -117,7 +116,7 @@ describe("sortEndpoints", () => {
         id: "post",
         name: "Post",
         methods: ["POST"],
-        path: "/z",
+        path: "/api/z",
         enabled: false,
         response: { statusCode: 201 },
       },
@@ -125,7 +124,7 @@ describe("sortEndpoints", () => {
         id: "get",
         name: "Get",
         methods: ["GET"],
-        path: "/a",
+        path: "/api/a",
         enabled: true,
         response: { statusCode: 200 },
       },
@@ -144,26 +143,18 @@ describe("sortEndpoints", () => {
       "first",
       "second",
     ]);
-    expect(sortEndpoints(source, { key: "lastRequest", direction: "ascending" }).map(({ id }) => id)).toEqual([
-      "first",
-      "second",
-    ]);
   });
 });
 
-describe("paginateItems", () => {
-  it("returns page metadata and clamps an out-of-range page", () => {
-    expect(paginateItems([1, 2, 3, 4, 5], 4, 2)).toEqual({
-      items: [5],
-      page: 3,
-      pageCount: 3,
-      start: 5,
-      end: 5,
-    });
-  });
-
-  it("describes an empty result set", () => {
-    expect(paginateItems([], 1, 10)).toEqual({ items: [], page: 1, pageCount: 1, start: 0, end: 0 });
+describe("getEndpointDisplayPath", () => {
+  it.each([
+    ["/ctp/parks", "/parks"],
+    ["/ctp/attractions/ctp", "/attractions/ctp"],
+    ["/ctp", "/"],
+    ["/ctp/", "/"],
+    ["/", "/"],
+  ])("displays %s as %s without its group prefix", (path, expected) => {
+    expect(getEndpointDisplayPath(path)).toBe(expected);
   });
 });
 
@@ -182,7 +173,7 @@ describe("hasScrollableStatisticsHistory", () => {
 });
 
 describe("groupEndpointsByPath", () => {
-  it("groups endpoints by first path segment while preserving order", () => {
+  it("orders groups alphabetically while preserving operation order", () => {
     const grouped = groupEndpointsByPath([
       { id: "one", path: "/inference-failover/200/chat/completions" },
       { id: "two", path: "/orders" },
@@ -191,6 +182,7 @@ describe("groupEndpointsByPath", () => {
     ]);
 
     expect(grouped).toEqual([
+      { key: "/", label: "/", endpoints: [{ id: "root", path: "/" }] },
       {
         key: "inference-failover",
         label: "inference-failover/",
@@ -200,7 +192,6 @@ describe("groupEndpointsByPath", () => {
         ],
       },
       { key: "orders", label: "orders/", endpoints: [{ id: "two", path: "/orders" }] },
-      { key: "/", label: "/", endpoints: [{ id: "root", path: "/" }] },
     ]);
   });
 });

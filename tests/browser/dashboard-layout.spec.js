@@ -71,11 +71,11 @@ test("keeps endpoint column headers on one line in the columns layout", async ({
   await expect(page.locator("html")).toHaveAttribute("data-dashboard-layout", "columns");
 
   const headerButtons = page.locator(".table-wrap thead .sort-button");
+  await expect(headerButtons).toHaveText(["Path", "Endpoint", "Methods", "Response", "Attempts", "Enabled"]);
   const buttonHeights = await headerButtons.evaluateAll((buttons) =>
     buttons.map((button) => button.getBoundingClientRect().height)
   );
 
-  expect(buttonHeights).toHaveLength(7);
   expect(buttonHeights.every((height) => height <= 41)).toBe(true);
 });
 
@@ -359,7 +359,7 @@ test("keeps expanded endpoint and request log heights stable with keyboard-scrol
   }));
   await importDocument(request, { ...emptyDocument, endpoints });
   await expect(page.locator("#endpoint-count")).toHaveText("25");
-  await page.getByLabel("Rows per page").selectOption("100");
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(25);
   for (const endpoint of endpoints) {
     expect((await request.get(endpoint.path)).status()).toBe(200);
   }
@@ -368,7 +368,6 @@ test("keeps expanded endpoint and request log heights stable with keyboard-scrol
   expect((await logPanel.boundingBox()).height).toBe(emptyLog.height);
   for (const [panel, selector] of [
     [endpointsPanel, "#endpoint-toggle"],
-    [endpointsPanel, "#endpoint-pagination"],
     [logPanel, "#request-log-toggle"],
   ]) {
     const panelBounds = await panel.boundingBox();
@@ -385,7 +384,7 @@ test("keeps expanded endpoint and request log heights stable with keyboard-scrol
     await page.keyboard.press("PageDown");
     await expect.poll(() => region.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   }
-  await expect(page.getByLabel("Rows per page")).toBeVisible();
+  await expect(page.getByLabel("Rows per page")).toHaveCount(0);
   await page.locator("#filter-text").fill("no matching endpoints");
   await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(0);
   expect((await endpointsPanel.boundingBox()).height).toBe(emptyEndpoints.height);
@@ -408,7 +407,9 @@ test("keeps expanded endpoint and request log heights stable with keyboard-scrol
     { width: 600, height: 1000 },
   ]) {
     await page.setViewportSize(viewport);
-    expect((await endpointsPanel.boundingBox()).height).toBeGreaterThan(emptyEndpoints.height);
+    const endpointRegion = page.getByRole("region", { name: "Endpoint registry", exact: true });
+    expect((await endpointRegion.boundingBox()).height).toBeLessThanOrEqual(viewport.height * 0.65);
+    expect(await endpointRegion.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
     expect((await logPanel.boundingBox()).height).toBeGreaterThan(emptyLog.height);
   }
 });

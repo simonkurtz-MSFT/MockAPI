@@ -9,7 +9,10 @@ import {
   createDashboardManagementClient,
 } from "./dashboard-management.js?v={{ASSET_VERSION}}";
 import { createDashboardTutorialController } from "./dashboard-tutorial.js?v={{ASSET_VERSION}}";
-import { createEndpointTestRequestController } from "./dashboard-test-request.js?v={{ASSET_VERSION}}";
+import {
+  createEndpointTestRequestController,
+  getEndpointTestSecurityWarning,
+} from "./dashboard-test-request.js?v={{ASSET_VERSION}}";
 import { createDashboardEditorDialog } from "./dashboard-editor-dialog.js?v={{ASSET_VERSION}}";
 import { createApiDescriptionEditor } from "./dashboard-api-description.js?v={{ASSET_VERSION}}";
 import { createDashboardApiSecurity } from "./dashboard-api-security.js?v={{ASSET_VERSION}}";
@@ -85,6 +88,7 @@ const apiSecurity = createDashboardApiSecurity({
   confirm: (message) => window.confirm(message),
   copyToClipboard,
 });
+void apiSecurity.refresh();
 const managementCommands = createDashboardCommandRunner({
   synchronize: refresh,
   onError: (error) => showToast(formatProblem(error), true),
@@ -111,6 +115,8 @@ const apiDescriptionEditor = createApiDescriptionEditor({
 });
 const testBlade = createDashboardTestBlade({
   documentRoot: document,
+  checkRequestSecurity: async (headerLines) =>
+    getEndpointTestSecurityWarning(await apiSecurity.getStatus(), headerLines, apiSecurity.getKey()),
   createRequestController: () =>
     createEndpointTestRequestController({
       origin: window.location.origin,
@@ -576,9 +582,16 @@ dashboardSynchronizer = createDashboardSynchronizer({
 if (document.visibilityState === "hidden") dashboardSynchronizer.setVisible(false);
 pageEvents.listen(document, "visibilitychange", () => {
   dashboardSynchronizer.setVisible(document.visibilityState !== "hidden");
+  if (document.visibilityState !== "hidden") void apiSecurity.refresh();
+});
+pageEvents.listen(window, "focus", () => {
+  if (document.visibilityState !== "hidden") void apiSecurity.refresh();
 });
 pageEvents.listen(window, "pageshow", (event) => {
-  if (event.persisted) dashboardSynchronizer.setVisible(document.visibilityState !== "hidden");
+  if (event.persisted) {
+    dashboardSynchronizer.setVisible(document.visibilityState !== "hidden");
+    if (document.visibilityState !== "hidden") void apiSecurity.refresh();
+  }
 });
 pageEvents.listen(window, "pagehide", (event) => {
   // Downloads can fire beforeunload without leaving the page. Cached pages resume instead of being disposed.

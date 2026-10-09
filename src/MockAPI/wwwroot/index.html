@@ -55,6 +55,15 @@
         </div>
       </div>
       <div class="header-actions">
+        <span
+          id="header-api-security"
+          class="security-status-badge header-api-security"
+          data-state="loading"
+          role="status"
+          aria-live="polite"
+          title="Checking mock API request protection."
+          >Checking protection</span
+        >
         <span id="connection-status" class="connection-status" title="Connecting to the MockAPI management service."
           ><span aria-hidden="true"></span>Connecting</span
         >
@@ -396,6 +405,16 @@
 
             <div class="table-wrap" role="region" aria-label="Endpoint registry" tabindex="0">
               <table>
+                <colgroup>
+                  <col class="endpoint-selection-column" />
+                  <col />
+                  <col class="endpoint-name-column" />
+                  <col class="endpoint-methods-column" />
+                  <col class="endpoint-response-column" />
+                  <col class="endpoint-attempts-column" />
+                  <col class="endpoint-enabled-column" />
+                  <col class="endpoint-actions-column" />
+                </colgroup>
                 <thead>
                   <tr>
                     <th class="centered selection-column" scope="col">
@@ -405,6 +424,11 @@
                         type="checkbox"
                         aria-label="Select all visible endpoints"
                       />
+                    </th>
+                    <th class="sortable-header" scope="col" aria-sort="none">
+                      <button class="sort-button" type="button" data-sort-key="path">
+                        Path<span class="sort-indicator" aria-hidden="true"></span>
+                      </button>
                     </th>
                     <th class="sortable-header" scope="col" aria-sort="ascending">
                       <button class="sort-button" type="button" data-sort-key="name">
@@ -416,11 +440,6 @@
                         Methods<span class="sort-indicator" aria-hidden="true"></span>
                       </button>
                     </th>
-                    <th class="sortable-header" scope="col" aria-sort="none">
-                      <button class="sort-button" type="button" data-sort-key="path">
-                        Path<span class="sort-indicator" aria-hidden="true"></span>
-                      </button>
-                    </th>
                     <th class="centered sortable-header" scope="col" aria-sort="none">
                       <button class="sort-button" type="button" data-sort-key="response">
                         Response<span class="sort-indicator" aria-hidden="true"></span>
@@ -429,11 +448,6 @@
                     <th class="centered sortable-header" scope="col" aria-sort="none">
                       <button class="sort-button" type="button" data-sort-key="requests">
                         Attempts<span class="sort-indicator" aria-hidden="true"></span>
-                      </button>
-                    </th>
-                    <th class="sortable-header" scope="col" aria-sort="none">
-                      <button class="sort-button" type="button" data-sort-key="lastRequest">
-                        Last attempt<span class="sort-indicator" aria-hidden="true"></span>
                       </button>
                     </th>
                     <th class="centered sortable-header" scope="col" aria-sort="none">
@@ -454,22 +468,6 @@
                 </div>
               </div>
             </div>
-            <nav id="endpoint-pagination" class="pagination" aria-label="Endpoint pages" hidden>
-              <label class="page-size">
-                Rows per page
-                <select id="endpoint-page-size">
-                  <option value="10">10</option>
-                  <option value="25">25</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
-                </select>
-              </label>
-              <span id="endpoint-page-status" class="page-status" aria-live="polite"></span>
-              <div class="page-buttons">
-                <button id="endpoint-page-previous" class="button quiet" type="button">Previous</button>
-                <button id="endpoint-page-next" class="button quiet" type="button">Next</button>
-              </div>
-            </nav>
           </div>
         </section>
       </div>
@@ -746,6 +744,9 @@
         <div id="form-error" class="error-summary" role="alert" hidden></div>
         <div class="form-grid">
           <label class="wide">Name<input id="field-name" name="name" maxlength="200" required /></label>
+          <label id="operation-id-field" class="wide" hidden
+            >Operation ID<input id="field-operation-id" readonly />
+          </label>
           <label class="wide"
             >Description<textarea id="field-description" name="description" maxlength="4000" rows="3"></textarea>
           </label>
@@ -973,6 +974,7 @@
               ><textarea id="test-request-headers" rows="5" spellcheck="false"></textarea>
             </label>
             <label>Request body<textarea id="test-request-body" rows="7" spellcheck="false"></textarea></label>
+            <div id="test-security-warning" class="error-summary" role="status" aria-live="polite" hidden></div>
             <div class="test-actions">
               <button id="test-cancel" class="button secondary" type="button" disabled>Cancel</button>
               <button id="test-send" class="button primary" type="button">Send request</button>

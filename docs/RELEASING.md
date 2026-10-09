@@ -1,28 +1,35 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.3.0. This version decision does not publish a release
+MockAPI's next stable application version is 1.4.0. This version decision does not publish a release
 or replace the quality, public-release audit, native image validation, and publication approval
 gates below.
 
-## 1.3.0 release summary
+## 1.4.0 release summary
 
-The planned release date is **2026-10-08**, with the immutable tag **`v1.3.0`**.
-The [1.3.0 changelog entry](../CHANGELOG.md#130---2026-10-08) supplies the GitHub release notes.
+The planned release date is **2026-10-09**, with the immutable tag **`v1.4.0`**.
+The [1.4.0 changelog entry](../CHANGELOG.md#140---2026-10-09) supplies the GitHub release notes.
 
-- Built-in examples form a cohesive Contoso Theme Parks API with linked fixtures and clearly
-  labeled fault demonstrations.
-- Both developer CLI showcases exercise the themed wait-times endpoint and identify legacy routes
-  even when a stable built-in endpoint ID is already loaded.
-- Documentation-site carousel controls are clearer and more compact across desktop and mobile layouts.
-- Dark-mode table hover backgrounds preserve accessible response-status contrast.
-- Development dependencies are updated to their latest eligible compatible releases.
+- A persistent header indicator makes mock API protection visible without opening Settings.
+- Endpoint tests explain how to supply a required key or explicitly disable request protection,
+  while retaining deliberate unauthorized testing and response inspection.
+- Existing operation IDs are visible as read-only in the edit dialog.
+- Compact status and action columns give names and paths more room. Stable column widths, contained
+  sort indicators, centered Attempts headings and values, and separate HTTP method badges improve
+  dashboard readability. Last-attempt times are available by hovering over attempt counts instead
+  of occupying a separate column.
+- Information previews dismiss when the pointer leaves their button.
+- Path appears after selection and before the information button and operation name, without the
+  redundant API prefix. Full configured paths and request URLs remain unchanged.
+- Vertical scrolling with sticky headers replaces paging and shows every matching operation.
+  API groups stay alphabetical; operations default to alphabetical name order, and header clicks
+  sort operations within expanded groups without changing group order or collapse state.
 
 ### Compatibility and upgrade behavior
 
-The themed built-in API and developer-CLI behavior add functionality without changing the
-configuration schema (`schemaVersion: "1.0"`), so 1.3.0 is a minor release. Stable built-in endpoint
-IDs remain unchanged. Existing configurations remain supported, and previously loaded `/ex` routes
-migrate only after conflict review and explicit force update.
+The dashboard protection indicator, key guidance, and operation ID display add functionality
+without changing the configuration schema (`schemaVersion: "1.0"`), so 1.4.0 is a minor release.
+Existing endpoint IDs, configuration documents, mock routing, and API-key enforcement remain
+unchanged. These dashboard changes require no configuration migration.
 
 No container publication is implied by the version or changelog update. Keep pull examples on
 already-published image tags until approved native image validation and publication finish.
@@ -62,7 +69,7 @@ it validates, tags, and releases that commit. Do not use this to replace an alre
 
 Use the [versioning skill](../.github/skills/versioning/SKILL.md) and
 [versioning agent](../.github/agents/versioning.agent.md) for compatibility decisions.
-Creating the `v1.3.0` tag still requires the approved application-version bump to reach `main`.
+Creating the `v1.4.0` tag still requires the approved application-version bump to reach `main`.
 
 ## Reviewed changelog contract
 

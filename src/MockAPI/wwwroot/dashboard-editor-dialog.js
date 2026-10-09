@@ -61,6 +61,7 @@ export function createDashboardEditorDialog({ documentRoot, createId, copyToClip
     "field-description": "textarea",
     "field-enabled": "input",
     "field-name": "input",
+    "field-operation-id": "input",
     "field-path": "input",
     "field-rate-limit-enabled": "input",
     "field-reason": "input",
@@ -75,6 +76,7 @@ export function createDashboardEditorDialog({ documentRoot, createId, copyToClip
     "form-error": "div",
     "header-rows": "div",
     "method-options": "div",
+    "operation-id-field": "label",
     "rate-limit-fields": "fieldset",
   });
   const events = createDashboardEventScope();
@@ -203,6 +205,8 @@ export function createDashboardEditorDialog({ documentRoot, createId, copyToClip
     elements["dialog-title"].textContent = endpoint ? "Edit endpoint" : "New endpoint";
     elements["form-error"].hidden = true;
     elements["field-name"].value = values.name;
+    elements["field-operation-id"].value = values.id || "";
+    elements["operation-id-field"].hidden = !values.id;
     elements["field-description"].value = values.description;
     elements["field-path"].value = values.path;
     elements["field-behavior"].value = values.behavior;

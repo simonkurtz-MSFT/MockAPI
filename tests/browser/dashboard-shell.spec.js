@@ -268,14 +268,13 @@ test("applies and persists KJ UI Style hard corners", async ({ page }) => {
 
 test("persists dashboard view preferences across reloads", async ({ page }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.getByLabel("Rows per page").locator("option")).toHaveText(["10", "25", "50", "100"]);
-  await page.getByLabel("Rows per page").selectOption("100");
+  await expect(page.getByLabel("Rows per page")).toHaveCount(0);
   await page.getByRole("button", { name: "Table", exact: true }).click();
   await page.getByRole("button", { name: "Collapse statistics" }).click();
 
   await page.reload();
 
-  await expect(page.getByLabel("Rows per page")).toHaveValue("100");
+  await expect(page.getByLabel("Rows per page")).toHaveCount(0);
   await expect(page.locator("#statistics-table")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#statistics-table-view")).toBeHidden();
   await expect(page.getByRole("button", { name: "Expand statistics" })).toHaveAttribute("aria-expanded", "false");

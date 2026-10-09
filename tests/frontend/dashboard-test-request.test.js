@@ -2,9 +2,55 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createEndpointTestRequestController,
   formatResponseHeaders,
+  getEndpointTestSecurityWarning,
 } from "../../src/MockAPI/wwwroot/dashboard-test-request.js";
 
 const origin = "https://mockapi.test";
+
+describe("getEndpointTestSecurityWarning", () => {
+  const protectedStatus = { enabled: true, configured: true, eTag: '"security"' };
+
+  it("lists the three actions to resolve a missing presently required key", () => {
+    const warning = getEndpointTestSecurityWarning(protectedStatus, "X-Trace: example", "");
+    expect(warning).toBe(
+      "X-MockAPI-Key is presently required, but this test will not send a key. Requests will be rejected before the endpoint runs. Please take one of the following actions:\n\n" +
+        "- Add X-MockAPI-Key to Request headers, or\n" +
+        "- enter the existing key in Settings > Dashboard test key, or\n" +
+        "- disable Require X-MockAPI-Key on mock requests in Settings."
+    );
+  });
+
+  it("does not warn when protection is off, even without a generated key", () => {
+    expect(getEndpointTestSecurityWarning({ ...protectedStatus, enabled: false, configured: false }, "", "")).toBe("");
+  });
+
+  it("explains fail-closed protection when no server key has been generated", () => {
+    const warning = getEndpointTestSecurityWarning({ ...protectedStatus, configured: false }, "", "a-key");
+    expect(warning).toContain("no key has been generated");
+    expect(warning).toContain("Generate a key");
+    expect(warning).toContain("disable Require X-MockAPI-Key");
+  });
+
+  it.each([
+    ["", "memory-key"],
+    ["x-mockapi-key: explicit-key", ""],
+    ["X-MockAPI-Key: deliberate-invalid-key", "memory-key"],
+  ])("recognizes a supplied key without claiming to verify its validity (%s)", (headers, key) => {
+    expect(getEndpointTestSecurityWarning(protectedStatus, headers, key)).toBe("");
+  });
+
+  it("warns when an explicit empty key overrides a memory-only key", () => {
+    expect(getEndpointTestSecurityWarning(protectedStatus, "x-MockAPI-key:   ", "memory-key")).toContain(
+      "this test will not send a key"
+    );
+  });
+
+  it("reports malformed headers rather than claiming that a key will be sent", () => {
+    expect(() => getEndpointTestSecurityWarning(protectedStatus, "malformed", "memory-key")).toThrow(
+      "Request header line 1"
+    );
+  });
+});
 
 function createResponse({ status = 200, statusText = "OK", url = `${origin}/test`, headers = [], body = "" } = {}) {
   return {

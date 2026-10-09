@@ -41,12 +41,15 @@ Whitespace and line breaks are preserved. Omitted or null metadata means no desc
 
 Use the circled information button at the right of an API header to preview its description on
 hover or keyboard focus. Click it or press Enter/Space to edit. Escape dismisses the preview or
-closes the editor. Applying an edit uses the revision captured when the editor opened; an outdated
+closes the editor. Moving the pointer away from the information button closes the preview, even
+when moving onto the preview itself. Applying an edit uses the revision captured when the editor opened; an outdated
 draft is rejected rather than overwriting newer changes. Applied edits are saved automatically.
 
 Each endpoint also has an information button beside its name instead of an inline description.
 Hover or focus to preview; activate it to open the endpoint editor. Both kinds of preview preserve
-original casing and line breaks. Descriptions and dashboard response previews are rendered as text:
+original casing and line breaks. The endpoint edit dialog shows its stable Operation ID as a read-only
+field; new and duplicate endpoints receive a new ID when applied.
+Descriptions and dashboard response previews are rendered as text:
 HTML markup and JavaScript such as `eval(...)` are not interpreted or executed. This does not strip
 configured mock response bodies, which must remain faithful to the responses being tested.
 

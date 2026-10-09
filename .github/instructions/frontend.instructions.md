@@ -8,14 +8,20 @@ applyTo: "src/MockAPI/wwwroot/**/*.{js,html,css},tests/{frontend,browser}/**/*.j
 
 - Keep the dashboard framework-free and served as static assets by the ASP.NET Core application.
 - Keep `app.js` focused on page-level composition and orchestration. Put cohesive behavior, state, and lifecycle management in purpose-named importable modules instead of growing the entrypoint; wire those modules together through explicit dependencies.
-- Keep endpoint table selection/filter/pagination state in `dashboard-endpoint-table.js`, draft and captured-revision state in `dashboard-editor-dialog.js`, test-request batches and focus restoration in `dashboard-test-blade.js`, and statistics/request-log scope and rendering in `dashboard-statistics.js`. Keep management commands and confirmations in the entrypoint.
+- Keep endpoint table selection/filter/group-local sort state in `dashboard-endpoint-table.js`, draft and captured-revision state in `dashboard-editor-dialog.js`, test-request batches and focus restoration in `dashboard-test-blade.js`, and statistics/request-log scope and rendering in `dashboard-statistics.js`. Keep management commands and confirmations in the entrypoint.
+- Show all filtered endpoints without pagination in a vertically scrollable table with sticky headers.
+  Keep API groups alphabetical regardless of operation sort. Display group-relative paths before
+  the information button and operation name; retain complete paths for configuration, filtering, and requests.
 - Keep API description drafts and captured revisions in `dashboard-api-description.js`; the endpoint table owns
-  group and endpoint information buttons and shared hoverable, Escape-dismissible plain-text popovers.
+  group and endpoint information buttons and shared Escape-dismissible plain-text popovers. Close previews
+  when the pointer leaves the information button, including when it moves onto the preview.
   Preserve description casing and whitespace; use text nodes, never evaluate or inject configured content as HTML.
   Endpoint information buttons open the existing endpoint editor. Group identity remains the
   case-sensitive first path segment, and live updates must not replace an open draft's revision.
 - Keep security Settings and the memory-only mock key in `dashboard-api-security.js`; rely on the management
   transport for optional administrator authentication rather than disabling setup when credentials are absent.
+  Keep the header's mock API protection indicator visible without opening Settings, including on mobile;
+  failed status checks show unknown protection rather than assuming protection is off.
   Never persist that key in browser storage or attach it to management calls, exports, or redirect targets.
   Exported requests reference caller-supplied variables; endpoint tests attach the key only after same-origin validation.
 - Give feature controllers explicit inputs, callbacks, and disposal. Use `dashboard-dom.js` event scopes for controller-owned listeners and separate scopes for replaceable rows/charts; delegate header-row removal rather than retaining removed rows. Invalidate asynchronous completions when an editor or blade closes, reopens, or is disposed.

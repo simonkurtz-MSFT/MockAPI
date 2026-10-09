@@ -299,6 +299,10 @@ button:disabled {
 .connection-status.offline > span {
   background: var(--cp-danger);
 }
+.header-api-security {
+  cursor: help;
+  white-space: nowrap;
+}
 
 /* Workspace shell and pre-module collapse state */
 main {
@@ -1021,22 +1025,63 @@ textarea {
   line-height: 1.45;
 }
 
-/* Endpoint table, selection, and pagination */
+/* Endpoint table and selection */
 .table-wrap {
   position: relative;
-  overflow-x: auto;
+  overflow: auto;
+  max-height: 65dvh;
+  scrollbar-gutter: stable;
   border: 0;
   border-top: 0;
   min-height: 210px;
 }
-.table-wrap:not(:has(.endpoint-row)) table {
-  min-width: 0;
+.table-wrap table {
   table-layout: fixed;
 }
-.table-wrap:not(:has(.endpoint-row)) .sort-button {
+.table-wrap thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.table-wrap:not(:has(.endpoint-group-row)) table {
+  min-width: 0;
+}
+.table-wrap:not(:has(.endpoint-group-row)) .sort-button {
   padding-inline: 8px;
   flex-wrap: wrap;
   overflow-wrap: anywhere;
+}
+.table-wrap:has(.endpoint-group-row) .endpoint-selection-column {
+  width: 34px;
+}
+.table-wrap:has(.endpoint-group-row) .endpoint-name-column {
+  width: 22%;
+}
+.table-wrap:has(.endpoint-group-row) .endpoint-methods-column {
+  width: 76px;
+}
+.table-wrap:has(.endpoint-group-row) .endpoint-response-column,
+.table-wrap:has(.endpoint-group-row) .endpoint-attempts-column {
+  width: 80px;
+}
+.table-wrap:has(.endpoint-group-row) .endpoint-enabled-column {
+  width: 72px;
+}
+.table-wrap:has(.endpoint-group-row) .endpoint-actions-column {
+  width: 160px;
+}
+.table-wrap:has(.endpoint-group-row) th,
+.table-wrap:has(.endpoint-group-row) td {
+  padding-inline: 8px;
+}
+.table-wrap:has(.endpoint-group-row) .sortable-header {
+  padding-inline: 0;
+}
+.table-wrap:has(.endpoint-group-row) .sort-button {
+  padding-inline: 8px 20px;
+}
+.table-wrap:has(.endpoint-group-row) th.centered .sort-button {
+  padding-inline: 8px;
 }
 .bulk-actions {
   min-height: 52px;
@@ -1088,9 +1133,10 @@ td {
   padding: 0;
 }
 .sort-button {
+  position: relative;
   width: 100%;
   min-height: 41px;
-  padding: 12px 14px;
+  padding: 12px 28px 12px 14px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -1098,7 +1144,6 @@ td {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 6px;
   font: inherit;
   text-transform: inherit;
   white-space: nowrap;
@@ -1111,15 +1156,11 @@ th.numeric .sort-button {
 }
 th.centered .sort-button {
   justify-content: center;
-}
-.sort-button[data-sort-key="enabled"] {
-  position: relative;
-}
-.sort-button[data-sort-key="enabled"] .sort-indicator {
-  position: absolute;
-  inset-inline-end: 14px;
+  padding-inline: 14px;
 }
 .sort-indicator {
+  position: absolute;
+  inset-inline-end: 4px;
   width: 0;
   height: 0;
   border-inline: 4px solid transparent;
@@ -1198,6 +1239,9 @@ tbody tr:hover {
 .api-description-detail {
   display: block;
   margin-bottom: 8px;
+  font-family: var(--cp-font-mono);
+}
+#field-operation-id {
   font-family: var(--cp-font-mono);
 }
 #api-description-text {
@@ -1286,6 +1330,12 @@ tbody tr:hover {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+}
+.method-list .method-badge {
+  padding: 2px 6px;
+  border: 1px solid var(--cp-border);
+  border-radius: 4px;
+  background: var(--cp-bg-elevated);
 }
 .method-badge,
 .status-badge {
@@ -1426,44 +1476,6 @@ tbody tr:hover {
   justify-content: center;
   gap: 8px;
   margin-top: 18px;
-}
-.pagination {
-  min-height: 54px;
-  padding: 8px 12px;
-  border: 0;
-  border-top: 1px solid var(--cp-border);
-  background: var(--cp-bg-elevated);
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 18px;
-}
-.pagination[hidden] {
-  display: none;
-}
-.page-size {
-  color: var(--cp-text-muted);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-}
-.page-size select {
-  min-width: 70px;
-}
-.page-status {
-  min-width: 82px;
-  color: var(--cp-text-muted);
-  font-size: 12px;
-  text-align: center;
-}
-.page-buttons {
-  display: flex;
-  gap: 6px;
-}
-.page-buttons .button {
-  min-height: 32px;
-  padding-block: 5px;
 }
 
 /* Tutorial and dialogs */
@@ -1979,6 +1991,16 @@ fieldset {
   font-size: 13px;
   white-space: pre-line;
 }
+#test-security-warning p {
+  margin: 0;
+}
+#test-security-warning ul {
+  margin: 10px 0 0;
+  padding-left: 20px;
+}
+#test-security-warning li + li {
+  margin-top: 6px;
+}
 .toggle-label {
   display: flex;
   align-items: center;
@@ -2330,7 +2352,6 @@ html[data-theme="dark"] button:disabled {
     min-height: 0;
   }
   #endpoint-body > .bulk-actions,
-  #endpoint-body > .pagination,
   #request-log-body > .request-log-bucket-actions,
   #request-log-body > .request-log-insight {
     flex-shrink: 0;
@@ -2399,31 +2420,6 @@ html[data-theme="dark"] button:disabled {
   }
   html[data-dashboard-layout="columns"] .table-wrap .sortable-header {
     padding-inline: 0;
-  }
-  html[data-dashboard-layout="columns"] .table-wrap th:nth-child(1) {
-    width: 34px;
-  }
-  html[data-dashboard-layout="columns"] .table-wrap th:nth-child(2) {
-    width: 17%;
-  }
-  html[data-dashboard-layout="columns"] .table-wrap th:nth-child(3) {
-    width: 8%;
-  }
-  html[data-dashboard-layout="columns"] .table-wrap th:nth-child(4) {
-    width: 20%;
-  }
-  html[data-dashboard-layout="columns"] .table-wrap th:nth-child(5),
-  html[data-dashboard-layout="columns"] .table-wrap th:nth-child(6) {
-    width: 8%;
-  }
-  html[data-dashboard-layout="columns"] .table-wrap th:nth-child(7) {
-    width: 10%;
-  }
-  html[data-dashboard-layout="columns"] .table-wrap th:nth-child(8) {
-    width: 7%;
-  }
-  html[data-dashboard-layout="columns"] .table-wrap th:nth-child(9) {
-    width: 153px;
   }
   html[data-dashboard-layout="columns"] .table-wrap .endpoint-name {
     min-width: 0;
@@ -2495,7 +2491,19 @@ html[data-theme="dark"] button:disabled {
 }
 @media (max-width: 600px) {
   .app-header {
-    padding: 0 16px;
+    height: auto;
+    min-height: 64px;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+  .header-actions {
+    flex: 1 1 300px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .header-api-security {
+    margin-right: auto;
   }
   .brand-lockup > div span,
   .connection-status {
@@ -2540,17 +2548,6 @@ html[data-theme="dark"] button:disabled {
   .bulk-actions > div {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-  }
-  .pagination {
-    align-items: stretch;
-    flex-wrap: wrap;
-    justify-content: space-between;
-  }
-  .page-buttons {
-    flex: 1 1 100%;
-  }
-  .page-buttons .button {
-    flex: 1;
   }
   .metric {
     padding: 12px;

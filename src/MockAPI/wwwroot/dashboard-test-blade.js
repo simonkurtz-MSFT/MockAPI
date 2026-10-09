@@ -23,10 +23,17 @@ import {
  * @param {() => import("./dashboard-test-request.js").EndpointTestRequestController} options.createRequestController Per-opening request owner.
  * @param {import("./dashboard-core.js").CopyToClipboard} options.copyToClipboard Notification-owning clipboard callback.
  * @param {(message: string) => void} options.showError Presents request validation and unexpected failures.
+ * @param {(headerLines: string) => Promise<string>} options.checkRequestSecurity Loads current protection status and returns missing-key guidance; failures remain visible without preventing deliberate test requests.
  * @returns {DashboardTestBlade} Request, focus, and transient content owner.
  * @throws {Error} Required dashboard markup is missing or has an incorrect tag.
  */
-export function createDashboardTestBlade({ documentRoot, createRequestController, copyToClipboard, showError }) {
+export function createDashboardTestBlade({
+  documentRoot,
+  createRequestController,
+  copyToClipboard,
+  showError,
+  checkRequestSecurity,
+}) {
   const document = documentRoot;
   const window = document.defaultView;
   const elements = getDashboardElements(document, {
@@ -50,6 +57,7 @@ export function createDashboardTestBlade({ documentRoot, createRequestController
     "test-response-time": "dd",
     "test-response-url": "dd",
     "test-send": "button",
+    "test-security-warning": "div",
     "test-status": "p",
   });
   const events = createDashboardEventScope();
@@ -60,6 +68,53 @@ export function createDashboardTestBlade({ documentRoot, createRequestController
   let generation = 0;
   let sending = false;
   let disposed = false;
+  let securityCheckGeneration = 0;
+  let batchCancelled = false;
+
+  function renderSecurityWarning(warning) {
+    const container = elements["test-security-warning"];
+    container.replaceChildren();
+    let actions = null;
+    for (const line of warning.split("\n").filter((line) => line.trim())) {
+      const isAction = line.startsWith("- ");
+      const element = document.createElement(isAction ? "li" : "p");
+      const text = isAction ? line.slice(2) : line;
+      const parts = text.split("X-MockAPI-Key");
+      for (const [index, part] of parts.entries()) {
+        if (index > 0) {
+          const emphasis = document.createElement("strong");
+          const header = document.createElement("code");
+          header.textContent = "X-MockAPI-Key";
+          emphasis.append(header);
+          element.append(emphasis);
+        }
+        element.append(document.createTextNode(part));
+      }
+      if (isAction) {
+        if (!actions) {
+          actions = document.createElement("ul");
+          container.append(actions);
+        }
+        actions.append(element);
+      } else {
+        container.append(element);
+      }
+    }
+    container.hidden = !warning;
+  }
+
+  async function updateSecurityWarning() {
+    const capturedGeneration = ++securityCheckGeneration;
+    try {
+      const warning = await checkRequestSecurity(elements["test-request-headers"].value);
+      if (disposed || capturedGeneration !== securityCheckGeneration) return;
+      renderSecurityWarning(warning);
+    } catch (error) {
+      if (disposed || capturedGeneration !== securityCheckGeneration) return;
+      elements["test-security-warning"].textContent = `Unable to check API-key protection: ${error.message}`;
+      elements["test-security-warning"].hidden = false;
+    }
+  }
   /** @type {DashboardTestBlade["open"]} */
   function openTestBlade(endpoint, trigger) {
     if (disposed) return;
@@ -89,10 +144,13 @@ export function createDashboardTestBlade({ documentRoot, createRequestController
     elements["test-blade-shell"].hidden = false;
     document.body.classList.add("blade-open");
     elements["test-method"].focus();
+    elements["test-security-warning"].hidden = true;
+    void updateSecurityWarning();
   }
 
   function closeTestBlade() {
     generation++;
+    securityCheckGeneration++;
     testRequestController?.cancel();
     testRequestController = null;
     sending = false;
@@ -108,6 +166,8 @@ export function createDashboardTestBlade({ documentRoot, createRequestController
     elements["test-request-headers"].value = "";
     elements["test-request-body"].value = "";
     resetTestResponse();
+    elements["test-security-warning"].textContent = "";
+    elements["test-security-warning"].hidden = true;
   }
 
   function resetTestResponse() {
@@ -130,6 +190,7 @@ export function createDashboardTestBlade({ documentRoot, createRequestController
     const requestGeneration = generation;
     const controller = testRequestController;
     sending = true;
+    batchCancelled = false;
     try {
       const requestCount = Number(elements["test-request-count"].value);
       const request = {
@@ -140,6 +201,13 @@ export function createDashboardTestBlade({ documentRoot, createRequestController
       };
       elements["test-send"].disabled = true;
       elements["test-cancel"].disabled = false;
+      elements["test-status"].textContent = "Checking API-key protection...";
+      await updateSecurityWarning();
+      if (disposed || generation !== requestGeneration) return;
+      if (batchCancelled) {
+        elements["test-status"].textContent = "Request cancelled.";
+        return;
+      }
       elements["test-status"].textContent =
         requestCount === 1 ? "Sending request…" : `Sending ${requestCount} requests…`;
 
@@ -228,7 +296,13 @@ export function createDashboardTestBlade({ documentRoot, createRequestController
   events.listen(elements["test-blade-backdrop"], "click", closeTestBlade);
   events.listen(elements["test-blade"], "keydown", trapBladeFocus);
   events.listen(elements["test-send"], "click", sendTestRequest);
-  events.listen(elements["test-cancel"], "click", () => testRequestController?.cancel());
+  events.listen(elements["test-request-headers"], "change", () => {
+    void updateSecurityWarning();
+  });
+  events.listen(elements["test-cancel"], "click", () => {
+    batchCancelled = true;
+    testRequestController?.cancel();
+  });
   events.listen(elements["test-copy-url"], "click", () => {
     copyToClipboard(new URL(elements["test-path"].value, window.location.origin).href, "Request URL copied");
   });

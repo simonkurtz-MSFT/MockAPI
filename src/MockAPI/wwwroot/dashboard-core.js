@@ -153,7 +153,7 @@
  */
 
 /** @typedef {{query: string, method: string, enabled: string, statusClass: string}} EndpointFilters */
-/** @typedef {"name"|"methods"|"path"|"response"|"requests"|"lastRequest"|"enabled"} EndpointSortKey */
+/** @typedef {"name"|"methods"|"path"|"response"|"requests"|"enabled"} EndpointSortKey */
 /** @typedef {{key: EndpointSortKey, direction: "ascending"|"descending"}} EndpointSort */
 /** @typedef {{key: string, label: string, endpoints: MockEndpoint[]}} EndpointGroup */
 /** @typedef {{kind: "notJson"|"empty"|"valid"|"invalid", message: string}} JsonBodyCheckResult */
@@ -215,13 +215,11 @@ function endpointSortValue(endpoint, key, statisticsByEndpoint) {
     case "methods":
       return endpoint.methods.join(",");
     case "path":
-      return endpoint.path;
+      return getEndpointDisplayPath(endpoint.path);
     case "response":
       return endpoint.response.behavior === "abortConnection" ? 600 : endpoint.response.statusCode;
     case "requests":
       return endpointStatistics?.totalRequests || 0;
-    case "lastRequest":
-      return endpointStatistics?.lastRequestUtc ? Date.parse(endpointStatistics.lastRequestUtc) : 0;
     case "enabled":
       return endpoint.enabled ? 1 : 0;
     default:
@@ -230,25 +228,13 @@ function endpointSortValue(endpoint, key, statisticsByEndpoint) {
 }
 
 /**
- * Selects a bounded page and reports its one-based display range.
- *
- * @template T
- * @param {readonly T[]} items Complete item collection.
- * @param {number} requestedPage Requested one-based page number.
- * @param {number} pageSize Maximum items per page.
- * @returns {{items: T[], page: number, pageCount: number, start: number, end: number}} Page data and display bounds.
+ * Removes the API group's first path segment for display only.
+ * @param {string} path Complete configured endpoint path.
+ * @returns {string} Group-relative path, or `/` for an operation at the group root.
  */
-export function paginateItems(items, requestedPage, pageSize) {
-  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
-  const page = Math.min(Math.max(1, requestedPage), pageCount);
-  const startIndex = (page - 1) * pageSize;
-  return {
-    items: items.slice(startIndex, startIndex + pageSize),
-    page,
-    pageCount,
-    start: items.length === 0 ? 0 : startIndex + 1,
-    end: Math.min(startIndex + pageSize, items.length),
-  };
+export function getEndpointDisplayPath(path) {
+  const groupEnd = path.indexOf("/", 1);
+  return groupEnd === -1 ? "/" : path.slice(groupEnd);
 }
 
 /**
@@ -264,7 +250,7 @@ export function hasScrollableStatisticsHistory(recentMinutes, visibleMinutes) {
 }
 
 /**
- * Groups endpoints by the first non-empty path segment while preserving input order.
+ * Groups endpoints alphabetically by the first non-empty path segment, preserving operation order within groups.
  *
  * @param {readonly MockEndpoint[]} endpoints Endpoints to group.
  * @returns {EndpointGroup[]} Path groups.
@@ -277,11 +263,14 @@ export function groupEndpointsByPath(endpoints) {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(endpoint);
   }
-  return [...groups].map(([key, groupedEndpoints]) => ({
-    key,
-    label: key === "/" ? "/" : `${key}/`,
-    endpoints: groupedEndpoints,
-  }));
+  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+  return [...groups]
+    .sort(([left], [right]) => collator.compare(left, right))
+    .map(([key, groupedEndpoints]) => ({
+      key,
+      label: key === "/" ? "/" : `${key}/`,
+      endpoints: groupedEndpoints,
+    }));
 }
 
 /**

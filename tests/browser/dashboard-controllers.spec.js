@@ -1,5 +1,33 @@
 import { expect, test } from "@playwright/test";
 
+test("header protection ignores obsolete reads and completions after disposal", async ({ page, request }) => {
+  const frame = await createFixture(page, request);
+  await frame.evaluate(async () => {
+    const { createDashboardApiSecurity } = await import("/dashboard-api-security.js");
+    window.pendingStatusReads = [];
+    window.security = createDashboardApiSecurity({
+      documentRoot: document,
+      api: () => new Promise((resolve) => window.pendingStatusReads.push(resolve)),
+      showError: () => {},
+      confirm: () => true,
+      copyToClipboard: async () => {},
+    });
+    void window.security.refresh();
+    void window.security.refresh();
+    window.pendingStatusReads[1]({ enabled: true, configured: true, etag: '"new"' });
+  });
+  const indicator = frame.locator("#header-api-security");
+  await expect(indicator).toHaveText("APIs protected");
+  await frame.evaluate(() => window.pendingStatusReads[0]({ enabled: false, configured: true, etag: '"obsolete"' }));
+  await expect(indicator).toHaveText("APIs protected");
+  await frame.evaluate(() => {
+    void window.security.refresh();
+    window.security.dispose();
+    window.pendingStatusReads[2]({ enabled: false, configured: true, etag: '"disposed"' });
+  });
+  await expect(indicator).toHaveText("APIs protected");
+});
+
 test("API security controller generates once, uses captured revisions, and ignores closed completions", async ({
   page,
   request,
@@ -151,6 +179,7 @@ test("API security controller saves checkbox changes immediately and refreshes t
     await window.security.open();
   });
   await expect(frame.locator("#settings-api-security-summary")).toHaveText("Protection off");
+  await expect(frame.locator("#header-api-security")).toHaveText("APIs unprotected");
   await expect(frame.locator("#settings-api-security-status")).toContainText("unauthenticated");
   await expect(frame.locator(".security-warning-icon")).toBeVisible();
   await expect(frame.locator("#settings-api-key-generate")).toHaveText("Rotate key");
@@ -165,6 +194,7 @@ test("API security controller saves checkbox changes immediately and refreshes t
   expect(await frame.evaluate(() => JSON.parse(window.securityCalls[1].options.body))).toEqual({ enabled: true });
   await frame.evaluate(() => window.pendingSecurity[0]());
   await expect(frame.locator("#settings-api-security-summary")).toHaveText("Protection on");
+  await expect(frame.locator("#header-api-security")).toHaveText("APIs protected");
   await expect(frame.locator("#settings-api-security-enabled")).toBeEnabled();
   await expect(frame.locator(".security-warning-icon")).toBeHidden();
   await frame.locator("#settings-api-security-enabled").uncheck();
@@ -173,6 +203,7 @@ test("API security controller saves checkbox changes immediately and refreshes t
   expect(await frame.evaluate(() => JSON.parse(window.securityCalls[3].options.body))).toEqual({ enabled: false });
   await frame.evaluate(() => window.pendingSecurity[1]());
   await expect(frame.locator("#settings-api-security-summary")).toHaveText("Protection off");
+  await expect(frame.locator("#header-api-security")).toHaveText("APIs unprotected");
   await expect(frame.locator(".security-warning-icon")).toBeVisible();
   await frame.evaluate(async () => {
     window.security.close();
@@ -291,6 +322,55 @@ test("configuration editors close applied drafts when automatic persistence fail
   });
 });
 
+test("test blade ignores obsolete security checks and cancels before a pending preflight sends", async ({
+  page,
+  request,
+}) => {
+  const frame = await createFixture(page, request);
+  await frame.evaluate(async (definition) => {
+    const { createDashboardTestBlade } = await import("/dashboard-test-blade.js");
+    window.securityChecks = [];
+    window.sentRequests = 0;
+    window.blade = createDashboardTestBlade({
+      documentRoot: document,
+      checkRequestSecurity: () => new Promise((resolve) => window.securityChecks.push(resolve)),
+      createRequestController: () => ({
+        send: async () => {
+          window.sentRequests++;
+          return { kind: "cancelled", message: "Request cancelled." };
+        },
+        cancel: () => {},
+      }),
+      copyToClipboard: async () => {},
+      showError: () => {},
+    });
+    const trigger = document.getElementById("create-button");
+    window.blade.open(definition, trigger);
+    window.blade.close();
+    window.blade.open(definition, trigger);
+    window.securityChecks[0]("obsolete warning");
+  }, endpoint);
+  await expect(frame.locator("#test-security-warning")).toBeHidden();
+  await frame.evaluate(() => window.securityChecks[1]("current warning"));
+  await expect(frame.locator("#test-security-warning")).toHaveText("current warning");
+  await frame.locator("#test-send").click();
+  await expect.poll(() => frame.evaluate(() => window.securityChecks.length)).toBe(3);
+  await frame.locator("#test-cancel").click();
+  await frame.evaluate(() => window.securityChecks[2]("missing key"));
+  await expect(frame.locator("#test-status")).toHaveText("Request cancelled.");
+  await expect(frame.locator("#test-send")).toBeEnabled();
+  expect(await frame.evaluate(() => window.sentRequests)).toBe(0);
+  await frame.locator("#test-send").click();
+  await expect.poll(() => frame.evaluate(() => window.securityChecks.length)).toBe(4);
+  await frame.evaluate(() => {
+    window.blade.dispose();
+    window.securityChecks[3]("disposed warning");
+  });
+  await expect(frame.locator("#test-blade-shell")).toBeHidden();
+  await expect(frame.locator("#test-security-warning")).toBeHidden();
+  expect(await frame.evaluate(() => window.sentRequests)).toBe(0);
+});
+
 test("test blade owns batches and rejects completions from a closed or disposed opening", async ({ page, request }) => {
   const frame = await createFixture(page, request);
   await frame.evaluate(async (definition) => {
@@ -300,6 +380,7 @@ test("test blade owns batches and rejects completions from a closed or disposed 
     window.cancellations = 0;
     window.blade = createDashboardTestBlade({
       documentRoot: document,
+      checkRequestSecurity: async () => "",
       createRequestController: () => ({
         send: (request) => new Promise((resolve) => window.pending.push({ request, resolve })),
         cancel: () => window.cancellations++,
@@ -367,6 +448,7 @@ test("test blade reports duplicate submissions and unexpected failures without l
     window.sends = 0;
     window.blade = createDashboardTestBlade({
       documentRoot: document,
+      checkRequestSecurity: async () => "",
       createRequestController: () => ({
         send: () => {
           window.sends++;
@@ -500,9 +582,16 @@ test("endpoint table owns selection snapshots and releases controls and obsolete
   expect(await frame.evaluate(() => window.actions[0])).toEqual({ action: "bulk", args: ["enable", [endpoint.id]] });
   await frame.evaluate((definition) => {
     window.actions[0].args[1].push("outside-selection");
-    window.table.updateStatistics({ endpoints: [{ endpointId: definition.id, totalRequests: 9 }] });
+    window.table.updateStatistics({
+      endpoints: [{ endpointId: definition.id, totalRequests: 9, lastRequestUtc: "2026-10-09T16:30:00Z" }],
+    });
   }, endpoint);
   await expect(frame.locator("[data-endpoint-requests]")).toHaveText("9");
+  await expect(frame.locator("[data-endpoint-requests]")).toHaveAttribute("title", /^Last attempt: (?!Never$).+/);
+  await expect(frame.locator("[data-endpoint-requests]")).toHaveAttribute(
+    "aria-label",
+    /^9 attempts\. Last attempt: (?!Never$).+/
+  );
   await expect(frame.locator("#selection-count")).toHaveText("1");
   expect(await frame.evaluate(() => document.querySelector(".endpoint-row") === window.originalRow)).toBe(true);
   await frame.evaluate((definition) => {

@@ -283,7 +283,8 @@ at 220px and align the collapse control with the first filter row when filters w
 - API-level descriptions are separate from operation descriptions. Use the existing first path segment
   as group identity, without introducing explicit API entities or endpoint membership references.
 - Show a right-aligned blue/white circled information button in each API header. Its plain-text popover
-  opens on hover and keyboard focus, remains hoverable, and dismisses with Escape. Activating the button
+  opens on hover and keyboard focus, closes when the pointer leaves the button (including for the
+  preview itself), and dismisses with Escape. Activating the button
   opens a keyboard-accessible editor with the captured revision; stale writes cannot overwrite live edits.
 - The built-in `/ctp` API description spells out **Contoso Theme Parks** and introduces a cohesive
   fictional park visit with static attraction, reservation, and wait-time fixtures. Clearly labeled
@@ -292,10 +293,22 @@ at 220px and align the collapse control with the first filter row when filters w
   migrate through the normal conflict-preview and explicit-force merge, not a silent rewrite.
 - Keep description drafts independent of live updates, restore focus after editing, and cover save/reload,
   native import/export, metadata preservation, merge defaults, stale writes, and accessible editing.
-- Dense endpoint table with name, methods, path, status, enabled state, request count, last request, and actions.
-- Show endpoint descriptions behind the same information button beside each endpoint name, not inline.
+- Dense endpoint table with name, methods, path, status, enabled state, request count, and actions.
+- Place Path after selection and before the information button and endpoint name. Display paths
+  relative to the API group (use `/` for its root); keep full configured paths for requests and editing.
+- Show every filtered endpoint without paging in a vertically scrollable table with sticky headers.
+  Keep API groups alphabetical and default operations to alphabetical name order within each group.
+  Header clicks sort operations within expanded groups, never reorder API groups.
+- Display each supported HTTP method in its own bordered badge to keep adjacent method names visually distinct.
+- Show endpoint descriptions behind the same information button before each endpoint name, not inline.
   Preserve original casing and whitespace in both previews; treat all preview content as inert text.
   Endpoint information buttons open the existing endpoint editor.
+- Keep table columns stable when API groups collapse, contain sort indicators within their headers,
+  and center the Attempts heading and values. Show the last-attempt time when hovering over an
+  operation's attempt count. Keep response, attempts, enabled, and action columns compact so endpoint
+  names and paths receive the remaining space.
+- Show the existing operation ID as read-only in the endpoint edit dialog; new and duplicate drafts
+  receive their own IDs when applied.
 - Create/edit form with a response/connection-abort behavior selector, header rows, status code, reason phrase caveat, content type, and a payload editor.
 - Enable/disable toggle, edit action, delete confirmation, and endpoint duplication.
 - Stable-ID row selection with select-all for the current filtered result set and bulk enable, disable, and confirmed delete actions.

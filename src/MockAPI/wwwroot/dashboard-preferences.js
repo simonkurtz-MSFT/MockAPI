@@ -8,14 +8,12 @@ const VERSION = 1;
 /** @typedef {"auto"|"columns"|"stacked"} DashboardLayout */
 /** @typedef {"left"|"center"|"right"} TestBladeAlignment */
 /** @typedef {"graph"|"table"} StatisticsView */
-/** @typedef {10|25|50|100} EndpointPageSize */
 
 /**
  * @typedef {Object} DashboardPreferences
  * @property {"dark"|"light"|null} theme Explicit theme, or `null` to follow the operating system.
  * @property {DashboardLayout} dashboardLayout Preferred dashboard workspace layout.
  * @property {TestBladeAlignment} endpointTestDialogAlignment Preferred endpoint test dialog alignment.
- * @property {EndpointPageSize} endpointPageSize Endpoint rows per page.
  * @property {boolean} endpointsCollapsed Whether the endpoint section is collapsed.
  * @property {boolean} kjUiStyle Whether the dashboard uses hard corners throughout.
  * @property {boolean} requestLogCollapsed Whether the request log section is collapsed.
@@ -43,7 +41,6 @@ function normalizePreferences(value, legacyTheme = null) {
     endpointTestDialogAlignment: ["left", "center", "right"].includes(supported.endpointTestDialogAlignment)
       ? supported.endpointTestDialogAlignment
       : "right",
-    endpointPageSize: [10, 25, 50, 100].includes(supported.endpointPageSize) ? supported.endpointPageSize : 10,
     endpointsCollapsed: typeof supported.endpointsCollapsed === "boolean" ? supported.endpointsCollapsed : false,
     kjUiStyle: supported.kjUiStyle === true,
     requestLogCollapsed: typeof supported.requestLogCollapsed === "boolean" ? supported.requestLogCollapsed : false,

@@ -67,7 +67,7 @@ test("tests a configured non-2xx response and restores focus", async ({ page, re
   await expect(requestCount).toHaveAttribute("min", "1");
   await expect(requestCount).toHaveAttribute("max", "5");
   await page.getByRole("button", { name: "Send request" }).click();
-  await expect(page.getByRole("status")).toHaveText("5 requests completed; final response HTTP 429.");
+  await expect(page.locator("#test-status")).toHaveText("5 requests completed; final response HTTP 429.");
   await expect(page.locator("#test-response-body")).toHaveText(
     '{"error":"wait_times_rate_limited","message":"Take a little breather! Check back in 10 seconds."}'
   );
@@ -90,7 +90,7 @@ test("tests body-bearing and empty-response endpoints", async ({ page }) => {
   await createRow.getByRole("button", { name: "Test" }).click();
   await page.getByLabel("Request body", { exact: true }).fill('{"attractionId":"cloud-cruiser","partySize":2}');
   await page.getByRole("button", { name: "Send request" }).click();
-  await expect(page.getByRole("status")).toHaveText("Request completed with HTTP 201.");
+  await expect(page.locator("#test-status")).toHaveText("Request completed with HTTP 201.");
   await expect(page.locator("#test-response-body")).toHaveText(
     '{"id":42,"parkId":"starlight-gardens","attractionId":"cloud-cruiser","partySize":2,"status":"reserved"}'
   );
@@ -99,7 +99,7 @@ test("tests body-bearing and empty-response endpoints", async ({ page }) => {
   const deleteRow = page.getByRole("row", { name: /Cancel your ride reservation/ });
   await deleteRow.getByRole("button", { name: "Test" }).click();
   await page.getByRole("button", { name: "Send request" }).click();
-  await expect(page.getByRole("status")).toHaveText("Request completed with HTTP 204.");
+  await expect(page.locator("#test-status")).toHaveText("Request completed with HTTP 204.");
   await expect(page.locator("#test-response-body")).toHaveText("Empty response body.");
 });
 
@@ -110,7 +110,7 @@ test("reports endpoint-test network errors", async ({ page, request }) => {
   await expect(row).toContainText("DROP");
   await row.getByRole("button", { name: "Test" }).click();
   await page.getByRole("button", { name: "Send request" }).click();
-  await expect(page.getByRole("status")).toContainText("Network error:");
+  await expect(page.locator("#test-status")).toContainText("Network error:");
   const requestLog = page.getByRole("region", { name: "Recent request log" });
   const loggedRow = requestLog.getByRole("row", { name: /Ride sensor connection fault demo/ });
   await expect(loggedRow).toHaveCount(1);
@@ -140,5 +140,5 @@ test("cancels an active endpoint test", async ({ page }) => {
   await row.getByRole("button", { name: "Test" }).click();
   await page.getByRole("button", { name: "Send request" }).click();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Request cancelled.");
+  await expect(page.locator("#test-status")).toHaveText("Request cancelled.");
 });

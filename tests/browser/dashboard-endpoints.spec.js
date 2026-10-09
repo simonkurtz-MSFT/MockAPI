@@ -7,12 +7,112 @@ import {
   contrastRatio,
 } from "./dashboard-fixtures.js";
 
+test("displays each supported HTTP method in a separate bordered badge", async ({ page, request }) => {
+  await importDocument(request, {
+    ...emptyDocument,
+    endpoints: [
+      {
+        id: "a02c91c0-2878-40fc-a312-2dd7148af993",
+        name: "Separate method labels",
+        enabled: true,
+        methods: ["GET", "HEAD"],
+        path: "/method-labels",
+        response: { statusCode: 200, headers: {}, contentType: "text/plain", body: "ok" },
+      },
+    ],
+  });
+  const badges = page.getByRole("row", { name: /Separate method labels/ }).locator(".method-badge");
+  await expect(badges).toHaveText(["GET", "HEAD"]);
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((value) => (document.documentElement.dataset.theme = value), theme);
+    for (const badge of await badges.all()) {
+      const style = await badge.evaluate((element) => {
+        const computed = getComputedStyle(element);
+        return {
+          borderStyle: computed.borderTopStyle,
+          borderWidth: computed.borderTopWidth,
+          padding: computed.paddingLeft,
+          foreground: computed.color,
+          background: computed.backgroundColor,
+        };
+      });
+      expect(style.borderStyle).toBe("solid");
+      expect(style.borderWidth).toBe("1px");
+      expect(style.padding).toBe("6px");
+      expect(contrastRatio(style.foreground, style.background)).toBeGreaterThanOrEqual(4.5);
+    }
+  }
+});
+
+test("shows all operations with relative paths and sorts within alphabetical API groups", async ({ page, request }) => {
+  const endpoints = Array.from({ length: 24 }, (_, index) => {
+    const group = index < 12 ? "zeta" : "alpha";
+    const number = 12 - (index % 12);
+    return {
+      id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+      name: `Operation ${String(number).padStart(2, "0")}`,
+      enabled: true,
+      methods: ["GET"],
+      path: `/${group}/route-${String(13 - number).padStart(2, "0")}`,
+      response: {
+        statusCode: group === "alpha" ? 500 : 200,
+        headers: {},
+        contentType: "text/plain",
+        body: "ok",
+      },
+    };
+  });
+  await importDocument(request, { ...emptyDocument, endpoints });
+  const rows = page.locator("#endpoint-rows .endpoint-row");
+  const groups = page.locator(".endpoint-group-toggle > strong");
+  const ascendingNames = Array.from({ length: 12 }, (_, index) => `Operation ${String(index + 1).padStart(2, "0")}`);
+  await expect(rows).toHaveCount(24);
+  await expect(groups).toHaveText(["alpha/", "zeta/"]);
+  await expect(rows.locator(".endpoint-name-heading > strong")).toHaveText([...ascendingNames, ...ascendingNames]);
+  await expect(page.locator(".table-wrap thead th").nth(1)).toHaveText("Path");
+  await expect(rows.first().locator("td").nth(1)).toHaveText("/route-12");
+  await expect(rows.first().locator(".path-cell")).toHaveAttribute("title", "/alpha/route-12");
+  expect((await request.get("/alpha/route-12")).status()).toBe(500);
+  const stored = await (await request.get("/__mockapi/api/endpoints")).json();
+  expect(stored.find((endpoint) => endpoint.id === endpoints[23].id).path).toBe("/alpha/route-12");
+
+  await page.locator('[data-sort-key="name"]').click();
+  await expect(groups).toHaveText(["alpha/", "zeta/"]);
+  await expect(rows.locator(".endpoint-name-heading > strong")).toHaveText([
+    ...ascendingNames.toReversed(),
+    ...ascendingNames.toReversed(),
+  ]);
+  await page.locator('[data-sort-key="response"]').click();
+  await expect(groups).toHaveText(["alpha/", "zeta/"]);
+  await expect(rows.first().locator(".status-badge")).toHaveText("500");
+
+  await page.getByRole("button", { name: "Collapse alpha/", exact: true }).click();
+  await page.locator('[data-sort-key="path"]').click();
+  await expect(rows).toHaveCount(12);
+  await expect(groups).toHaveText(["alpha/", "zeta/"]);
+  await expect(page.getByRole("button", { name: "Expand alpha/", exact: true })).toBeVisible();
+  await expect(rows.locator(".path-cell")).toHaveText(
+    Array.from({ length: 12 }, (_, index) => `/route-${String(index + 1).padStart(2, "0")}`)
+  );
+  await page.getByRole("button", { name: "Expand alpha/", exact: true }).click();
+  await expect(rows).toHaveCount(24);
+  await page.locator("#select-all-endpoints").check();
+  await expect(page.locator("#selection-count")).toHaveText("24");
+  await expect(rows.locator(".selection-checkbox:checked")).toHaveCount(24);
+  await expect(page.getByRole("navigation", { name: "Endpoint pages" })).toHaveCount(0);
+
+  const region = page.getByRole("region", { name: "Endpoint registry", exact: true });
+  expect(await region.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+  await region.evaluate((element) => (element.scrollTop = element.scrollHeight));
+  const regionBounds = await region.boundingBox();
+  const headerBounds = await page.locator(".table-wrap thead").boundingBox();
+  expect(Math.abs(regionBounds.y - headerBounds.y)).toBeLessThanOrEqual(1);
+});
+
 test("@smoke loads examples idempotently and filters by status", async ({ page, request }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
   await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(9);
-  await expect(page.locator("#endpoint-page-status")).toHaveText("1–9 of 9");
-  await expect(page.locator("#endpoint-page-previous")).toBeDisabled();
-  await expect(page.locator("#endpoint-page-next")).toBeDisabled();
+  await expect(page.getByRole("navigation", { name: "Endpoint pages" })).toHaveCount(0);
   const responseHeader = page.getByRole("columnheader", { name: "Response" });
   await responseHeader.getByRole("button").click();
   await responseHeader.getByRole("button").click();
@@ -68,6 +168,7 @@ test("@smoke loads examples idempotently and filters by status", async ({ page, 
 
 test("creates, edits, disables, and deletes an endpoint", async ({ page }) => {
   await page.getByRole("button", { name: "New endpoint" }).click();
+  await expect(page.getByLabel("Operation ID", { exact: true })).toBeHidden();
   await page.locator("#field-name").fill("Browser endpoint");
   await page.locator("#field-description").fill("Created through the dashboard");
   await page.locator("#field-path").fill("/browser-test");
@@ -91,11 +192,15 @@ test("creates, edits, disables, and deletes an endpoint", async ({ page }) => {
   await expect(informationButton).toHaveCSS("justify-content", "center");
 
   await row.getByRole("button", { name: "Edit" }).click();
+  const operationId = await row.getAttribute("data-endpoint-id");
+  await expect(page.getByLabel("Operation ID", { exact: true })).toHaveValue(operationId);
+  await expect(page.getByLabel("Operation ID", { exact: true })).toHaveAttribute("readonly", "");
   await page.locator("#field-name").fill("Edited browser endpoint");
   await page.locator("#field-description").fill("Updated through the dashboard");
   await page.getByRole("button", { name: "Apply endpoint" }).click();
   const editedRow = page.getByRole("row", { name: /Edited browser endpoint/ });
   await expect(editedRow).toBeVisible();
+  await expect(editedRow).toHaveAttribute("data-endpoint-id", operationId);
   await editedRow
     .getByRole("button", { name: "Endpoint information for Edited browser endpoint", exact: true })
     .hover();
@@ -108,6 +213,99 @@ test("creates, edits, disables, and deletes an endpoint", async ({ page }) => {
   await editedRow.getByRole("button", { name: "Delete" }).click();
   await page.getByRole("button", { name: "Confirm" }).click();
   await expect(editedRow).toHaveCount(0);
+});
+
+test("keeps column geometry stable through group collapse and sorting, with centered attempt tooltips", async ({
+  page,
+  request,
+}) => {
+  const example = await (await request.get("/__mockapi/api/configuration/example")).json();
+  await importDocument(request, example);
+  await expect(page.locator(".endpoint-row")).toHaveCount(9);
+  for (const width of [1200, 1920]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await expect(page.locator("html")).toHaveAttribute("data-dashboard-layout", width === 1200 ? "stacked" : "columns");
+    const headers = page.locator(".table-wrap thead th");
+    await expect(headers).toHaveCount(8);
+    const original = await headers.evaluateAll((cells) =>
+      cells.map((cell) => ({ x: cell.getBoundingClientRect().x, width: cell.getBoundingClientRect().width }))
+    );
+    expect(original[2].width).toBeGreaterThan(original[4].width * 2);
+    for (const [column, maximumWidth] of [
+      [4, 80],
+      [5, 80],
+      [6, 72],
+      [7, 160],
+    ]) {
+      expect(original[column].width).toBeLessThanOrEqual(maximumWidth + 1);
+    }
+    const row = page.locator(".endpoint-row").first();
+    const information = await row.locator(".api-description-button").boundingBox();
+    const name = await row.locator(".endpoint-name-heading > strong").boundingBox();
+    expect(information.x + information.width).toBeLessThan(name.x);
+    const actions = row.locator(".row-actions");
+    const actionBounds = await actions.boundingBox();
+    const buttons = await actions.locator("button").evaluateAll((elements) =>
+      elements.map((element) => {
+        const bounds = element.getBoundingClientRect();
+        return { x: bounds.x, width: bounds.width };
+      })
+    );
+    expect(buttons[0].x).toBeGreaterThanOrEqual(actionBounds.x);
+    expect(buttons.at(-1).x + buttons.at(-1).width).toBeLessThanOrEqual(actionBounds.x + actionBounds.width);
+    for (const button of buttons) expect(button.width).toBe(32);
+    await page.getByRole("button", { name: "Collapse ctp/", exact: true }).click();
+    await expect(page.locator(".endpoint-row")).toHaveCount(0);
+    const collapsed = await headers.evaluateAll((cells) =>
+      cells.map((cell) => ({ x: cell.getBoundingClientRect().x, width: cell.getBoundingClientRect().width }))
+    );
+    expect(collapsed).toEqual(original);
+    await page.getByRole("button", { name: "Expand ctp/", exact: true }).click();
+    await expect(page.locator(".endpoint-row")).toHaveCount(9);
+    const expanded = await headers.evaluateAll((cells) =>
+      cells.map((cell) => ({ x: cell.getBoundingClientRect().x, width: cell.getBoundingClientRect().width }))
+    );
+    // Clicking a sort button may scroll the table horizontally; compare column widths.
+    expect(expanded.map((cell) => cell.width)).toEqual(original.map((cell) => cell.width));
+    const attempts = page.locator("[data-endpoint-requests]").first();
+    await expect(attempts).toHaveCSS("text-align", "center");
+    await expect(attempts).toHaveAttribute("title", "Last attempt: Never");
+    await expect(attempts).toHaveAttribute("aria-label", "0 attempts. Last attempt: Never");
+    const headingCenter = await page.locator('[data-sort-key="requests"]').evaluate((button) => {
+      const range = document.createRange();
+      const textNode = button.firstChild;
+      const start = textNode.textContent.indexOf("Attempts");
+      range.setStart(textNode, start);
+      range.setEnd(textNode, start + "Attempts".length);
+      const text = range.getBoundingClientRect();
+      const bounds = button.getBoundingClientRect();
+      return Math.abs(text.x + text.width / 2 - (bounds.x + bounds.width / 2));
+    });
+    expect(headingCenter).toBeLessThanOrEqual(1);
+    await page.locator('[data-sort-key="name"]').click();
+  }
+});
+
+test("duplicate drafts do not display or reuse the source operation ID", async ({ page, request }) => {
+  const example = await (await request.get("/__mockapi/api/configuration/example")).json();
+  await importDocument(request, { ...example, endpoints: [example.endpoints[0]] });
+  const source = page.locator(".endpoint-row");
+  await expect(source).toHaveCount(1);
+  const sourceId = await source.getAttribute("data-endpoint-id");
+  await source.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(page.getByLabel("Operation ID", { exact: true })).toHaveValue(sourceId);
+  await page.keyboard.press("Escape");
+  await source.getByRole("button", { name: "Duplicate", exact: true }).click();
+  await expect(page.getByLabel("Operation ID", { exact: true })).toBeHidden();
+  await expect(page.locator("#field-operation-id")).toHaveValue("");
+  await page.getByRole("button", { name: "Apply endpoint", exact: true }).click();
+  await expect(page.locator(".endpoint-row")).toHaveCount(2);
+  const copy = page.locator(".endpoint-row").filter({ hasText: `${example.endpoints[0].name} copy` });
+  await expect(copy).not.toHaveAttribute("data-endpoint-id", sourceId);
+  await copy.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(page.getByLabel("Operation ID", { exact: true })).toHaveValue(
+    await copy.getAttribute("data-endpoint-id")
+  );
 });
 
 test("selects multiple or all endpoints for bulk actions", async ({ page }) => {

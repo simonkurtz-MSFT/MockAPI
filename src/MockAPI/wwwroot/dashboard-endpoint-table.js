@@ -4,8 +4,8 @@ import {
   filterEndpoints,
   formatNumber,
   formatTime,
+  getEndpointDisplayPath,
   groupEndpointsByPath,
-  paginateItems,
   sortEndpoints,
 } from "./dashboard-core.js?v={{ASSET_VERSION}}";
 import { HTTP_STATUS_REASONS } from "./dashboard-endpoint-editor.js?v={{ASSET_VERSION}}";
@@ -26,7 +26,7 @@ import {
  * @property {() => void} dispose Removes static/row listeners. The coordinator must stop supplying updates after disposal.
  */
 /**
- * Owns endpoint rows, selection, filters, pagination, collapse state, and control focus.
+ * Owns endpoint rows, selection, filters, group-local sorting, collapse state, and control focus.
  * Configuration and statistics updates are explicit inputs; commands are delegated without sharing mutable state.
  * @param {object} options Dependencies.
  * @param {Document} options.documentRoot Dashboard document.
@@ -66,11 +66,6 @@ export function createDashboardEndpointTable({
     "endpoint-body": "div",
     "endpoint-controls": "div",
     "endpoint-count": "span",
-    "endpoint-page-next": "button",
-    "endpoint-page-previous": "button",
-    "endpoint-page-size": "select",
-    "endpoint-page-status": "span",
-    "endpoint-pagination": "nav",
     "endpoint-rows": "tbody",
     "endpoint-toggle": "button",
     "filter-enabled": "select",
@@ -92,7 +87,7 @@ export function createDashboardEndpointTable({
    * statistics: import("./dashboard-core.js").DashboardStatistics|null,
    * statisticsByEndpoint: Map<string, import("./dashboard-core.js").EndpointStatistics>,
    * selectedEndpointIds: Set<string>, collapsedEndpointGroups: Set<string>,
-   * endpointSort: import("./dashboard-core.js").EndpointSort, endpointPage: number, endpointPageSize: number,
+   * endpointSort: import("./dashboard-core.js").EndpointSort,
    * endpointsCollapsed: boolean, managementPending: boolean, pendingToggleFocus: string|null
    * }} */
   const state = {
@@ -102,8 +97,6 @@ export function createDashboardEndpointTable({
     selectedEndpointIds: new Set(),
     collapsedEndpointGroups: new Set(),
     endpointSort: { key: "name", direction: "ascending" },
-    endpointPage: 1,
-    endpointPageSize: preferences.endpointPageSize,
     endpointsCollapsed: preferences.endpointsCollapsed,
     managementPending: false,
     pendingToggleFocus: null,
@@ -140,10 +133,11 @@ export function createDashboardEndpointTable({
     });
   }
 
-  function currentEndpointPage() {
-    const filtered = visibleEndpoints();
-    const sorted = sortEndpoints(filtered, state.endpointSort, state.statistics?.endpoints || []);
-    return { filtered, ...paginateItems(sorted, state.endpointPage, state.endpointPageSize) };
+  function currentEndpointGroups() {
+    return groupEndpointsByPath(visibleEndpoints()).map((group) => ({
+      ...group,
+      endpoints: sortEndpoints(group.endpoints, state.endpointSort, state.statistics?.endpoints || []),
+    }));
   }
 
   function updateBulkSelection(visible) {
@@ -168,14 +162,13 @@ export function createDashboardEndpointTable({
       return;
     }
     const focusedEndpointControl = document.activeElement?.getAttribute("data-endpoint-focus");
-    const page = currentEndpointPage();
-    state.endpointPage = page.page;
-    const groups = groupEndpointsByPath(page.items);
+    const groups = currentEndpointGroups();
+    const filtered = groups.flatMap((group) => group.endpoints);
 
-    elements["endpoint-count"].textContent = String(page.filtered.length);
+    elements["endpoint-count"].textContent = String(filtered.length);
     rowEvents.clear();
     elements["endpoint-rows"].replaceChildren();
-    elements["empty-state"].hidden = page.filtered.length !== 0;
+    elements["empty-state"].hidden = filtered.length !== 0;
     const hasEndpoints = state.endpoints.length !== 0;
     elements["empty-state-title"].textContent = hasEndpoints ? "No endpoints match" : "No endpoints yet";
     elements["empty-state-description"].textContent = hasEndpoints
@@ -188,22 +181,13 @@ export function createDashboardEndpointTable({
         for (const endpoint of group.endpoints) elements["endpoint-rows"].append(createEndpointRow(endpoint));
       }
     }
-    updateBulkSelection(page.items);
-    renderEndpointPagination(page);
+    updateBulkSelection(filtered);
     updateSortHeaders();
     if (focusedEndpointControl) {
       /** @type {HTMLElement|null} */
       const control = document.querySelector(`[data-endpoint-focus="${CSS.escape(focusedEndpointControl)}"]`);
       control?.focus({ preventScroll: true });
     }
-  }
-
-  function renderEndpointPagination(page) {
-    elements["endpoint-pagination"].hidden = page.filtered.length === 0;
-    elements["endpoint-page-status"].textContent =
-      `${formatNumber(page.start)}–${formatNumber(page.end)} of ${formatNumber(page.filtered.length)}`;
-    elements["endpoint-page-previous"].disabled = page.page === 1;
-    elements["endpoint-page-next"].disabled = page.page === page.pageCount;
   }
 
   function updateSortHeaders() {
@@ -220,7 +204,7 @@ export function createDashboardEndpointTable({
     const row = document.createElement("tr");
     row.className = "endpoint-group-row";
     const cell = document.createElement("th");
-    cell.colSpan = 9;
+    cell.colSpan = 8;
     cell.scope = "rowgroup";
     const button = makeElement("button", "endpoint-group-toggle");
     button.type = "button";
@@ -291,17 +275,12 @@ export function createDashboardEndpointTable({
       tooltip.style.top = `${below ? bounds.bottom : bounds.top - tooltip.getBoundingClientRect().height}px`;
       tooltip.style.left = `${Math.max(8, Math.min(bounds.right - size.width, window.innerWidth - size.width - 8))}px`;
     }
-    function hideDescription(event) {
-      const target = event.relatedTarget;
-      if (target instanceof window.Node && (info.contains(target) || tooltip.contains(target))) return;
-      if (document.activeElement === info) return;
-      tooltip.hidePopover();
-    }
     rowEvents.listen(info, "mouseenter", showDescription);
     rowEvents.listen(info, "focus", showDescription);
-    rowEvents.listen(info, "mouseleave", hideDescription);
-    rowEvents.listen(info, "blur", hideDescription);
-    rowEvents.listen(tooltip, "mouseleave", hideDescription);
+    rowEvents.listen(info, "mouseleave", () => tooltip.hidePopover());
+    rowEvents.listen(info, "blur", () => {
+      if (!info.matches(":hover")) tooltip.hidePopover();
+    });
     rowEvents.listen(document, "keydown", (event) => {
       if (event.key === "Escape") tooltip.hidePopover();
     });
@@ -328,7 +307,7 @@ export function createDashboardEndpointTable({
     rowEvents.listen(selection, "change", () => {
       if (selection.checked) state.selectedEndpointIds.add(endpoint.id);
       else state.selectedEndpointIds.delete(endpoint.id);
-      updateBulkSelection(currentEndpointPage().items);
+      updateBulkSelection(visibleEndpoints());
     });
     selectionCell.append(selection);
 
@@ -344,7 +323,7 @@ export function createDashboardEndpointTable({
       onActivate: () => onEdit(endpoint),
     });
     info.dataset.endpointFocus = `${endpoint.id}:info`;
-    heading.append(makeElement("strong", null, endpoint.name), info);
+    heading.append(info, makeElement("strong", null, endpoint.name));
     name.append(heading, tooltip);
     nameCell.append(name);
 
@@ -353,7 +332,8 @@ export function createDashboardEndpointTable({
     for (const item of endpoint.methods) methods.append(makeElement("span", "method-badge", item));
     methodCell.append(methods);
 
-    const pathCell = makeElement("td", "path-cell", endpoint.path);
+    const pathCell = makeElement("td", "path-cell", getEndpointDisplayPath(endpoint.path));
+    pathCell.title = endpoint.path;
     const statusCell = makeElement("td", "centered");
     const abortsConnection = endpoint.response.behavior === "abortConnection";
     const statusBadge = makeElement(
@@ -368,10 +348,9 @@ export function createDashboardEndpointTable({
       if (reasonPhrase) statusBadge.title = reasonPhrase;
     }
     statusCell.append(statusBadge);
-    const requestsCell = makeElement("td", "centered tabular-numeric", formatNumber(statistics?.totalRequests || 0));
-    const lastCell = makeElement("td", null, formatTime(statistics?.lastRequestUtc));
+    const requestsCell = makeElement("td", "centered tabular-numeric");
     requestsCell.dataset.endpointRequests = "";
-    lastCell.dataset.endpointLastRequest = "";
+    updateAttemptsCell(requestsCell, statistics);
 
     const enabledCell = makeElement("td", "centered");
     const switchLabel = makeElement("label", "switch");
@@ -405,18 +384,17 @@ export function createDashboardEndpointTable({
     actions.append(testButton, editButton, duplicateButton, deleteButton);
     actionCell.append(actions);
 
-    row.append(
-      selectionCell,
-      nameCell,
-      methodCell,
-      pathCell,
-      statusCell,
-      requestsCell,
-      lastCell,
-      enabledCell,
-      actionCell
-    );
+    row.append(selectionCell, pathCell, nameCell, methodCell, statusCell, requestsCell, enabledCell, actionCell);
     return row;
+  }
+
+  function updateAttemptsCell(cell, statistics) {
+    const attempts = statistics?.totalRequests || 0;
+    const attemptsLabel = attempts === 1 ? "attempt" : "attempts";
+    const lastAttempt = formatTime(statistics?.lastRequestUtc);
+    cell.textContent = formatNumber(attempts);
+    cell.title = `Last attempt: ${lastAttempt}`;
+    cell.setAttribute("aria-label", `${formatNumber(attempts)} ${attemptsLabel}. Last attempt: ${lastAttempt}`);
   }
 
   function updateEndpointStatistics() {
@@ -424,8 +402,7 @@ export function createDashboardEndpointTable({
     /** @type {NodeListOf<HTMLTableRowElement>} */
     const endpointRows = elements["endpoint-rows"].querySelectorAll(".endpoint-row");
     const rows = [...endpointRows];
-    const page = currentEndpointPage();
-    const expectedIds = groupEndpointsByPath(page.items)
+    const expectedIds = currentEndpointGroups()
       .filter((group) => !state.collapsedEndpointGroups.has(group.key))
       .flatMap((group) => group.endpoints.map((endpoint) => endpoint.id));
     if (
@@ -437,12 +414,8 @@ export function createDashboardEndpointTable({
     }
     for (const row of rows) {
       const statistics = endpointStatistics(row.dataset.endpointId);
-      const requests = formatNumber(statistics?.totalRequests || 0);
-      const lastRequest = formatTime(statistics?.lastRequestUtc);
       const requestsCell = row.querySelector("[data-endpoint-requests]");
-      const lastCell = row.querySelector("[data-endpoint-last-request]");
-      if (requestsCell.textContent !== requests) requestsCell.textContent = requests;
-      if (lastCell.textContent !== lastRequest) lastCell.textContent = lastRequest;
+      updateAttemptsCell(requestsCell, statistics);
     }
   }
 
@@ -457,7 +430,7 @@ export function createDashboardEndpointTable({
     for (const toggle of toggles) {
       toggle.disabled = pending;
     }
-    updateBulkSelection(currentEndpointPage().items);
+    updateBulkSelection(visibleEndpoints());
     if (!pending && state.pendingToggleFocus) {
       // Native disabling blurs the toggle; restore it only if the user has not moved focus elsewhere.
       if (document.activeElement === document.body) {
@@ -469,7 +442,7 @@ export function createDashboardEndpointTable({
     }
   }
   events.listen(elements["select-all-endpoints"], "change", () => {
-    for (const endpoint of currentEndpointPage().items) {
+    for (const endpoint of visibleEndpoints()) {
       if (elements["select-all-endpoints"].checked) state.selectedEndpointIds.add(endpoint.id);
       else state.selectedEndpointIds.delete(endpoint.id);
     }
@@ -485,7 +458,6 @@ export function createDashboardEndpointTable({
     elements["filter-status"],
   ]) {
     events.listen(filter, "input", () => {
-      state.endpointPage = 1;
       renderEndpoints();
     });
   }
@@ -499,32 +471,13 @@ export function createDashboardEndpointTable({
         direction:
           state.endpointSort.key === key && state.endpointSort.direction === "ascending" ? "descending" : "ascending",
       };
-      state.endpointPage = 1;
       renderEndpoints();
     });
   }
-  events.listen(elements["endpoint-page-size"], "change", (event) => {
-    const pageSize = /** @type {import("./dashboard-preferences.js").EndpointPageSize} */ (
-      Number(event.currentTarget.value)
-    );
-    state.endpointPageSize = pageSize;
-    state.endpointPage = 1;
-    preferencesStore.update({ endpointPageSize: pageSize });
-    renderEndpoints();
-  });
-  events.listen(elements["endpoint-page-previous"], "click", () => {
-    state.endpointPage -= 1;
-    renderEndpoints();
-  });
-  events.listen(elements["endpoint-page-next"], "click", () => {
-    state.endpointPage += 1;
-    renderEndpoints();
-  });
   events.listen(elements["endpoint-toggle"], "click", () => {
     setEndpointsCollapsed(!state.endpointsCollapsed);
     preferencesStore.update({ endpointsCollapsed: state.endpointsCollapsed });
   });
-  elements["endpoint-page-size"].value = String(state.endpointPageSize);
   setEndpointsCollapsed(state.endpointsCollapsed);
   return {
     updateApiDescriptions(descriptions) {
@@ -534,7 +487,7 @@ export function createDashboardEndpointTable({
     },
     updateEndpoints(endpoints) {
       state.endpoints = endpoints;
-      updateBulkSelection(currentEndpointPage().items);
+      updateBulkSelection(visibleEndpoints());
       renderEndpoints();
     },
     updateStatistics(statistics) {

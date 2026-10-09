@@ -1,5 +1,51 @@
 import { expect, test, importDocument, expectNoUnreviewedAccessibilityViolations } from "./dashboard-fixtures.js";
 
+test("header shows unprotected APIs without opening Settings and stays visible on narrow screens", async ({ page }) => {
+  const indicator = page.locator("#header-api-security");
+  await expect(indicator).toHaveText("APIs unprotected");
+  await expect(indicator).toHaveAttribute("data-state", "warning");
+  await expect(indicator).toHaveAttribute("title", /without X-MockAPI-Key/);
+  await expect(page.locator("#settings-dialog")).toBeHidden();
+  await expect(page.locator("#test-blade-shell")).toBeHidden();
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((value) => (document.documentElement.dataset.theme = value), theme);
+    await expectNoUnreviewedAccessibilityViolations(page, ".app-header");
+  }
+  await page.setViewportSize({ width: 320, height: 720 });
+  await expect(indicator).toBeInViewport();
+  await expect(page.getByRole("button", { name: "Settings", exact: true })).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+});
+
+test("header refreshes protection on return and distinguishes blocked and unavailable states", async ({ page }) => {
+  let status = { enabled: true, configured: true, etag: '"security"' };
+  let unavailable = false;
+  await page.route("**/__mockapi/api/security/", (route) =>
+    route.fulfill({
+      status: unavailable ? 503 : 200,
+      json: unavailable ? { title: "Security unavailable", status: 503 } : status,
+    })
+  );
+  await page.reload();
+  const indicator = page.locator("#header-api-security");
+  await expect(indicator).toHaveText("APIs protected");
+  await expect(indicator).toHaveAttribute("data-state", "protected");
+  status = { ...status, configured: false };
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(indicator).toHaveText("APIs blocked: key needed");
+  status = { ...status, enabled: false };
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(indicator).toHaveText("APIs unprotected");
+  unavailable = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(indicator).toHaveText("Protection unknown");
+  await expect(indicator).toHaveAttribute("data-state", "error");
+  await expect(indicator).toHaveAttribute("title", /Unable to check mock API protection/);
+  unavailable = false;
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
+  await expect(indicator).toHaveText("APIs unprotected");
+});
+
 test("Settings keeps the mock key memory-only and attaches it to dashboard tests @smoke", async ({ page, request }) => {
   await importDocument(request, {
     schemaVersion: "1.0",
@@ -22,7 +68,11 @@ test("Settings keeps the mock key memory-only and attaches it to dashboard tests
   await page.getByLabel("API key for dashboard tests").fill(key);
   await expectNoUnreviewedAccessibilityViolations(page, "#settings-dialog");
   await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.route("**/__mockapi/api/security/", (route) =>
+    route.fulfill({ json: { enabled: true, configured: true, eTag: '"test-security"' } })
+  );
   await page.getByRole("button", { name: "Test", exact: true }).click();
+  await expect(page.locator("#test-security-warning")).toBeHidden();
   const sent = page.waitForRequest((candidate) => candidate.url().endsWith("/key-test"));
   await page.getByRole("button", { name: "Send request", exact: true }).click();
   expect((await sent).headers()["x-mockapi-key"]).toBe(key);
@@ -30,6 +80,96 @@ test("Settings keeps the mock key memory-only and attaches it to dashboard tests
   await page.reload();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(page.getByLabel("API key for dashboard tests")).toHaveValue("");
+});
+
+test("Play explains missing keys, honors explicit headers, and refreshes protection before sending", async ({
+  page,
+  request,
+}) => {
+  await importDocument(request, {
+    schemaVersion: "1.0",
+    endpoints: [
+      {
+        id: "fc58d3ce-f8e5-4f8a-aef8-a6e1b1bdfe8f",
+        name: "Protected play",
+        enabled: true,
+        methods: ["GET"],
+        path: "/protected-play",
+        response: { statusCode: 403, headers: {}, contentType: "text/plain", body: "deliberate forbidden" },
+      },
+    ],
+  });
+  let protectionEnabled = true;
+  await page.route("**/__mockapi/api/security/", (route) =>
+    route.fulfill({ json: { enabled: protectionEnabled, configured: true, eTag: '"test-security"' } })
+  );
+  await page.getByRole("button", { name: "Test", exact: true }).click();
+  const warning = page.locator("#test-security-warning");
+  await expect(warning.locator("p")).toHaveText(
+    "X-MockAPI-Key is presently required, but this test will not send a key. Requests will be rejected before the endpoint runs. Please take one of the following actions:"
+  );
+  await expect(warning.getByRole("listitem")).toHaveText([
+    "Add X-MockAPI-Key to Request headers, or",
+    "enter the existing key in Settings > Dashboard test key, or",
+    "disable Require X-MockAPI-Key on mock requests in Settings.",
+  ]);
+  await expect(warning.locator("strong code")).toHaveText(["X-MockAPI-Key", "X-MockAPI-Key", "X-MockAPI-Key"]);
+  await expect(warning).toContainText("this test will not send a key");
+  await expect(warning).toContainText("Request headers");
+  await expect(warning).toContainText("Settings > Dashboard test key");
+  await expect(warning).toContainText("disable Require X-MockAPI-Key");
+  await expectNoUnreviewedAccessibilityViolations(page, "#test-blade");
+
+  const send = page.getByRole("button", { name: "Send request", exact: true });
+  await send.click();
+  await expect(page.locator("#test-response-status")).toHaveText("403 Forbidden");
+  await expect(warning).toBeVisible();
+  await page.locator("#test-request-headers").fill("x-mockapi-key: explicit-key");
+  const sent = page.waitForRequest((candidate) => candidate.url().endsWith("/protected-play"));
+  await send.click();
+  expect((await sent).headers()["x-mockapi-key"]).toBe("explicit-key");
+  await expect(warning).toBeHidden();
+  await expect(page.locator("#test-response-body")).toHaveText("deliberate forbidden");
+  await expect(send).toBeEnabled();
+
+  await page.locator("#test-request-headers").fill("X-MockAPI-Key:");
+  await send.click();
+  await expect(warning).toContainText("this test will not send a key");
+  await expect(send).toBeEnabled();
+  protectionEnabled = false;
+  await send.click();
+  await expect(warning).toBeHidden();
+  await expect(send).toBeEnabled();
+});
+
+test("Play reports an unavailable protection check instead of assuming protection is off", async ({
+  page,
+  request,
+}) => {
+  await importDocument(request, {
+    schemaVersion: "1.0",
+    endpoints: [
+      {
+        id: "fc58d3ce-f8e5-4f8a-aef8-a6e1b1bdfe8f",
+        name: "Unavailable protection",
+        enabled: true,
+        methods: ["GET"],
+        path: "/unavailable-protection",
+        response: { statusCode: 200, headers: {}, contentType: "text/plain", body: "ok" },
+      },
+    ],
+  });
+  await page.route("**/__mockapi/api/security/", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { title: "Security status unavailable", status: 503 },
+    })
+  );
+  await page.getByRole("button", { name: "Test", exact: true }).click();
+  await expect(page.locator("#test-security-warning")).toContainText("Unable to check API-key protection");
+  await page.getByRole("button", { name: "Send request", exact: true }).click();
+  await expect(page.locator("#test-response-body")).toHaveText("ok");
+  await expect(page.locator("#test-security-warning")).toBeVisible();
 });
 
 test("Settings closes on an outside click, restores focus, and preserves the memory-only test key", async ({
