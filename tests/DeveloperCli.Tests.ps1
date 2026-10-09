@@ -554,6 +554,7 @@ try {
   }
 
   & (Join-Path $PSScriptRoot 'DeveloperCli.CustomDomains.Tests.ps1')
+  & (Join-Path $PSScriptRoot 'DependencyVulnerabilities.Tests.ps1')
 
   $azureYaml = Get-Content -LiteralPath $azureYamlPath -Raw
   Assert-True ($azureYaml -match '(?m)^\s+language:\s+docker\s*$') 'The azd service must use the root Docker workflow without .NET project discovery.'
@@ -996,6 +997,35 @@ exit /b 0
   $result = Invoke-CliProcess -Arguments @('-Action', 'azure-check', '-EnvironmentFile', $validFile) -Environment $processEnvironment
   Assert-True ($result.ExitCode -eq 0) "Valid Azure preflight failed: $($result.Output)"
   Assert-True ($result.Output -match 'process-environment' -and $result.Output -match 'eastus2') 'Process environment values must take precedence over .env values.'
+  Assert-True (
+    $result.Output -match 'Azure resource group\s*: rg-process-environment-eastus2'
+  ) 'Azure preflight must print the resource group derived from the effective environment and location.'
+  $bashPreflight = @'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+COLOR_RESET=''
+AZURE_CONFIGURATION=''
+AZURE_CONFIGURATION_SUBSCRIPTION='00000000-0000-0000-0000-000000000000'
+AZURE_CONFIGURATION_ENVIRONMENT_NAME="$1"
+AZURE_CONFIGURATION_LOCATION="$2"
+load_azure_configuration() { :; }
+assert_azd() { :; }
+assert_azure_authentication() { :; }
+set_azd_environment() { :; }
+run_tool() { :; }
+assert_azure_infrastructure() { :; }
+write_color() { printf '%s\n' "$2"; }
+'@
+  foreach ($functionName in @('write_field', 'invoke_azure_check')) {
+    $bashPreflight += "`n" + [regex]::Match($bashCliSource, "(?ms)^$functionName\(\) \{.*?^\}").Value
+  }
+  $bashPreflight += "`ninvoke_azure_check`n"
+  Set-Content -LiteralPath $bashMenuTestPath -Value $bashPreflight.Replace("`r", '') -Encoding utf8NoBOM -NoNewline
+  $bashPreflightResult = Invoke-BashCliProcess -ScriptPath ('./' + (Split-Path -Leaf $bashMenuTestPath)) -Arguments @('process-environment', 'eastus2')
+  Assert-True ($bashPreflightResult.ExitCode -eq 0) "Bash Azure preflight output failed: $($bashPreflightResult.Output)"
+  $expectedPreflightFields = ($result.Output -split "`r?`n" | Where-Object { $_ -match '^Azure (environment|subscription|location|resource group)\s*:' }) -join "`n"
+  $actualPreflightFields = ($bashPreflightResult.Output -split "`r?`n" | Where-Object { $_ -match '^Azure (environment|subscription|location|resource group)\s*:' }) -join "`n"
+  Assert-True ($actualPreflightFields -ceq $expectedPreflightFields) 'Both shells must print identical Azure preflight target fields.'
 
   $commands = Get-Content -LiteralPath $commandLog -Raw
   Assert-True ($commands -match 'auth login --check-status --no-prompt' -and $commands -match '(?m)^auth login\r?$') 'Expired authentication must trigger interactive login and retry the status check.'
@@ -1016,6 +1046,9 @@ exit /b 0
   Clear-Content -LiteralPath $commandLog
   $result = Invoke-CliProcess -Arguments @('-Action', 'azure-check', '-EnvironmentFile', $dashboardFile)
   Assert-True ($result.ExitCode -eq 0) "Dashboard-authenticated Azure preflight failed: $($result.Output)"
+  Assert-True (
+    $result.Output -match 'Azure resource group\s*: rg-dashboard-environment-eastus2'
+  ) 'Azure preflight must print the resource group when settings come from the environment file.'
   $commands = Get-Content -LiteralPath $commandLog -Raw
   Assert-True ($commands -match 'env set AZURE_DASHBOARD_USERNAME operator') 'Configured dashboard username must be synchronized to azd.'
   Assert-True ($commands -match 'env set AZURE_DASHBOARD_PASSWORD_HASH v1\.600000\.') 'A versioned dashboard password hash must be synchronized to azd.'

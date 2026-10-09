@@ -61,6 +61,12 @@ pnpm run test:site
 pnpm run test:browser:smoke
 ```
 
+`pnpm run validate:dependency-security` audits pnpm and direct and transitive NuGet
+dependencies. Dependency findings are warning-only: the reports remain visible,
+but builds and validation continue even when vulnerabilities are found.
+Scanner execution failures and invalid reports still fail validation.
+This policy does not remediate vulnerabilities or change container-image scanning.
+
 The [development-container workflow](../.github/workflows/devcontainer.yml) exercises the exact image,
 non-root setup, tooling, and application readiness. A real Codespaces launch still needs account-level
 validation. No production credentials, Docker socket, or Azure login is needed for ordinary development.

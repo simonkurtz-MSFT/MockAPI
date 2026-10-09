@@ -1192,6 +1192,7 @@ invoke_azure_check() {
   write_field 'Azure environment' "$AZURE_CONFIGURATION_ENVIRONMENT_NAME"
   write_field 'Azure subscription' "$AZURE_CONFIGURATION_SUBSCRIPTION"
   write_field 'Azure location' "$AZURE_CONFIGURATION_LOCATION"
+  write_field 'Azure resource group' "rg-$AZURE_CONFIGURATION_ENVIRONMENT_NAME-$AZURE_CONFIGURATION_LOCATION"
   printf '\n'
   write_color green 'Azure deployment preflight passed.'
 }

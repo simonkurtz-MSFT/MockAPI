@@ -199,6 +199,7 @@ function Invoke-AzureCheck {
   Write-Field 'Azure environment' $configuration.AZURE_ENV_NAME
   Write-Field 'Azure subscription' $configuration.AZURE_SUBSCRIPTION_ID
   Write-Field 'Azure location' $configuration.AZURE_LOCATION
+  Write-Field 'Azure resource group' "rg-$($configuration.AZURE_ENV_NAME)-$($configuration.AZURE_LOCATION)"
   Write-Host ''
   Write-Host 'Azure deployment preflight passed.' -ForegroundColor Green
   return $configuration
