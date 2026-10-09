@@ -5,9 +5,11 @@ allowBuilds:
   esbuild: true
 
 overrides:
+  katex: 0.18.10
   nanoid: 3.3.18
   postcss: 8.5.23
-  smol-toml: 1.8.0
+  smol-toml: 1.9.0
+  source-map-js: 1.2.2
 
 lockfileIncludeTarballUrl: false
 minimumReleaseAge: 11520

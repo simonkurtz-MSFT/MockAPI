@@ -163,9 +163,11 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  katex: 0.18.10
   nanoid: 3.3.18
   postcss: 8.5.23
-  smol-toml: 1.8.0
+  smol-toml: 1.9.0
+  source-map-js: 1.2.2
 
 importers:
 
@@ -441,9 +443,9 @@ packages:
   character-reference-invalid@2.0.1:
     resolution: {integrity: sha1-hcZrBB5DtHIQ+vQBJ4q/gIrEXLk=}
 
-  commander@8.3.0:
-    resolution: {integrity: sha1-SDfqGy2me5xhamevuw+v7lZ7ymY=}
-    engines: {node: '>= 12'}
+  commander@15.0.0:
+    resolution: {integrity: sha1-lvOWHxKtrBeZ7z+9i8YdQFctGxE=}
+    engines: {node: '>=22.12.0'}
 
   debug@4.4.3:
     resolution: {integrity: sha1-xq5DLZvZZiWC/OCHCbA4xY6ePWo=}
@@ -570,8 +572,8 @@ packages:
     resolution: {integrity: sha1-IRDgrwkA/TdGe1kH7NE6eIShtVk=}
     engines: {node: '>=0.10.0'}
 
-  katex@0.16.47:
-    resolution: {integrity: sha1-ChOkLC3rT3TmHxYtRAuRZaVIAw8=}
+  katex@0.18.10:
+    resolution: {integrity: sha512-/B6p9eY9DX7aHBfpkHdpirDTZ5QH9xTwL9y837PWuzuv41O5jFdqNQwVQEQsimY0/iVNkwBY4+4hMfhQ7d4Dbw==}
     hasBin: true
 
   lightningcss-android-arm64@1.33.0:
@@ -829,12 +831,12 @@ packages:
     resolution: {integrity: sha1-vjrd3N8JrDjuvo3Nx7GlenWwlc4=}
     engines: {node: '>=14.16'}
 
-  smol-toml@1.8.0:
-    resolution: {integrity: sha1-3F4JNoJfH+83vfLFaQgfcJ2KAJ8=}
+  smol-toml@1.9.0:
+    resolution: {integrity: sha512-hpd+HLON7HdZXqYchMM/+LaTTbdK0AU3NngIJ4KVyWbY9bfQqdL9cD+4yf6dUoU2Ap4VsU0JkQi6FxAI1B2mXQ==}
     engines: {node: '>= 18'}
 
-  source-map-js@1.2.1:
-    resolution: {integrity: sha1-HOVlD93YerwJnto33P8CTCZnrkY=}
+  source-map-js@1.2.2:
+    resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
     engines: {node: '>=0.10.0'}
 
   std-env@4.2.0:
@@ -1138,7 +1140,7 @@ snapshots:
 
   character-reference-invalid@2.0.1: {}
 
-  commander@8.3.0: {}
+  commander@15.0.0: {}
 
   debug@4.4.3:
     dependencies:
@@ -1241,9 +1243,9 @@ snapshots:
 
   jsonpointer@5.0.1: {}
 
-  katex@0.16.47:
+  katex@0.18.10:
     dependencies:
-      commander: 8.3.0
+      commander: 15.0.0
 
   lightningcss-android-arm64@1.33.0:
     optional: true
@@ -1306,7 +1308,7 @@ snapshots:
     dependencies:
       '@babel/parser': 7.29.9
       '@babel/types': 7.29.8
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
 
   markdown-it@15.0.1:
     dependencies:
@@ -1331,7 +1333,7 @@ snapshots:
       markdownlint: 0.41.1
       markdownlint-cli2-formatter-default: 0.0.6(markdownlint-cli2@0.23.3)
       micromatch: 4.0.8
-      smol-toml: 1.8.0
+      smol-toml: 1.9.0
     transitivePeerDependencies:
       - supports-color
 
@@ -1412,7 +1414,7 @@ snapshots:
     dependencies:
       '@types/katex': 0.16.8
       devlop: 1.1.0
-      katex: 0.16.47
+      katex: 0.18.10
       micromark-factory-space: 2.1.0
       micromark-util-character: 2.1.1
       micromark-util-symbol: 2.0.1
@@ -1564,7 +1566,7 @@ snapshots:
     dependencies:
       nanoid: 3.3.18
       picocolors: 1.1.1
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
 
   prettier@3.9.9: {}
 
@@ -1601,9 +1603,9 @@ snapshots:
 
   slash@5.1.0: {}
 
-  smol-toml@1.8.0: {}
+  smol-toml@1.9.0: {}
 
-  source-map-js@1.2.1: {}
+  source-map-js@1.2.2: {}
 
   std-env@4.2.0: {}
 
