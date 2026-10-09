@@ -1001,7 +1001,7 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Contains("id=\"test-send\"", html, StringComparison.Ordinal);
         Assert.Contains("id=\"filter-status\"", html, StringComparison.Ordinal);
         Assert.Contains("href=\"https://github.com/simonkurtz-MSFT/MockAPI\" target=\"_blank\" rel=\"noopener noreferrer\"", html, StringComparison.Ordinal);
-        Assert.Contains("href=\"https://www.linkedin.com/in/simonkurtz\" target=\"_blank\" rel=\"noopener noreferrer\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"https://www.simondoescloud.com\" target=\"_blank\" rel=\"noopener noreferrer\"", html, StringComparison.Ordinal);
         Assert.Matches($@"Version {SemanticVersionAssert.Pattern}(?=\s|<)", html);
         Assert.Matches(
             "Built\\s+<time datetime=\"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{7}\\+00:00\">\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2} UTC</time>",

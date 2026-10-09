@@ -136,6 +136,15 @@ test("quick starts, assets and accessibility work under the Pages repository pre
   expect(failures).toEqual([]);
 });
 
+test("footer links to Simon Kurtz's website in a protected new tab", async ({ page }) => {
+  await page.goto("./");
+  const authorLink = page.getByRole("contentinfo").getByRole("link", { name: "Simon Kurtz", exact: true });
+  await expect(authorLink).toBeVisible();
+  await expect(authorLink).toHaveAttribute("href", "https://www.simondoescloud.com");
+  await expect(authorLink).toHaveAttribute("target", "_blank");
+  await expect(authorLink).toHaveAttribute("rel", "noopener noreferrer");
+});
+
 test("dashboard-style theme toggle uses the initial system theme and persists explicit choices", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto("./");
