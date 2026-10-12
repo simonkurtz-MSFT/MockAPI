@@ -169,6 +169,28 @@ test("getting-started cards fill the content width and stack on smaller screens"
   }
 });
 
+test("features follow common uses and describe deployment, security, portability, and live requests", async ({
+  page,
+}) => {
+  await page.goto("./");
+  const examples = page.getByRole("region", { name: "Mock API examples for development and testing" });
+  const features = page.getByRole("region", { name: "Deploy, protect, and inspect your mock APIs" });
+  await expect(features.locator(".card")).toHaveCount(4);
+  await expect(features.getByRole("heading", { level: 3 })).toHaveText([
+    "CNAME support",
+    "Dashboard and API protection",
+    "Import, save, and export",
+    "Live request view",
+  ]);
+  await expect(features).toContainText("Postman, Insomnia, cURL, JMeter, OpenAPI, k6, or HTTP files");
+  expect(
+    await features.evaluate(
+      (featuresSection, examplesSection) => featuresSection.previousElementSibling === examplesSection,
+      await examples.elementHandle()
+    )
+  ).toBe(true);
+});
+
 test("introductory copy and self-hosting section fill the main content width on desktop and mobile", async ({
   page,
 }) => {

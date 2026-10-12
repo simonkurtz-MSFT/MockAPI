@@ -346,6 +346,9 @@ section.gallery {
 .start-cards {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+.feature-cards {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .card {
   min-width: 0;
   padding: 1.6rem;
@@ -405,7 +408,8 @@ footer {
 
 @media (max-width: 950px) {
   .cards,
-  .start-cards {
+  .start-cards,
+  .feature-cards {
     grid-template-columns: 1fr;
   }
 }
