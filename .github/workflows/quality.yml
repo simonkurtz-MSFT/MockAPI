@@ -181,6 +181,9 @@ jobs:
     concurrency:
       group: application-version-tag
       cancel-in-progress: false
+    outputs:
+      decision: ${{ steps.version.outputs.decision }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -199,6 +202,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: node scripts/release-notes.cjs publish "$RELEASE_TAG"
+
+  container-release:
+    name: Publish new version container
+    needs: version-tag
+    if: needs.version-tag.outputs.decision != 'unchanged'
+    permissions:
+      actions: read
+      contents: write
+    uses: ./.github/workflows/container-release.yml
+    with:
+      tagname: ${{ needs.version-tag.outputs.tag }}
+    secrets: inherit
 
   browser-chromium:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false

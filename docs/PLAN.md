@@ -543,20 +543,20 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
 ### GitHub container automation
 
 - Add a pull-request workflow that builds and tests the container without publishing it.
-- Add a release/manual workflow that builds native `linux/amd64` and `linux/arm64` images, verifies both variants, and assembles one multi-platform OCI image index.
+- Add a reusable release workflow that builds native `linux/amd64` and `linux/arm64` images, verifies both variants, and assembles one multi-platform OCI image index. Call it automatically for each newly validated version tag and retain manual dispatch for recovery.
 - Publish the verified multi-platform image to `simonkurtzmsft/mockapi:v<Version>` after native architecture validation, SBOM generation, vulnerability scanning, and OCI index verification succeed. Require the GitHub release tag or manual `tagname` input to exactly match the application version in `v<Version>` form, and keep Docker Hub credentials in repository secrets.
-- Keep build and publish responsibilities separable so pull requests never require registry credentials and publishing can remain disabled until explicitly enabled.
+- Keep build and publish responsibilities separable so pull requests never require registry credentials.
 - Generate an SBOM, run vulnerability scanning, and retain per-architecture image metadata as release evidence before any image is published.
 - Keep the application version solely in the project file, not the private tooling package.
   After successful quality validation, tag a version change on `main` as immutable `v<Version>`
   and publish a GitHub release from its reviewed Keep a Changelog entry in `CHANGELOG.md`.
   Validate the matching dated entry before creating the tag; never overwrite a published release.
-  Merging the reviewed version and changelog approves GitHub release metadata, not container publication.
-  Preserve historical unprefixed tags. Version tagging never implicitly publishes a container image.
-- Require an explicitly approved manual container release workflow, an opt-in repository variable, and
-  successful quality evidence for the exact tagged commit. Build both native images from that
+  Merging the reviewed version and changelog approves the GitHub release and its container publication.
+  Preserve historical unprefixed tags.
+- Automatically call the reusable container release workflow for each new validated tag. Require
+  successful quality prerequisites for the exact tagged commit, build both native images from that
   commit, publish the tested index, then attach durable evidence to the existing GitHub changelog release.
-  Use a protected release environment when the repository's plan supports required reviewers.
+  Retain manual dispatch only for recovery of an existing validated tag.
 
 ### Public onboarding surfaces
 

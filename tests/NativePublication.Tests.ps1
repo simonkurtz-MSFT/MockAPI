@@ -17,10 +17,11 @@ Assert-True (([regex]::Matches($releaseWorkflow, 'uses: docker/build-push-action
 Assert-True ($releaseWorkflow -notmatch 'setup-qemu-action') 'Native AOT release compilation must not depend on QEMU.'
 Assert-True ($releaseWorkflow.Contains('docker save --output') -and $releaseWorkflow.Contains('docker load --input')) 'Publication must transfer the tested native images between jobs.'
 Assert-True ($releaseWorkflow.Contains('imagetools create --dry-run') -and $releaseWorkflow.Contains('.config.digest')) 'Publication must verify the tested image identity and index before tagging a release.'
-Assert-True ($releaseWorkflow.Contains('ENABLE_RELEASE_PUBLISHING') -and $releaseWorkflow.Contains('approve_publication')) 'Publication must require opt-in and explicit manual approval.'
-Assert-True ($releaseWorkflow.Contains('environment: release')) 'Registry secrets and publication must use the release environment.'
+Assert-True ($releaseWorkflow.Contains('workflow_call:') -and $releaseWorkflow.Contains('workflow_dispatch:')) 'Publication must support automatic version releases and manual recovery.'
+Assert-True ($releaseWorkflow -notmatch 'ENABLE_RELEASE_PUBLISHING|approve_publication|environment: release') 'Publication must not retain a separate approval gate after a validated version change.'
 Assert-True (([regex]::Matches($releaseWorkflow, 'ref: \$\{\{ needs\.preflight\.outputs\.commit \}\}')).Count -eq 2) 'Native build and publication must both check out the resolved tag commit.'
 Assert-True ($releaseWorkflow.Contains('actions/workflows/quality.yml/runs?head_sha=')) 'Publication must require quality evidence for the exact release commit.'
+Assert-True ($releaseWorkflow.Contains("if: github.event_name == 'workflow_dispatch'")) 'Manual recovery must require successful historical quality evidence.'
 Assert-True ($releaseWorkflow.Contains('ignore-unfixed: false')) 'Unfixed high and critical vulnerabilities must block publication.'
 Assert-True ($releaseWorkflow.Contains('node scripts/release-notes.cjs verify "$IMAGE_TAG"')) 'Container publication must verify the existing release for the validated tag.'
 Assert-True ($releaseWorkflow.IndexOf('node scripts/release-notes.cjs verify "$IMAGE_TAG"') -lt $releaseWorkflow.IndexOf('docker login')) 'The existing release must be verified before registry login or image publication.'
@@ -28,6 +29,10 @@ Assert-True ($releaseWorkflow.Contains('gh release upload "$IMAGE_TAG" --repo "$
 Assert-True ($releaseWorkflow -notmatch 'gh release (create|edit)|release-notes\.cjs publish') 'GitHub release creation and notes must remain owned by the quality workflow.'
 Assert-True ($releaseWorkflow -notmatch '--generate-notes|--clobber') 'Container publication must not replace reviewed release notes or existing evidence assets.'
 Assert-True ($releaseWorkflow -notmatch '(?m)^  release:') 'GitHub release creation must not recursively trigger container publication.'
+$qualityWorkflow = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/quality.yml') -Raw
+Assert-True ($qualityWorkflow.Contains('needs: version-tag') -and $qualityWorkflow.Contains("if: needs.version-tag.outputs.decision != 'unchanged'")) 'Only a new validated version may call container publication automatically.'
+Assert-True ($qualityWorkflow.Contains('uses: ./.github/workflows/container-release.yml') -and $qualityWorkflow.Contains('tagname: ${{ needs.version-tag.outputs.tag }}')) 'The validated tag must be passed to the reusable container workflow.'
+Assert-True ($qualityWorkflow.Contains('secrets: inherit')) 'Automatic publication must make configured Docker Hub credentials available to the reusable workflow.'
 foreach ($workflowName in @('container-pr.yml', 'container-release.yml')) {
   $workflow = Get-Content -LiteralPath (Join-Path $repositoryRoot ".github/workflows/$workflowName") -Raw
   Assert-True ($workflow.Contains('Test-PublishedApplication.ps1 -VerifyPersistence')) 'Both image workflows must test persisted configuration after container recreation.'

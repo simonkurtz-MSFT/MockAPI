@@ -172,19 +172,26 @@ describe("release workflow wiring", () => {
     expect(job).toContain("(github.event_name == 'push' || github.event_name == 'workflow_dispatch')");
     expect(job).toContain("if: steps.version.outputs.decision != 'unchanged'");
     expect(job).toContain('node scripts/release-notes.cjs publish "$RELEASE_TAG"');
+    expect(job).toContain("needs: version-tag");
+    expect(job).toContain("if: needs.version-tag.outputs.decision != 'unchanged'");
+    expect(job).toContain("uses: ./.github/workflows/container-release.yml");
+    expect(job).toContain("tagname: ${{ needs.version-tag.outputs.tag }}");
+    expect(job).toContain("secrets: inherit");
     expect(quality.match(/- "CHANGELOG.md"/g)).toHaveLength(2);
     expect(quality).toContain("node scripts/release-notes.cjs check");
   });
 
-  it("keeps image publication approved and attaches evidence without replacing notes or assets", () => {
+  it("publishes validated version images automatically and supports manual recovery", () => {
     const workflow = fs.readFileSync(
       path.join(repositoryRoot, ".github", "workflows", "container-release.yml"),
       "utf8"
     );
+    expect(workflow).toContain("workflow_call:");
     expect(workflow).toContain("workflow_dispatch:");
-    expect(workflow).toContain("ENABLE_RELEASE_PUBLISHING");
-    expect(workflow).toContain("approve_publication");
-    expect(workflow).toContain("environment: release");
+    expect(workflow).toContain("if: github.event_name == 'workflow_dispatch'");
+    expect(workflow).not.toContain("ENABLE_RELEASE_PUBLISHING");
+    expect(workflow).not.toContain("approve_publication");
+    expect(workflow).not.toContain("environment: release");
     expect(workflow).toContain('node scripts/release-notes.cjs verify "$IMAGE_TAG"');
     expect(workflow.indexOf("release-notes.cjs verify")).toBeLessThan(workflow.indexOf("docker login"));
     expect(workflow).toContain('gh release upload "$IMAGE_TAG" --repo "$GITHUB_REPOSITORY"');

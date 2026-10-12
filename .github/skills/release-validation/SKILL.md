@@ -33,10 +33,10 @@ Use this skill after publication, container, or release-related changes. Derive 
 13. Compare per-architecture image size and cold startup with the last recorded baseline; explain meaningful regressions.
 14. Report commands, measured results, skipped checks, accepted vulnerability exceptions, and residual risks.
 
-Follow `docs/RELEASING.md` for the approval boundary. Validate `v<Version>` against its resolved
-commit and successful quality run before native builds. Automatic version tagging does not
-publish images; the final quality job publishes reviewed Keep a Changelog GitHub notes, while
-container publication requires the opt-in variable and an explicitly approved manual run.
+Follow `docs/RELEASING.md` for the publication boundary. Validate `v<Version>` against its resolved
+commit and successful quality prerequisites before native builds. A newly validated version tag
+automatically calls container publication after the final quality job publishes reviewed Keep a
+Changelog GitHub notes. Manual dispatch remains available only to recover an existing validated tag.
 Keep release SBOMs, scan output, resource observations, and image/index metadata as durable
 assets on the existing GitHub release after the exact tested index is published, without replacing notes.
 

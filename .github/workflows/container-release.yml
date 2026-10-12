@@ -1,17 +1,18 @@
-name: Publish approved release
+name: Publish release container
 
 on:
+  workflow_call:
+    inputs:
+      tagname:
+        description: Existing validated Git tag in v<Version> form
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       tagname:
         description: Existing validated Git tag in v<Version> form
         required: true
         type: string
-      approve_publication:
-        description: I approve public publication and have reviewed the release audit
-        required: true
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -33,13 +34,6 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
-      - name: Require explicit publication approval
-        env:
-          ENABLED: ${{ vars.ENABLE_RELEASE_PUBLISHING }}
-          APPROVED: ${{ inputs.approve_publication }}
-        run: |
-          test "$ENABLED" = true || { echo "Set ENABLE_RELEASE_PUBLISHING only after configuring release approvals and secrets."; exit 1; }
-          test "$APPROVED" = true || { echo "Publication requires explicit approval."; exit 1; }
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
@@ -53,6 +47,7 @@ jobs:
           REQUESTED_TAG: ${{ inputs.tagname }}
         run: node scripts/release-version.cjs resolve "$REQUESTED_TAG"
       - name: Require successful quality evidence for this exact commit
+        if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_COMMIT: ${{ steps.version.outputs.commit }}
@@ -177,7 +172,6 @@ jobs:
     needs: [preflight, native-image]
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: release
     permissions:
       contents: write
     env:

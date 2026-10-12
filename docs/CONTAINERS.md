@@ -4,9 +4,10 @@ MockAPI uses one Native AOT image per platform and one Dockerfile across local d
 
 This guide covers the shared image contract, local container workflow, engine-specific constraints, measured image footprint, platform support, and release-validation boundary. See Microsoft's [WSL container tutorial](https://learn.microsoft.com/windows/wsl/tutorials/wsl-containers) for WSLC installation and introductory usage. Run `wslc version` and review command help before relying on these constraints with a newer release.
 
-For the version-bump, automatic-tag, approval, Docker Hub, and GitHub release procedure, use
-[Versioning and Releases](RELEASING.md). Production publication is opt-in and always builds the exact
-validated tag commit. The [development container](DEVELOPMENT.md) is for editing and testing, not distribution.
+For the version-bump, automatic-tag, Docker Hub, and GitHub release procedure, use
+[Versioning and Releases](RELEASING.md). Production publication follows each newly validated version
+tag and always builds the exact tagged commit. The [development container](DEVELOPMENT.md) is for
+editing and testing, not distribution.
 
 ## WSLC Capabilities
 

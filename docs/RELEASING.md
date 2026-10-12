@@ -1,8 +1,7 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.4.1. This version decision does not publish a release
-or replace the quality, public-release audit, native image validation, and publication approval
-gates below.
+MockAPI's next stable application version is 1.4.1. This version decision publishes only after the quality, public-release audit, and native image
+validation gates below succeed.
 
 ## 1.4.1 release summary
 
@@ -23,10 +22,10 @@ the management API, mock routing, persisted endpoint configuration, or configura
 documents, API-key enforcement, and stored UTC statistics remain unchanged. No configuration
 migration is required.
 
-No container publication is implied by the version or changelog update. Keep pull examples on
-already-published image tags until approved native image validation and publication finish.
+The validated version tag starts container publication after the GitHub release is created. Keep
+pull examples on already-published image tags until native image validation and publication finish.
 
-## One version, automatic release notes, approved images
+## One version, automatic release notes and images
 
 `<Version>` in [the application project](../src/MockAPI/MockAPI.csproj) is the only application-version
 source. [package.json](../package.json) is private, unversioned development tooling.
@@ -43,8 +42,8 @@ in parser, ordering, and release-policy tests are independent fixtures and remai
    browser checks before creating an annotated `v<Version>` tag at that exact commit and publishing
    a GitHub release with that version's Keep a Changelog notes. Prerelease versions are marked as
    prereleases and never marked as latest.
-2. **Approve and publish images:** manually run [Publish approved release](../.github/workflows/container-release.yml)
-   from `main`, supply that existing tag, and explicitly approve publication.
+2. **Validate and publish images:** for a new version, the quality workflow calls
+   [Publish release container](../.github/workflows/container-release.yml) with the validated tag.
    Both native images are built from the resolved tag commit, never the current branch tip.
    The workflow attaches evidence to the existing GitHub release without replacing its notes.
 
@@ -53,11 +52,12 @@ is safe only at the same commit. Downgrades and reused tags fail. Existing histo
 as `1.0.0-beta.3` remain untouched; new automation uses the `v` prefix. Introducing the automation
 does not bump the application or retroactively tag an unchanged version.
 
-The `GITHUB_TOKEN` tag push and release creation intentionally do not trigger another workflow.
-The release is created directly in the final quality job, not by a tag-triggered workflow.
-There is no automatic container push or container `latest` alias. For explicit recovery or
-first-time tagging, manually run the complete **Quality engineering** workflow on `main`;
-it validates, tags, and releases that commit. Do not use this to replace an already tagged version.
+The `GITHUB_TOKEN` tag push does not trigger another workflow, so the final quality job explicitly
+calls the reusable container workflow after creating the tag and GitHub release. There is no
+container `latest` alias. For recovery, manually run **Publish release container** with the existing
+validated tag. For first-time tagging, manually run the complete **Quality engineering** workflow
+on `main`; it validates, tags, releases, and publishes that commit. Do not use either workflow to
+replace an already published tag.
 
 Use the [versioning skill](../.github/skills/versioning/SKILL.md) and
 [versioning agent](../.github/agents/versioning.agent.md) for compatibility decisions.
@@ -87,29 +87,24 @@ boundary for GitHub metadata, not approval to publish container images.
 
 ## Repository setup (once, by an administrator)
 
-Container publication and Pages deployment are disabled until enabled explicitly. GitHub
-release metadata is automatic after a validated version bump on `main`. Do not store registry
+Container publication and GitHub release metadata are automatic after a validated version bump on
+`main`. Pages deployment remains disabled until enabled explicitly. Do not store registry
 credentials in the repository, development container, or Codespaces settings.
 
-| Setting              | Required value or action                                                                                                                                |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Actions permissions  | Permit the final quality job's `contents: write` for tags and GitHub releases; allow immutable tag creation under the repository's tag rules            |
-| Release assets       | Permit post-publication evidence uploads; GitHub's immutable-release setting is incompatible with this two-step asset workflow                          |
-| Release environment  | Create `release`; limit deployment branches to `main`; require reviewers and prevent self-review when supported                                         |
-| Registry credentials | Add `DOCKERHUB_USERNAME` and a least-privilege `DOCKERHUB_TOKEN` to the `release` environment (repository secrets only if environments are unavailable) |
-| Release opt-in       | Set repository variable `ENABLE_RELEASE_PUBLISHING=true` only after the audit and approvals are arranged                                                |
-| Pages source         | Choose **GitHub Actions** under Settings > Pages, after reviewing what will become public                                                               |
-| Pages environment    | Protect `github-pages` and restrict deployments to `main`                                                                                               |
-| Pages opt-in         | Set repository variable `ENABLE_PAGES=true` only when publication is approved                                                                           |
+| Setting              | Required value or action                                                                                                                     |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Actions permissions  | Permit the final quality job's `contents: write` for tags and GitHub releases; allow immutable tag creation under the repository's tag rules |
+| Release assets       | Permit post-publication evidence uploads; GitHub's immutable-release setting is incompatible with this two-step asset workflow               |
+| Registry credentials | Add `DOCKERHUB_USERNAME` and a least-privilege `DOCKERHUB_TOKEN` as repository secrets                                                       |
+| Pages source         | Choose **GitHub Actions** under Settings > Pages, after reviewing what will become public                                                    |
+| Pages environment    | Protect `github-pages` and restrict deployments to `main`                                                                                    |
+| Pages opt-in         | Set repository variable `ENABLE_PAGES=true` only when publication is approved                                                                |
 
-GitHub may require a paid plan for protected environments, branch protection, or Pages on a
-private repository. Until required reviewers are available, the manual workflow's explicit
-approval checkbox is the human gate, not an independent two-person approval.
-Leave publishing disabled if that is insufficient for your governance requirements.
-Do not change repository visibility solely to make a workflow pass.
+GitHub may require a paid plan for branch protection or Pages on a private repository. Do not
+change repository visibility solely to make a workflow pass.
 
 GitHub immutable releases lock their assets at publication. If that setting is required,
-this automatic-metadata/separately-approved-image sequence needs a different evidence delivery
+this automatic metadata-and-image sequence needs a different evidence delivery
 design before container publication can be enabled. Image publication rejects an immutable
 GitHub release before any registry push; it never disables repository protections automatically.
 The pipeline independently refuses to move tags, overwrite notes, or replace existing assets.
@@ -138,12 +133,12 @@ The pipeline independently refuses to move tags, overwrite notes, or replace exi
    ```
 
 4. Merge the approved version bump and changelog. Wait for **Quality engineering**, including
-   the tag/release job, to succeed. Confirm the GitHub release contains the reviewed notes.
+   tag, release, and container publication, to succeed. Confirm the GitHub release contains the reviewed notes.
    A failed quality workflow must not be bypassed by manually creating a tag.
-5. Dispatch **Publish approved release** from `main`. Enter the exact `v<Version>` tag and approve
-   publication only after reviewing the audit. No credentials are needed for the native build jobs.
-6. Review both architecture checks, then approve the `release` environment if configured.
-7. Confirm Docker Hub index membership and attached release evidence. Only then update
+5. Confirm both architecture checks, Docker Hub index membership, and attached release evidence.
+   If automatic publication fails after tag creation, fix the cause and rerun **Quality engineering**
+   or manually dispatch **Publish release container** with the existing tag.
+6. Only then update
    README pull examples to the newly available tag. Keep prereleases marked as prereleases.
 
 The workflow requires successful quality evidence for the exact commit, verifies the project/tag

@@ -80,6 +80,7 @@ foreach ($workflowFile in $workflowFiles) {
   $jobName = $null
   $jobLineNumber = 0
   $hasTimeout = $false
+  $isReusableWorkflowCall = $false
   $lineNumber = 0
   foreach ($line in Get-Content -LiteralPath $workflowFile.FullName) {
     $lineNumber++
@@ -91,14 +92,19 @@ foreach ($workflowFile in $workflowFiles) {
       continue
     }
     if ($line -match '^  (?<name>[A-Za-z0-9_-]+):\s*$') {
-      if ($null -ne $jobName -and -not $hasTimeout) {
+      if ($null -ne $jobName -and -not $hasTimeout -and -not $isReusableWorkflowCall) {
         $relativePath = [IO.Path]::GetRelativePath((Join-Path $PSScriptRoot '..'), $workflowFile.FullName)
         $violations.Add("${relativePath}:${jobLineNumber}: job '$jobName' must define timeout-minutes between 1 and 60.")
       }
       $jobName = $Matches.name
       $jobLineNumber = $lineNumber
       $hasTimeout = $false
+      $isReusableWorkflowCall = $false
       $jobCount++
+      continue
+    }
+    if ($null -ne $jobName -and $line -match '^    uses:\s+\./\.github/workflows/') {
+      $isReusableWorkflowCall = $true
       continue
     }
     if ($null -ne $jobName -and $line -match '^    timeout-minutes:\s*(?<minutes>[^\s#]+)') {
@@ -110,7 +116,7 @@ foreach ($workflowFile in $workflowFiles) {
       }
     }
   }
-  if ($null -ne $jobName -and -not $hasTimeout) {
+  if ($null -ne $jobName -and -not $hasTimeout -and -not $isReusableWorkflowCall) {
     $relativePath = [IO.Path]::GetRelativePath((Join-Path $PSScriptRoot '..'), $workflowFile.FullName)
     $violations.Add("${relativePath}:${jobLineNumber}: job '$jobName' must define timeout-minutes between 1 and 60.")
   }
