@@ -169,19 +169,21 @@ test("getting-started cards fill the content width and stack on smaller screens"
   }
 });
 
-test("features follow common uses and describe deployment, security, portability, and live requests", async ({
-  page,
-}) => {
+test("features follow common uses and lead with the small, hardened container", async ({ page }) => {
   await page.goto("./");
   const examples = page.getByRole("region", { name: "Mock API examples for development and testing" });
-  const features = page.getByRole("region", { name: "Deploy, protect, and inspect your mock APIs" });
+  const features = page.getByRole("region", { name: "A small, hardened container for your mock APIs" });
   await expect(features.locator(".card")).toHaveCount(4);
   await expect(features.getByRole("heading", { level: 3 })).toHaveText([
-    "CNAME support",
-    "Dashboard and API protection",
+    "Minimal Native AOT image",
+    "Hardened by default",
     "Import, save, and export",
     "Live request view",
   ]);
+  await expect(features).toContainText("no .NET SDK, managed runtime, JIT, compiler, or debug symbols");
+  await expect(features).toContainText("non-root user");
+  await expect(features).toContainText("read-only root filesystem");
+  await expect(features).toContainText("API key by default");
   await expect(features).toContainText("Postman, Insomnia, cURL, JMeter, OpenAPI, k6, or HTTP files");
   expect(
     await features.evaluate(

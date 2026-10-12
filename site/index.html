@@ -115,6 +115,7 @@
             "codeRepository": "https://github.com/simonkurtz-MSFT/MockAPI",
             "screenshot": "https://mockapi.simondoescloud.com/dashboard.png",
             "featureList": [
+              "Small Native AOT container with a non-root runtime",
               "Live endpoint editing without a restart",
               "Exact HTTP method and path matching",
               "Configurable status codes, headers, and response bodies",
@@ -132,9 +133,10 @@
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header">
-      <a class="brand" href="./" aria-label="MockAPI home"
-        ><img src="./brand-mark.svg" width="40" height="40" alt="" />MockAPI</a
-      >
+      <a class="brand" href="./" aria-label="MockAPI home">
+        <img src="./brand-mark.svg" width="40" height="40" alt="" />
+        MockAPI
+      </a>
       <nav aria-label="Main navigation">
         <a href="#start">Get started</a>
         <a href="#examples">Examples</a>
@@ -169,7 +171,13 @@
       <section class="hero" aria-labelledby="hero-title">
         <p class="eyebrow">HTTP mocking for development and testing</p>
         <h1 id="hero-title">
-          MockAPI<br /><span>Configure the response.<br />Test your application.</span>
+          MockAPI
+          <br />
+          <span>
+            Configure the response.
+            <br />
+            Test your application.
+          </span>
         </h1>
         <p class="lead">
           MockAPI is an open-source, self-hosted mock API server designed for efficient request handling and a small
@@ -210,8 +218,9 @@
               />
             </a>
             <figcaption>
-              <strong>Dashboard overview.</strong> Example endpoints, request statistics, and recent outcomes in the
-              side-by-side workspace. Select the image to open it at full size.
+              <strong>Dashboard overview.</strong>
+              Example endpoints, request statistics, and recent outcomes in the side-by-side workspace. Select the image
+              to open it at full size.
             </figcaption>
           </figure>
           <figure
@@ -235,8 +244,9 @@
               />
             </a>
             <figcaption>
-              <strong>Example endpoints.</strong> Success responses, redirects, rate limiting, server errors, and
-              connection aborts, with controls to test and edit each definition.
+              <strong>Example endpoints.</strong>
+              Success responses, redirects, rate limiting, server errors, and connection aborts, with controls to test
+              and edit each definition.
             </figcaption>
           </figure>
           <figure
@@ -260,9 +270,9 @@
               />
             </a>
             <figcaption>
-              <strong>Request log.</strong> Recent entries from a 16-request sample, with UTC timestamps by default,
-              methods, paths, HTTP outcomes, transport attempts, and response byte counts. Choose local time in Settings
-              if preferred.
+              <strong>Request log.</strong>
+              Recent entries from a 16-request sample, with UTC timestamps by default, methods, paths, HTTP outcomes,
+              transport attempts, and response byte counts. Choose local time in Settings if preferred.
             </figcaption>
           </figure>
         </div>
@@ -325,7 +335,8 @@ cd MockAPI</code></pre>
             </details>
             <p>
               The dashboard opens automatically when MockAPI is ready. If your browser does not open, visit
-              <a href="http://localhost:5080/__mockapi/">localhost:5080/__mockapi/</a>.
+              <a href="http://localhost:5080/__mockapi/">localhost:5080/__mockapi/</a>
+              .
             </p>
           </article>
           <article class="card">
@@ -333,7 +344,9 @@ cd MockAPI</code></pre>
             <h3>Use a container</h3>
             <p>
               Choose an existing version from Docker Hub. Published previews can lag behind this documentation; never
-              assume an unpublished beta or a <code>latest</code> tag exists.
+              assume an unpublished beta or a
+              <code>latest</code>
+              tag exists.
             </p>
             <a class="button" href="https://hub.docker.com/r/simonkurtzmsft/mockapi/tags">Browse published images</a>
             <p>For current source, build with Docker:</p>
@@ -348,34 +361,30 @@ cd MockAPI</code></pre>
 ./start.sh --action container-run --container-engine docker</code></pre>
             </details>
             <p>
-              <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/CONTAINERS.md"
-                >WSLC, persistence, and platform guide</a
-              >
+              <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/CONTAINERS.md">
+                WSLC, persistence, and platform guide
+              </a>
             </p>
           </article>
         </div>
         <div class="first-response">
           <h3>Make your first request</h3>
           <ol>
-            <li>Open the dashboard and select <strong>Load examples</strong>.</li>
             <li>
-              Configure dashboard administrator credentials, then generate a key in
-              <strong>Settings &gt; Mock API security</strong>.
+              Open the dashboard and select
+              <strong>Load examples</strong>
+              .
             </li>
             <li>
-              Select <strong>Test</strong> for <code>/ctp/parks</code> (Contoso Theme Parks), or send an external
-              request with the <code>X-MockAPI-Key</code> header. Mock calls without a key return <code>401</code> by
-              default.
+              Press the play button for
+              <code>/ctp/parks</code>
+              (Contoso Theme Parks).
             </li>
-            <li>Edit the response, repeat the request, and check the response and request statistics.</li>
-            <li>
-              Changes are saved automatically to your configured writable file, volume, or Azure Blob Storage. If saving
-              fails, changes stay active but unsaved; use <strong>Retry save</strong>.
-            </li>
+            <li>Changes are saved automatically to your configured writable file, volume, or Azure Blob Storage.</li>
           </ol>
           <p>
-            <strong>Keep administration private.</strong> Localhost or a protected network is the default. Before
-            sharing a deployment, configure administrative authentication and HTTPS.
+            <strong>Keep administration private and APIs protected.</strong>
+            Before sharing a deployment, configure administrative authentication, HTTPS, and API key protection.
           </p>
         </div>
       </section>
@@ -389,9 +398,9 @@ cd MockAPI</code></pre>
               Configure responses for an upstream API that is not yet available. Requests match an exact HTTP method and
               path, so your application can call the same routes during development.
             </p>
-            <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/config/mockapi.json"
-              >Explore the built-in examples</a
-            >
+            <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/config/mockapi.json">
+              Explore the built-in examples
+            </a>
           </article>
           <article class="card">
             <h3>Exercise retry behavior</h3>
@@ -399,9 +408,9 @@ cd MockAPI</code></pre>
               Return HTTP 429 with Retry-After, configure server errors, or abort a connection. Check how your client
               handles these failures without changing the upstream service.
             </p>
-            <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/CONFIGURATION.md"
-              >Configure a response</a
-            >
+            <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/CONFIGURATION.md">
+              Configure a response
+            </a>
           </article>
           <article class="card">
             <h3>Keep test configuration in source control</h3>
@@ -409,45 +418,45 @@ cd MockAPI</code></pre>
               Import and export endpoint definitions as JSON. Review configuration changes in source control or automate
               them through the management API.
             </p>
-            <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/MANAGEMENT_API.md"
-              >Use the management API</a
-            >
+            <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/MANAGEMENT_API.md">
+              Use the management API
+            </a>
           </article>
         </div>
       </section>
       <section id="features" aria-labelledby="features-title">
         <p class="eyebrow">Features</p>
-        <h2 id="features-title">Deploy, protect, and inspect your mock APIs</h2>
+        <h2 id="features-title">A small, hardened container for your mock APIs</h2>
         <div class="cards feature-cards">
           <article class="card">
-            <h3>CNAME support</h3>
+            <h3>Minimal Native AOT image</h3>
             <p>
-              Serve MockAPI from your own subdomain with CNAME-based custom-domain validation and Azure-managed TLS.
+              Ship only the compiled application and its dependencies. The final image contains no .NET SDK, managed
+              runtime, JIT, compiler, or debug symbols.
             </p>
-            <a
-              href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/OPERATIONS.md#custom-domain-and-azure-managed-tls"
-              >Configure a custom domain</a
-            >
+            <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/CONTAINERS.md#measured-image-footprint">
+              See measured image and memory results
+            </a>
           </article>
           <article class="card">
-            <h3>Dashboard and API protection</h3>
+            <h3>Hardened by default</h3>
             <p>
-              Protect administrative surfaces with dashboard credentials and require an independently generated API key
-              for calls to mock endpoints.
+              Run as a non-root user, disable runtime diagnostics, support a read-only root filesystem, and protect mock
+              calls with an API key by default.
             </p>
-            <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/OPERATIONS.md"
-              >Review security options</a
-            >
+            <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/OPERATIONS.md">
+              Review security options
+            </a>
           </article>
           <article class="card">
             <h3>Import, save, and export</h3>
             <p>
-              Import endpoint definitions, save changes to configured storage, and export requests as Postman, Insomnia,
-              cURL, JMeter, OpenAPI, k6, or HTTP files.
+              Import endpoint definitions, save changes to storage, and export requests as Postman, Insomnia, cURL,
+              JMeter, OpenAPI, k6, or HTTP files.
             </p>
-            <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/MANAGEMENT_API.md"
-              >Explore configuration workflows</a
-            >
+            <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/MANAGEMENT_API.md">
+              Explore configuration workflows
+            </a>
           </article>
           <article class="card">
             <h3>Live request view</h3>
@@ -455,33 +464,27 @@ cd MockAPI</code></pre>
               Watch recent matched requests in the dashboard with timestamps, outcomes, status codes, response sizes,
               and retry attempt counts.
             </p>
-            <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/MANAGEMENT_API.md#statistics"
-              >Understand request statistics</a
-            >
+            <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/MANAGEMENT_API.md#statistics">
+              Understand request statistics
+            </a>
           </article>
         </div>
       </section>
       <section class="closing" aria-labelledby="closing-title">
-        <h2 id="closing-title">Self-hosted, with a small runtime footprint</h2>
-        <p>
-          MockAPI runs as a single .NET application or Linux container. The dashboard is served by the application; no
-          separate frontend server or hosted account is required. The runtime does not include analytics. This
-          documentation page is not a running MockAPI instance.
-        </p>
         <a class="button primary" href="https://github.com/simonkurtz-MSFT/MockAPI">Explore MockAPI on GitHub</a>
       </section>
     </main>
     <footer>
       <p>
-        MockAPI &middot;
         <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/LICENSE">MIT licensed</a>
-        &middot;
+        by
         <a href="https://www.simondoescloud.com" target="_blank" rel="noopener noreferrer">Simon Kurtz</a>
       </p>
       <div class="footer-details">
-        <span
-          >Version {{VERSION}} &middot; Built <time datetime="{{BUILD_DATE_ISO}}">{{BUILD_DATE_DISPLAY}}</time></span
-        >
+        <span>
+          Version {{VERSION}} &middot; Built
+          <time datetime="{{BUILD_DATE_ISO}}">{{BUILD_DATE_DISPLAY}}</time>
+        </span>
       </div>
     </footer>
     <script>
