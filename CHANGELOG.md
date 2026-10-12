@@ -7,6 +7,22 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-12
+
+### Added
+
+- A browser-saved workspace preference switches request-log times and minute bucket labels between
+  UTC and the browser's local time zone.
+
+### Changed
+
+- Request log uses one Time column with UTC as the default instead of showing separate local and UTC
+  columns. Stored timestamps and minute bucket identities remain in UTC.
+- Local developer CLI runs default to `http://localhost:5080` when `ASPNETCORE_URLS` is unset, so
+  the documented run commands no longer require a separate environment-variable step.
+- Dashboard and documentation-site links, copy, layout, and screenshots reflect the current public
+  project presentation.
+
 ## [1.4.0] - 2026-10-09
 
 ### Added
@@ -110,7 +126,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.0...v1.4.1
 [1.4.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.2.0...v1.3.0
 [1.2.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.1.0...v1.2.0

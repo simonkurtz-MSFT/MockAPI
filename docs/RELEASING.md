@@ -1,35 +1,27 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.4.0. This version decision does not publish a release
+MockAPI's next stable application version is 1.4.1. This version decision does not publish a release
 or replace the quality, public-release audit, native image validation, and publication approval
 gates below.
 
-## 1.4.0 release summary
+## 1.4.1 release summary
 
-The planned release date is **2026-10-09**, with the immutable tag **`v1.4.0`**.
-The [1.4.0 changelog entry](../CHANGELOG.md#140---2026-10-09) supplies the GitHub release notes.
+The planned release date is **2026-10-12**, with the immutable tag **`v1.4.1`**.
+The [1.4.1 changelog entry](../CHANGELOG.md#141---2026-10-12) supplies the GitHub release notes.
 
-- A persistent header indicator makes mock API protection visible without opening Settings.
-- Endpoint tests explain how to supply a required key or explicitly disable request protection,
-  while retaining deliberate unauthorized testing and response inspection.
-- Existing operation IDs are visible as read-only in the edit dialog.
-- Compact status and action columns give names and paths more room. Stable column widths, contained
-  sort indicators, centered Attempts headings and values, and separate HTTP method badges improve
-  dashboard readability. Last-attempt times are available by hovering over attempt counts instead
-  of occupying a separate column.
-- Information previews dismiss when the pointer leaves their button.
-- Path appears after selection and before the information button and operation name, without the
-  redundant API prefix. Full configured paths and request URLs remain unchanged.
-- Vertical scrolling with sticky headers replaces paging and shows every matching operation.
-  API groups stay alphabetical; operations default to alphabetical name order, and header clicks
-  sort operations within expanded groups without changing group order or collapse state.
+- Request log uses one Time column with UTC as the default. A browser-saved workspace preference
+  switches request times and minute bucket labels to the browser's local time zone.
+- Local developer CLI runs default to `http://localhost:5080` when `ASPNETCORE_URLS` is unset.
+- Dashboard and documentation-site links, copy, layout, and screenshots reflect the current public
+  project presentation.
 
 ### Compatibility and upgrade behavior
 
-The dashboard protection indicator, key guidance, and operation ID display add functionality
-without changing the configuration schema (`schemaVersion: "1.0"`), so 1.4.0 is a minor release.
-Existing endpoint IDs, configuration documents, mock routing, and API-key enforcement remain
-unchanged. These dashboard changes require no configuration migration.
+The request-log display preference and local-run default refine existing behavior without changing
+the management API, mock routing, persisted endpoint configuration, or configuration schema
+(`schemaVersion: "1.0"`), so 1.4.1 is a patch release. Existing endpoint IDs, configuration
+documents, API-key enforcement, and stored UTC statistics remain unchanged. No configuration
+migration is required.
 
 No container publication is implied by the version or changelog update. Keep pull examples on
 already-published image tags until approved native image validation and publication finish.
@@ -69,7 +61,7 @@ it validates, tags, and releases that commit. Do not use this to replace an alre
 
 Use the [versioning skill](../.github/skills/versioning/SKILL.md) and
 [versioning agent](../.github/agents/versioning.agent.md) for compatibility decisions.
-Creating the `v1.4.0` tag still requires the approved application-version bump to reach `main`.
+Creating the `v1.4.1` tag still requires the approved application-version bump to reach `main`.
 
 ## Reviewed changelog contract
 
