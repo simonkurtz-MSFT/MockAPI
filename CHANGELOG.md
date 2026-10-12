@@ -7,6 +7,19 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-10-12
+
+### Changed
+
+- Dashboard and documentation-site copy, formatting, and styling are refined, with a clearer
+  documentation-site feature overview.
+- Container publication now follows the quality workflow's validated version tag and GitHub release
+  automatically, while retaining manual dispatch for recovery of an existing validated tag.
+
+### Fixed
+
+- Azure Container Apps deployments keep one replica running instead of scaling to zero.
+
 ## [1.4.1] - 2026-10-12
 
 ### Added
@@ -126,7 +139,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.4.2...HEAD
+[1.4.2]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.0...v1.4.1
 [1.4.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.2.0...v1.3.0

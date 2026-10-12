@@ -1,26 +1,26 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.4.1. This version decision publishes only after the quality, public-release audit, and native image
+MockAPI's next stable application version is 1.4.2. This version decision publishes only after the quality, public-release audit, and native image
 validation gates below succeed.
 
-## 1.4.1 release summary
+## 1.4.2 release summary
 
-The planned release date is **2026-10-12**, with the immutable tag **`v1.4.1`**.
-The [1.4.1 changelog entry](../CHANGELOG.md#141---2026-10-12) supplies the GitHub release notes.
+The planned release date is **2026-10-12**, with the immutable tag **`v1.4.2`**.
+The [1.4.2 changelog entry](../CHANGELOG.md#142---2026-10-12) supplies the GitHub release notes.
 
-- Request log uses one Time column with UTC as the default. A browser-saved workspace preference
-  switches request times and minute bucket labels to the browser's local time zone.
-- Local developer CLI runs default to `http://localhost:5080` when `ASPNETCORE_URLS` is unset.
-- Dashboard and documentation-site links, copy, layout, and screenshots reflect the current public
-  project presentation.
+- Dashboard and documentation-site copy, formatting, and styling are refined, with a clearer
+  documentation-site feature overview.
+- Container publication follows the quality workflow's validated version tag and GitHub release
+  automatically; manual dispatch remains available for recovery of an existing validated tag.
+- Azure Container Apps deployments keep one replica running instead of scaling to zero.
 
 ### Compatibility and upgrade behavior
 
-The request-log display preference and local-run default refine existing behavior without changing
-the management API, mock routing, persisted endpoint configuration, or configuration schema
-(`schemaVersion: "1.0"`), so 1.4.1 is a patch release. Existing endpoint IDs, configuration
+The presentation refinements, publication workflow changes, and Azure minimum-replica correction
+do not change the management API, mock routing, persisted endpoint configuration, or configuration
+schema (`schemaVersion: "1.0"`), so 1.4.2 is a patch release. Existing endpoint IDs, configuration
 documents, API-key enforcement, and stored UTC statistics remain unchanged. No configuration
-migration is required.
+migration is required. Azure deployments retain one running replica and its associated baseline cost.
 
 The validated version tag starts container publication after the GitHub release is created. Keep
 pull examples on already-published image tags until native image validation and publication finish.
@@ -61,7 +61,7 @@ replace an already published tag.
 
 Use the [versioning skill](../.github/skills/versioning/SKILL.md) and
 [versioning agent](../.github/agents/versioning.agent.md) for compatibility decisions.
-Creating the `v1.4.1` tag still requires the approved application-version bump to reach `main`.
+Creating the `v1.4.2` tag still requires the approved application-version bump to reach `main`.
 
 ## Reviewed changelog contract
 
