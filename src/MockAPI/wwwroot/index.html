@@ -283,7 +283,6 @@
                 <table>
                   <colgroup>
                     <col class="request-log-time-column" />
-                    <col class="request-log-time-column" />
                     <col class="request-log-method-column" />
                     <col class="request-log-endpoint-column" />
                     <col class="request-log-path-column" />
@@ -293,8 +292,7 @@
                   </colgroup>
                   <thead>
                     <tr>
-                      <th scope="col">Local time</th>
-                      <th scope="col">UTC</th>
+                      <th id="request-log-time-heading" scope="col" title="Times shown in UTC">Time</th>
                       <th scope="col">Method</th>
                       <th scope="col">Endpoint</th>
                       <th scope="col">Path</th>
@@ -305,7 +303,7 @@
                   </thead>
                   <tbody id="request-log-rows">
                     <tr>
-                      <td class="request-log-empty" colspan="8">No requests recorded</td>
+                      <td class="request-log-empty" colspan="7">No requests recorded</td>
                     </tr>
                   </tbody>
                 </table>
@@ -707,6 +705,17 @@
               </select>
               <p id="settings-endpoint-test-dialog-alignment-description">
                 Center adds space above and below the dialog. Left and right use the full available height.
+              </p>
+            </div>
+            <div class="settings-field">
+              <label for="settings-request-log-time-zone">Request log time zone</label>
+              <select id="settings-request-log-time-zone" aria-describedby="settings-request-log-time-zone-description">
+                <option value="utc">UTC</option>
+                <option value="local">Local time</option>
+              </select>
+              <p id="settings-request-log-time-zone-description">
+                Applies to request times and minute bucket labels. UTC is the default; local time uses your browser's
+                time zone.
               </p>
             </div>
             <div class="settings-field">

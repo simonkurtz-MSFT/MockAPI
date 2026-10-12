@@ -374,7 +374,8 @@ invoke_build() {
 }
 
 get_local_application_url() {
-  local configuredUrls="${ASPNETCORE_URLS:-http://localhost:5000}" configuredUrl
+  local configuredUrls="${ASPNETCORE_URLS:-}" configuredUrl
+  [[ -n "${configuredUrls//[[:space:]]/}" ]] || configuredUrls='http://localhost:5080'
   local -a urls
   IFS=';' read -r -a urls <<< "$configuredUrls"
   for configuredUrl in "${urls[@]}"; do
@@ -425,6 +426,11 @@ invoke_run() {
     assert_dotnet
     require_command curl || die 'curl is required to wait for local application readiness.'
     local tutorialMode="${1:-skip}" applicationUrl browserPid status=0
+    local configuredUrls="${ASPNETCORE_URLS:-}"
+    local -a runArguments=(run --project "$REPOSITORY_ROOT/src/MockAPI/MockAPI.csproj" --configuration "$CONFIGURATION")
+    if [[ -z "${configuredUrls//[[:space:]]/}" ]]; then
+      runArguments+=(-- --urls 'http://localhost:5080')
+    fi
     applicationUrl="$(get_local_application_url)?tutorial=$tutorialMode"
     open_browser_when_ready "$applicationUrl" &
     browserPid=$!
@@ -434,8 +440,7 @@ invoke_run() {
     printf '\n'
     write_color cyan 'Running MockAPI'
     printf '\n'
-    dotnet run --project "$REPOSITORY_ROOT/src/MockAPI/MockAPI.csproj" \
-      --configuration "$CONFIGURATION" || status=$?
+    dotnet "${runArguments[@]}" || status=$?
     (( status == 0 )) || die "Running MockAPI failed with exit code $status."
   )
 }
@@ -1634,6 +1639,8 @@ Interactive menu (no action required):
    run                Run locally and open the dashboard without the tutorial.
    run-tutorial       Run locally and open the dashboard with the tutorial.
    site-preview       Preview the documentation site at http://127.0.0.1:4173/MockAPI/.
+
+   Local runs default to http://localhost:5080; ASPNETCORE_URLS overrides the default.
 
 
 4) Verification

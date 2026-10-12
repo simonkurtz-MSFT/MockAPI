@@ -99,8 +99,9 @@ test("shows only configured endpoint requests without retaining query values", a
   const log = page.getByRole("region", { name: "Recent request log" });
   const rows = log.locator("tbody .request-log-entry");
   await expect(rows).toHaveCount(1);
-  await expect(log.getByRole("columnheader", { name: "Local time" })).toBeVisible();
-  await expect(log.getByRole("columnheader", { name: "UTC" })).toBeVisible();
+  await expect(log.getByRole("columnheader", { name: "Time", exact: true })).toBeVisible();
+  await expect(log.getByRole("columnheader")).toHaveCount(7);
+  await expect(rows.nth(0).locator("td")).toHaveCount(7);
   await page.setViewportSize({ width: 1200, height: 1000 });
   expect(
     await log
@@ -125,6 +126,96 @@ test("shows only configured endpoint requests without retaining query values", a
   await expect(log).not.toContainText("/missing-latest");
   await expect(log).not.toContainText("private-value");
   await expectNoUnreviewedAccessibilityViolations(page);
+});
+
+test.describe("request log time zone", () => {
+  test.use({ timezoneId: "America/New_York" });
+
+  for (const collapsed of [false, true]) {
+    test(`defaults to UTC and applies a saved local-time choice with the log ${collapsed ? "collapsed" : "expanded"}`, async ({
+      page,
+      request,
+    }) => {
+      await expect(page.locator(".request-log-empty")).toHaveAttribute("colspan", "7");
+      await page.getByRole("button", { name: "Load examples" }).first().click();
+      await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(9);
+      expect((await request.get("/ctp/parks")).status()).toBe(200);
+      const entryTime = page.locator(".request-log-entry time").first();
+      const bucketTime = page.locator(".request-log-bucket time").first();
+      await expect(entryTime).toHaveCount(1);
+      const timestampUtc = await entryTime.getAttribute("datetime");
+      const minuteUtc = await bucketTime.getAttribute("datetime");
+      const expected = await page.evaluate(
+        ({ timestampUtc, minuteUtc }) => {
+          const options = { dateStyle: "short", timeStyle: "short" };
+          const utc = new Intl.DateTimeFormat(undefined, { ...options, timeZone: "UTC" });
+          const local = new Intl.DateTimeFormat(undefined, options);
+          return {
+            utcEntry: utc.format(new Date(timestampUtc)),
+            localEntry: local.format(new Date(timestampUtc)),
+            utcBucket: utc.format(new Date(minuteUtc)),
+            localBucket: local.format(new Date(minuteUtc)),
+          };
+        },
+        { timestampUtc, minuteUtc }
+      );
+      expect(expected.localEntry).not.toBe(expected.utcEntry);
+      await expect(entryTime).toHaveText(expected.utcEntry);
+      await expect(bucketTime).toHaveText(expected.utcBucket);
+      await expect(page.locator(".request-log-bucket > td")).toHaveAttribute("colspan", "7");
+      const bucket = page.locator(".request-log-bucket-toggle").first();
+      await bucket.click();
+      if (collapsed) await page.locator("#request-log-toggle").click();
+
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      const setting = page.getByLabel("Request log time zone", { exact: true });
+      await expect(setting).toHaveValue("utc");
+      await setting.selectOption("local");
+      await page.getByRole("button", { name: "Close settings", exact: true }).click();
+      if (collapsed) await page.locator("#request-log-toggle").click();
+      await expect(bucket).toHaveAttribute("aria-expanded", "false");
+      await expect(entryTime).toHaveText(expected.localEntry);
+      await expect(bucketTime).toHaveText(expected.localBucket);
+      await expect(entryTime).toHaveAttribute("datetime", timestampUtc);
+      await expect(bucketTime).toHaveAttribute("datetime", minuteUtc);
+      await bucket.click();
+      await expect(entryTime).toBeVisible();
+
+      await page.reload();
+      await expect(page.locator("#connection-status")).toHaveText("Live");
+      await expect(entryTime).toHaveText(expected.localEntry);
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await expect(setting).toHaveValue("local");
+      await setting.selectOption("utc");
+      await page.getByRole("button", { name: "Close settings", exact: true }).click();
+      await expect(entryTime).toHaveText(expected.utcEntry);
+      await expect(bucketTime).toHaveText(expected.utcBucket);
+      await expect(page.locator(".request-log-table thead th")).toHaveText([
+        "Time",
+        "Method",
+        "Endpoint",
+        "Path",
+        "Result",
+        "Attempts",
+        "Bytes",
+      ]);
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await setting.selectOption("local");
+      await expectNoUnreviewedAccessibilityViolations(page, "#settings-dialog");
+      await page.getByRole("button", { name: "Close settings", exact: true }).click();
+      expect((await request.get("/ctp/parks")).status()).toBe(200);
+      await expect(page.locator(".request-log-entry")).toHaveCount(2);
+      const times = await page.locator(".request-log-entry time").evaluateAll((elements) => {
+        const formatter = new Intl.DateTimeFormat(undefined, { dateStyle: "short", timeStyle: "short" });
+        return elements.map((element) => ({
+          actual: element.textContent,
+          expected: formatter.format(new Date(element.dateTime)),
+        }));
+      });
+      for (const time of times) expect(time.actual).toBe(time.expected);
+      await expectNoUnreviewedAccessibilityViolations(page, ".request-log-workspace");
+    });
+  }
 });
 
 test("collapses request log buckets and opens them from statistics columns", async ({ page, request }) => {

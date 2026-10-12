@@ -172,15 +172,15 @@
           MockAPI<br /><span>Configure the response.<br />Test your application.</span>
         </h1>
         <p class="lead">
-          MockAPI is an open-source, self-hosted mock API server. Configure status codes, headers, and response bodies
-          through the dashboard or a JSON file. Use it to test successful requests, rate limits, server errors, and
-          connection failures. Endpoint changes take effect without a restart.
+          MockAPI is an open-source, self-hosted mock API server designed for efficient request handling and a small
+          memory footprint. Configure status codes, headers, and response bodies through the dashboard or a JSON file.
+          Use it to test successful requests, rate limits, server errors, and connection failures. Endpoint changes take
+          effect without a restart.
         </p>
         <div class="actions">
           <a class="button primary" href="#start">Get started</a>
           <a class="button" href="https://github.com/simonkurtz-MSFT/MockAPI#readme">Read the documentation</a>
         </div>
-        <p class="muted">Open source &middot; .NET 10 &middot; Linux AMD64 + ARM64 &middot; Pre-1.0</p>
       </section>
       <section
         id="dashboard-gallery"
@@ -260,8 +260,9 @@
               />
             </a>
             <figcaption>
-              <strong>Request log.</strong> Recent entries from a 16-request sample, with local and UTC timestamps,
-              methods, paths, HTTP outcomes, transport attempts, and response byte counts.
+              <strong>Request log.</strong> Recent entries from a 16-request sample, with UTC timestamps by default,
+              methods, paths, HTTP outcomes, transport attempts, and response byte counts. Choose local time in Settings
+              if preferred.
             </figcaption>
           </figure>
         </div>
@@ -307,7 +308,7 @@
       <section id="start" aria-labelledby="start-title">
         <p class="eyebrow">Getting started</p>
         <h2 id="start-title">Run your mock API locally or in a container</h2>
-        <div class="cards">
+        <div class="cards start-cards">
           <article class="card">
             <span class="badge">Recommended &middot; Current source</span>
             <h3>Run locally</h3>
@@ -316,15 +317,16 @@
 cd MockAPI</code></pre>
             <details open>
               <summary>PowerShell 7</summary>
-              <pre><code>$env:ASPNETCORE_URLS = 'http://localhost:5080'
-.\start.ps1 -Action run-tutorial</code></pre>
+              <pre><code>.\start.ps1 -Action run-tutorial</code></pre>
             </details>
             <details>
               <summary>Bash</summary>
-              <pre><code>export ASPNETCORE_URLS='http://localhost:5080'
-./start.sh --action run-tutorial</code></pre>
+              <pre><code>./start.sh --action run-tutorial</code></pre>
             </details>
-            <p>Open <a href="http://localhost:5080/__mockapi/">localhost:5080/__mockapi/</a>.</p>
+            <p>
+              The dashboard opens automatically when MockAPI is ready. If your browser does not open, visit
+              <a href="http://localhost:5080/__mockapi/">localhost:5080/__mockapi/</a>.
+            </p>
           </article>
           <article class="card">
             <span class="badge">Isolated runtime</span>
@@ -433,9 +435,6 @@ cd MockAPI</code></pre>
       <div class="footer-details">
         <span
           >Version {{VERSION}} &middot; Built <time datetime="{{BUILD_DATE_ISO}}">{{BUILD_DATE_DISPLAY}}</time></span
-        >
-        <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/RELEASING.md"
-          >Release process and readiness</a
         >
       </div>
     </footer>

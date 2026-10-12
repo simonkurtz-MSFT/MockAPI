@@ -11,6 +11,7 @@ const defaults = {
   endpointsCollapsed: false,
   kjUiStyle: false,
   requestLogCollapsed: false,
+  requestLogTimeZone: "utc",
   statisticsView: "graph",
   statisticsCollapsed: false,
   tutorialDismissed: false,
@@ -44,6 +45,7 @@ describe("createDashboardPreferencesStore", () => {
         endpointsCollapsed: true,
         kjUiStyle: true,
         requestLogCollapsed: true,
+        requestLogTimeZone: "local",
         statisticsView: "table",
         statisticsCollapsed: true,
         tutorialDismissed: true,
@@ -57,6 +59,7 @@ describe("createDashboardPreferencesStore", () => {
       endpointsCollapsed: true,
       kjUiStyle: true,
       requestLogCollapsed: true,
+      requestLogTimeZone: "local",
       statisticsView: "table",
       statisticsCollapsed: true,
       tutorialDismissed: true,
@@ -132,6 +135,7 @@ describe("createDashboardPreferencesStore", () => {
       kjUiStyle: true,
       statisticsView: "table",
       tutorialDismissed: true,
+      requestLogTimeZone: "local",
     });
 
     expect(preferences).toEqual({
@@ -142,6 +146,7 @@ describe("createDashboardPreferencesStore", () => {
       kjUiStyle: true,
       statisticsView: "table",
       tutorialDismissed: true,
+      requestLogTimeZone: "local",
     });
     expect(store.get()).toBe(preferences);
     expect(JSON.parse(storage.entries.get(DASHBOARD_PREFERENCES_KEY))).toEqual({ version: 1, ...preferences });
@@ -153,6 +158,7 @@ describe("createDashboardPreferencesStore", () => {
         endpointTestDialogAlignment: "bottom",
         kjUiStyle: "true",
         statisticsView: "cards",
+        requestLogTimeZone: "invalid",
       })
     ).toEqual({
       ...defaults,
@@ -167,11 +173,29 @@ describe("createDashboardPreferencesStore", () => {
     });
     const store = createDashboardPreferencesStore(storage);
 
-    expect(store.update({ endpointsCollapsed: true, requestLogCollapsed: true, statisticsCollapsed: true })).toEqual({
+    expect(
+      store.update({
+        endpointsCollapsed: true,
+        requestLogCollapsed: true,
+        statisticsCollapsed: true,
+        requestLogTimeZone: "local",
+      })
+    ).toEqual({
       ...defaults,
       endpointsCollapsed: true,
       requestLogCollapsed: true,
       statisticsCollapsed: true,
+      requestLogTimeZone: "local",
     });
   });
+
+  it.each([undefined, null, "invalid", "UTC", true])(
+    "defaults an absent or invalid time zone %s to UTC",
+    (requestLogTimeZone) => {
+      const storage = createStorage({
+        [DASHBOARD_PREFERENCES_KEY]: JSON.stringify({ version: 1, requestLogTimeZone }),
+      });
+      expect(createDashboardPreferencesStore(storage).get().requestLogTimeZone).toBe("utc");
+    }
+  );
 });

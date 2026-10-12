@@ -53,6 +53,7 @@ const elements = getDashboardElements(document, {
   "settings-dialog": "dialog",
   "settings-endpoint-test-dialog-alignment": "select",
   "settings-kj-ui-style": "input",
+  "settings-request-log-time-zone": "select",
   "start-tutorial-button": "button",
   "theme-toggle": "button",
   "toast-region": "div",
@@ -443,6 +444,7 @@ function bindEvents() {
     elements["settings-dashboard-layout"].value = preferences.dashboardLayout;
     elements["settings-endpoint-test-dialog-alignment"].value = preferences.endpointTestDialogAlignment;
     elements["settings-kj-ui-style"].checked = preferences.kjUiStyle;
+    elements["settings-request-log-time-zone"].value = preferences.requestLogTimeZone;
     elements["settings-dialog"].showModal();
     elements["settings-close"].focus();
     void apiSecurity.open();
@@ -471,6 +473,14 @@ function bindEvents() {
   pageEvents.listen(elements["settings-kj-ui-style"], "change", (event) => {
     const preferences = dashboardPreferencesStore.update({ kjUiStyle: event.currentTarget.checked });
     document.documentElement.dataset.kjUiStyle = String(preferences.kjUiStyle);
+  });
+  pageEvents.listen(elements["settings-request-log-time-zone"], "change", (event) => {
+    const preferences = dashboardPreferencesStore.update({
+      requestLogTimeZone: /** @type {import("./dashboard-preferences.js").RequestLogTimeZone} */ (
+        event.currentTarget.value
+      ),
+    });
+    statisticsPanel.setRequestLogTimeZone(preferences.requestLogTimeZone);
   });
   pageEvents.listen(elements["load-example-button"], "click", () => loadBuiltInConfiguration("example"));
   pageEvents.listen(elements["empty-load-example-button"], "click", () => loadBuiltInConfiguration("example"));

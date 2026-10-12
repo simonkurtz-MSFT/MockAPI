@@ -21,6 +21,7 @@ import {
  * @typedef {object} DashboardStatisticsPanel
  * @property {(endpoints: readonly import("./dashboard-core.js").MockEndpoint[]) => void} updateEndpoints Replaces definitions and reconciles scope/labels by stable ID.
  * @property {(statistics: import("./dashboard-core.js").DashboardStatistics) => void} updateStatistics Replaces process-local activity; collapsed/inactive views render when shown.
+ * @property {(timeZone: import("./dashboard-preferences.js").RequestLogTimeZone) => void} setRequestLogTimeZone Applies a normalized view preference immediately, or when the collapsed log is expanded; never changes UTC bucket identities.
  * @property {() => void} dispose Releases static/chart/log listeners and render caches. Stop supplying updates after disposal.
  */
 /**
@@ -45,6 +46,7 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
     "request-log-count": "span",
     "request-log-insight": "p",
     "request-log-rows": "tbody",
+    "request-log-time-heading": "th",
     "request-log-toggle": "button",
     "request-log-toggle-buckets": "button",
     "reset-statistics-scope": "button",
@@ -82,7 +84,7 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
    * statisticsByEndpoint: Map<string, import("./dashboard-core.js").EndpointStatistics>,
    * statisticsScope: "overall"|"endpoint", statisticsView: import("./dashboard-preferences.js").StatisticsView,
    * statisticsEndpointId: string|null, statisticsCollapsed: boolean, requestLogCollapsed: boolean,
-   * collapsedRequestLogBuckets: Set<string>
+   * collapsedRequestLogBuckets: Set<string>, requestLogTimeZone: import("./dashboard-preferences.js").RequestLogTimeZone
    * }} */
   const state = {
     endpoints: [],
@@ -93,6 +95,7 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
     statisticsEndpointId: null,
     statisticsCollapsed: preferences.statisticsCollapsed,
     requestLogCollapsed: preferences.requestLogCollapsed,
+    requestLogTimeZone: preferences.requestLogTimeZone,
     collapsedRequestLogBuckets: new Set(),
   };
   function renderStatistics() {
@@ -110,6 +113,9 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
   }
 
   function renderRequestLog() {
+    const formatRequestTime = state.requestLogTimeZone === "local" ? formatTime : formatUtcTime;
+    elements["request-log-time-heading"].title =
+      state.requestLogTimeZone === "local" ? "Times shown in your browser's local time zone" : "Times shown in UTC";
     const recentRequests = state.statistics?.recentRequests || [];
     const groups = groupRequestsByMinute(recentRequests);
     const bucketKeys = new Set(groups.map((group) => group.minuteUtc));
@@ -119,7 +125,7 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
     elements["request-log-count"].textContent = formatNumber(recentRequests.length);
     updateRequestLogBucketControl();
     if (state.requestLogCollapsed) return;
-    const cache = JSON.stringify([recentRequests, [...state.collapsedRequestLogBuckets]]);
+    const cache = JSON.stringify([recentRequests, [...state.collapsedRequestLogBuckets], state.requestLogTimeZone]);
     if (requestLogCache?.endpoints === state.endpoints && requestLogCache.content === cache) return;
     logEvents.clear();
     requestLogCache = { endpoints: state.endpoints, content: cache };
@@ -131,7 +137,7 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
     if (recentRequests.length === 0) {
       const row = document.createElement("tr");
       const cell = makeElement("td", "request-log-empty", "No requests recorded");
-      cell.colSpan = 8;
+      cell.colSpan = 7;
       row.append(cell);
       elements["request-log-rows"].replaceChildren(row);
       return;
@@ -148,11 +154,9 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
       bucketRow.className = "request-log-bucket";
       bucketRow.dataset.requestLogMinute = bucketKey;
       const bucketHeading = document.createElement("td");
-      bucketHeading.colSpan = 8;
-      const localBucketTime = makeElement("time", "tabular-numeric", formatTime(group.minuteUtc));
-      localBucketTime.dateTime = group.minuteUtc;
-      const utcBucketTime = makeElement("time", "tabular-numeric", formatUtcTime(group.minuteUtc));
-      utcBucketTime.dateTime = group.minuteUtc;
+      bucketHeading.colSpan = 7;
+      const bucketTime = makeElement("time", "tabular-numeric", formatRequestTime(group.minuteUtc));
+      bucketTime.dateTime = group.minuteUtc;
       const toggle = makeElement("button", "request-log-bucket-toggle");
       toggle.type = "button";
       toggle.dataset.requestLogMinute = bucketKey;
@@ -161,7 +165,7 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
       const toggleIcon = makeElement("span", "request-log-bucket-chevron");
       toggleIcon.setAttribute("aria-hidden", "true");
       const label = makeElement("span", "request-log-bucket-label");
-      label.append("Bucket: ", localBucketTime);
+      label.append("Bucket: ", bucketTime);
       const count = makeElement(
         "span",
         "request-log-bucket-count",
@@ -183,15 +187,12 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
         row.id = controlledRowIds[requestIndex];
         row.dataset.requestLogBucket = bucketKey;
         row.hidden = collapsed;
-        const localTime = makeElement("time", "tabular-numeric", formatTime(request.timestampUtc));
-        localTime.dateTime = request.timestampUtc;
-        const utcTime = makeElement("time", "tabular-numeric", formatUtcTime(request.timestampUtc));
-        utcTime.dateTime = request.timestampUtc;
+        const time = makeElement("time", "tabular-numeric", formatRequestTime(request.timestampUtc));
+        time.dateTime = request.timestampUtc;
         const result = formatRequestLogResult(request);
         const methodCell = document.createElement("td");
         methodCell.append(makeElement("span", "method-badge", request.method || "—"));
         row.append(
-          makeElement("td", null),
           makeElement("td", null),
           methodCell,
           makeElement("td", null, endpoint?.name || (request.endpointId ? "Deleted endpoint" : "No match")),
@@ -200,8 +201,7 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
           makeElement("td", "numeric request-log-attempts", formatNumber(request.transportAttempts || 1)),
           makeElement("td", "numeric", formatNumber(request.responseBytes || 0))
         );
-        row.children[0].append(localTime);
-        row.children[1].append(utcTime);
+        row.children[0].append(time);
         rows.push(row);
       }
     }
@@ -611,6 +611,10 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
   setStatisticsCollapsed(state.statisticsCollapsed);
   setRequestLogCollapsed(state.requestLogCollapsed);
   return {
+    setRequestLogTimeZone(timeZone) {
+      state.requestLogTimeZone = timeZone;
+      renderRequestLog();
+    },
     updateEndpoints(endpoints) {
       state.endpoints = endpoints;
       renderDetailedStatistics();

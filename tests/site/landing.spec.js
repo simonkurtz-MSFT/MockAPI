@@ -136,6 +136,58 @@ test("quick starts, assets and accessibility work under the Pages repository pre
   expect(failures).toEqual([]);
 });
 
+test("getting-started cards fill the content width and stack on smaller screens", async ({ page }) => {
+  await page.goto("./");
+  const cards = page.locator("#start .card");
+  await expect(cards).toHaveCount(2);
+
+  for (const width of [1440, 951, 950, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const section = await page.locator("#start").boundingBox();
+    const local = await cards.nth(0).boundingBox();
+    const container = await cards.nth(1).boundingBox();
+    expect(local.x).toBeCloseTo(section.x, 1);
+    expect(container.x + container.width).toBeCloseTo(section.x + section.width, 1);
+    expect(local.width).toBeCloseTo(container.width, 1);
+
+    if (width > 950) {
+      expect(local.y).toBeCloseTo(container.y, 1);
+      expect(container.x).toBeGreaterThan(local.x + local.width);
+      const examples = await page
+        .locator("#examples .card")
+        .evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().y));
+      expect(examples).toHaveLength(3);
+      expect(examples[0]).toBeCloseTo(examples[1], 1);
+      expect(examples[1]).toBeCloseTo(examples[2], 1);
+    } else {
+      expect(local.width).toBeCloseTo(section.width, 1);
+      expect(container.x).toBeCloseTo(section.x, 1);
+      expect(container.y).toBeGreaterThan(local.y + local.height);
+    }
+
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+});
+
+test("introductory copy and self-hosting section fill the main content width on desktop and mobile", async ({
+  page,
+}) => {
+  await page.goto("./");
+  const section = page.getByRole("region", { name: "Self-hosted, with a small runtime footprint" });
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const main = await page.locator("main").boundingBox();
+    for (const content of [page.locator(".hero .lead"), section]) {
+      const bounds = await content.boundingBox();
+      expect(bounds.x).toBeCloseTo(main.x, 1);
+      expect(bounds.width).toBeCloseTo(main.width, 1);
+    }
+    const headline = await page.locator(".hero h1").boundingBox();
+    expect(headline.width).toBeCloseTo(Math.min(main.width, 860), 1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+});
+
 test("footer links to Simon Kurtz's website in a protected new tab", async ({ page }) => {
   await page.goto("./");
   const authorLink = page.getByRole("contentinfo").getByRole("link", { name: "Simon Kurtz", exact: true });

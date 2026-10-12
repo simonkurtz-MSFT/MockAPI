@@ -8,6 +8,7 @@ const VERSION = 1;
 /** @typedef {"auto"|"columns"|"stacked"} DashboardLayout */
 /** @typedef {"left"|"center"|"right"} TestBladeAlignment */
 /** @typedef {"graph"|"table"} StatisticsView */
+/** @typedef {"utc"|"local"} RequestLogTimeZone */
 
 /**
  * @typedef {Object} DashboardPreferences
@@ -17,6 +18,7 @@ const VERSION = 1;
  * @property {boolean} endpointsCollapsed Whether the endpoint section is collapsed.
  * @property {boolean} kjUiStyle Whether the dashboard uses hard corners throughout.
  * @property {boolean} requestLogCollapsed Whether the request log section is collapsed.
+ * @property {RequestLogTimeZone} requestLogTimeZone Time zone used for request-log entries and minute labels; defaults to UTC.
  * @property {StatisticsView} statisticsView Selected statistics presentation.
  * @property {boolean} statisticsCollapsed Whether the statistics section is collapsed.
  * @property {boolean} tutorialDismissed Whether the first-run dashboard tour has been dismissed.
@@ -44,6 +46,7 @@ function normalizePreferences(value, legacyTheme = null) {
     endpointsCollapsed: typeof supported.endpointsCollapsed === "boolean" ? supported.endpointsCollapsed : false,
     kjUiStyle: supported.kjUiStyle === true,
     requestLogCollapsed: typeof supported.requestLogCollapsed === "boolean" ? supported.requestLogCollapsed : false,
+    requestLogTimeZone: supported.requestLogTimeZone === "local" ? "local" : "utc",
     statisticsView: ["graph", "table"].includes(supported.statisticsView) ? supported.statisticsView : "graph",
     statisticsCollapsed: typeof supported.statisticsCollapsed === "boolean" ? supported.statisticsCollapsed : false,
     tutorialDismissed: supported.tutorialDismissed === true,

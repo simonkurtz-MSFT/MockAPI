@@ -266,6 +266,9 @@ tokens, preserving component, theme, responsive, and accessibility precedence.
 Use consistent 28px horizontal page padding in desktop layouts and 16px on mobile to keep panels clear of the viewport edges.
 On viewports at least 1100px wide and 800px tall, keep expanded Endpoints and Request log panels at viewport-based heights with internally scrolling tables and visible controls. Keep collapsed panels and smaller viewports content-sized.
 Default Endpoints, Statistics, and Request log to expanded when no collapse preferences have been saved.
+Show one Time column in Request log. Default request times and minute bucket labels to UTC;
+Settings can switch both to the browser's local time zone, saved as a browser-only workspace preference.
+Keep timestamp values and minute bucket identities in UTC regardless of the display preference.
 Honor explicit saved collapse choices in both stacked and two-column layouts, including after reloads and resizing.
 Apply saved collapse choices before the dashboard modules load so panels do not flash expanded or change height
 when those modules initialize. Missing, invalid, or unsupported collapse preferences retain the expanded default.

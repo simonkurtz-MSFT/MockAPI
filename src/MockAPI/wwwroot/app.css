@@ -564,17 +564,19 @@ html[data-request-log-collapsed="true"] #request-log-body {
   table-layout: fixed;
 }
 .request-log-time-column {
-  width: 16%;
+  width: 20%;
 }
 .request-log-method-column {
   width: 8%;
 }
-.request-log-endpoint-column,
+.request-log-endpoint-column {
+  width: 20%;
+}
 .request-log-result-column {
-  width: 14%;
+  width: 12%;
 }
 .request-log-path-column {
-  width: 18%;
+  width: 26%;
 }
 .request-log-number-column {
   width: 7%;

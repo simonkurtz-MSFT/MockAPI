@@ -126,6 +126,8 @@ nav,
 }
 .hero {
   padding-block: 5rem 3.5rem;
+}
+.hero h1 {
   max-width: 860px;
 }
 .eyebrow {
@@ -159,7 +161,6 @@ h3 {
   margin-block: 1rem;
 }
 .lead {
-  max-width: 700px;
   font-size: 1.25rem;
   color: var(--muted);
 }
@@ -342,6 +343,9 @@ section.gallery {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.25rem;
 }
+.start-cards {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .card {
   min-width: 0;
   padding: 1.6rem;
@@ -386,7 +390,6 @@ li {
 }
 .closing {
   margin-block: 4.5rem;
-  max-width: 800px;
 }
 footer {
   display: flex;
@@ -401,7 +404,8 @@ footer {
 }
 
 @media (max-width: 950px) {
-  .cards {
+  .cards,
+  .start-cards {
     grid-template-columns: 1fr;
   }
 }

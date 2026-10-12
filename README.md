@@ -28,7 +28,6 @@ cd MockAPI
 <summary><strong>PowerShell 7</strong></summary>
 
 ```powershell
-$env:ASPNETCORE_URLS = 'http://localhost:5080'
 .\start.ps1 -Action run-tutorial
 ```
 
@@ -38,11 +37,12 @@ $env:ASPNETCORE_URLS = 'http://localhost:5080'
 <summary><strong>Bash</strong></summary>
 
 ```bash
-export ASPNETCORE_URLS='http://localhost:5080'
 ./start.sh --action run-tutorial
 ```
 
 </details>
+
+Local runs default to `http://localhost:5080`. Set `ASPNETCORE_URLS` only to override that address.
 
 1. Open **[the dashboard](http://localhost:5080/__mockapi/)** and select **Load examples**.
 2. Configure [dashboard administrator credentials](docs/OPERATIONS.md#mock-api-keys), then open
@@ -70,6 +70,10 @@ Keep administrative access on localhost or a protected network unless you config
 ![Annotated MockAPI dashboard showing nine Contoso Theme Parks endpoints under /ctp, configuration commands, live request metrics, the last-60-minutes activity graph, and recent request outcomes.](docs/images/01-dashboard-overview.png)
 
 The browser dashboard is the operations console: load or import a configuration, watch live request metrics, and manage every mock endpoint in one place.
+
+Request log shows a single **Time** column in UTC by default. Switch to your browser's local time zone under
+**Settings > Workspace preferences > Request log time zone**. The choice is saved in this browser and also applies
+to minute bucket labels.
 
 The dashboard logo and browser favicon use a glassy blue tile with **Mock** above **API**.
 
@@ -258,7 +262,6 @@ Use this path for the shortest local development loop. Start MockAPI in one term
 
 ```powershell
 # Terminal 1: start MockAPI and leave it running
-$env:ASPNETCORE_URLS = 'http://localhost:5080'
 .\start.ps1 -Action run
 
 # Terminal 2: verify readiness, then call the first mock endpoint
@@ -273,7 +276,6 @@ Invoke-RestMethod http://localhost:5080/ctp/parks -Headers @{ 'X-MockAPI-Key' = 
 
 ```bash
 # Terminal 1: start MockAPI and leave it running
-export ASPNETCORE_URLS='http://localhost:5080'
 ./start.sh --action run
 
 # Terminal 2: verify readiness, then call the first mock endpoint

@@ -139,6 +139,7 @@ function Test-LocalRun {
   function Invoke-NativeTool {
     param([string] $Executable, [string[]] $Arguments, [switch] $StreamOutput)
     Assert-True ($Executable -eq 'dotnet' -and $Arguments[0] -eq 'run' -and $StreamOutput) 'Local run must stream dotnet run output.'
+    $script:localRunArguments = $Arguments
     return [pscustomobject]@{ ExitCode = $script:localRunExitCode }
   }
   function Stop-Job { param($Job) $script:localRunCleanup.Add('stop') }
@@ -169,6 +170,11 @@ curl() { printf '200'; }
 open_local_browser() { printf '%s\n' "$1" > "$browserLog"; }
 dotnet() {
   [[ "$1" == 'run' ]] || return 98
+  if [[ -z "${ASPNETCORE_URLS//[[:space:]]/}" ]]; then
+    [[ "$#" == 8 && "${6}" == '--' && "${7}" == '--urls' && "${8}" == 'http://localhost:5080' ]] || return 97
+  else
+    [[ "$#" == 5 ]] || return 96
+  fi
   (( runExitCode == 0 )) || return "$runExitCode"
   for ((attempt=0; attempt<100; attempt++)); do
     [[ -s "$browserLog" ]] && return 0
@@ -190,7 +196,9 @@ printf 'BROWSER_URL=%s\n' "$(cat "$browserLog")"
   $script:localRunCleanup = [Collections.Generic.List[string]]::new()
   try {
     foreach ($scenario in @(
-        @{ Urls = ''; Base = 'http://localhost:5000/' },
+        @{ Urls = ''; Base = 'http://localhost:5080/' },
+        @{ Urls = '   '; Base = 'http://localhost:5080/' },
+        @{ Urls = 'http://localhost:5099'; Base = 'http://localhost:5099/' },
         @{ Urls = 'http://localhost:5080'; Base = 'http://localhost:5080/' },
         @{ Urls = 'http://0.0.0.0:5080'; Base = 'http://localhost:5080/' },
         @{ Urls = 'http://[::]:5080'; Base = 'http://localhost:5080/' },
@@ -204,6 +212,12 @@ printf 'BROWSER_URL=%s\n' "$(cat "$browserLog")"
         $mode = if ($action -eq 'run') { 'skip' } else { 'show' }
         $expectedUri = "$($scenario.Base)?tutorial=$mode"
         Assert-True ($script:localRunUri -ceq $expectedUri) "$action must open the correct tutorial URL."
+        $expectedArguments = @('run', '--project', $projectFile, '--configuration', $Configuration)
+        if ([string]::IsNullOrWhiteSpace($scenario.Urls)) {
+          $expectedArguments += @('--', '--urls', 'http://localhost:5080')
+        }
+        Assert-True (($script:localRunArguments -join '|') -ceq ($expectedArguments -join '|')) 'Local run must bind the default URL only when no override is configured.'
+        Assert-True ($env:ASPNETCORE_URLS -ceq $scenario.Urls) 'Local run must not change the caller URL environment variable.'
         Assert-True (($script:localRunCleanup -join ',') -eq 'stop,receive,remove') 'Local run must clean up its browser worker.'
         $encodedUrls = 'urls:' + [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($scenario.Urls))
         $bashResult = Invoke-BashCliProcess -ScriptPath $bashScript -Arguments @($encodedUrls, $action, '0')

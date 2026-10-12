@@ -1067,7 +1067,7 @@ function Invoke-Build {
 function Get-LocalApplicationUri {
   $configuredUrls = [Environment]::GetEnvironmentVariable('ASPNETCORE_URLS', 'Process')
   if ([string]::IsNullOrWhiteSpace($configuredUrls)) {
-    return 'http://localhost:5000/'
+    return 'http://localhost:5080/'
   }
 
   $configuredUrl = @($configuredUrls.Split(';') | Where-Object {
@@ -1115,6 +1115,10 @@ function Invoke-Run {
   param([switch] $ShowTutorial)
 
   Assert-DotNet
+  $runArguments = @('run', '--project', $projectFile, '--configuration', $Configuration)
+  if ([string]::IsNullOrWhiteSpace($env:ASPNETCORE_URLS)) {
+    $runArguments += @('--', '--urls', 'http://localhost:5080')
+  }
   $tutorialMode = if ($ShowTutorial) { 'show' } else { 'skip' }
   $applicationUri = "$(Get-LocalApplicationUri)?tutorial=$tutorialMode"
   $browserJob = Start-BrowserWhenReady -ApplicationUri $applicationUri
@@ -1122,9 +1126,7 @@ function Invoke-Run {
     Write-Host ''
     Write-Host 'Running MockAPI' -ForegroundColor Cyan
     Write-Host ''
-    $result = Invoke-NativeTool -Executable 'dotnet' -Arguments @(
-      'run', '--project', $projectFile, '--configuration', $Configuration
-    ) -StreamOutput
+    $result = Invoke-NativeTool -Executable 'dotnet' -Arguments $runArguments -StreamOutput
     if ($result.ExitCode -ne 0) {
       throw "Running MockAPI failed with exit code $($result.ExitCode)."
     }
@@ -1957,6 +1959,8 @@ Interactive menu (no action required):
    run                Run locally and open the dashboard without the tutorial.
    run-tutorial       Run locally and open the dashboard with the tutorial.
    site-preview       Preview the documentation site at http://127.0.0.1:4173/MockAPI/.
+
+   Local runs default to http://localhost:5080; ASPNETCORE_URLS overrides the default.
 
 
 4) Verification
