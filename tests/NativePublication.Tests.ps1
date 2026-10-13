@@ -40,6 +40,7 @@ foreach ($workflowName in @('container-pr.yml', 'container-release.yml')) {
   Assert-True ($workflow.Contains('outputs: type=docker,oci-mediatypes=true')) 'Both image workflows must preserve OCI manifests.'
   Assert-True ($workflow.Contains('/protected-default)" = "401"')) 'Both native images must reject mock calls with their default settings.'
   Assert-True ($workflow.Contains('--env MockApi__RequireApiKey=false')) 'Unauthenticated response fixtures must opt out of API-key enforcement explicitly.'
+  Assert-True (([regex]::Matches($workflow, 'curl --retry 20 --retry-all-errors')).Count -eq 2) 'Both container restarts must tolerate transient readiness connection errors.'
 }
 
 $publicationFixture = Join-Path ([IO.Path]::GetTempPath()) "mockapi-publication-$([Guid]::NewGuid().ToString('N'))"
