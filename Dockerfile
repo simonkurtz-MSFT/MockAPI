@@ -22,7 +22,7 @@ RUN dotnet publish src/MockAPI/MockAPI.csproj --configuration Release --no-resto
 # 2) Create the final runtime image with the published .NET MockAPI project
 
 # Native AOT removes the managed runtime and JIT; the executable still needs native OS libraries.
-FROM mcr.microsoft.com/dotnet/runtime-deps:10.0.11-alpine3.24@sha256:379b17d7d388a2a1b5330bfc2429a01091f85e255d3bce7981d65927d786c000 AS final
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0.12-alpine3.24@sha256:f23f2bc63f69aca51ae93beccf344123d9a0d79c114a5c4f24835bdbc43b9101 AS final
 EXPOSE 8080
 
 WORKDIR /app

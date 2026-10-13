@@ -1,11 +1,26 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.4.3. This version decision publishes only after
+MockAPI's next stable application version is 1.4.4. This version decision publishes only after
 the quality, public-release audit, and native image validation gates below succeed.
 
-## 1.4.3 release summary
+## 1.4.4 release summary
 
-The planned release date is **2026-10-13**, with the immutable tag **`1.4.3`**.
+The planned release date is **2026-10-13**, with the immutable tag **`1.4.4`**.
+The [1.4.4 changelog entry](../CHANGELOG.md#144---2026-10-13) supplies the GitHub release notes.
+
+- Container validation tolerates transient readiness request failures after recreation.
+- Manual container release recovery recognizes successful quality validation of the immutable tag
+  and provides an actionable command when validation evidence is missing.
+
+### Compatibility and upgrade behavior
+
+These release-pipeline fixes do not change mock routing, the management API, runtime behavior, or
+the configuration schema (`schemaVersion: "1.0"`), so 1.4.4 is a patch release. Existing endpoint
+IDs and configuration documents remain compatible; no migration is required.
+
+## 1.4.3 historical release summary
+
+The release date was **2026-10-13**, with the immutable tag **`1.4.3`**.
 The [1.4.3 changelog entry](../CHANGELOG.md#143---2026-10-13) supplies the GitHub release notes.
 
 - The Contoso Theme Parks example configuration has additional endpoints and clearer descriptions.
@@ -79,7 +94,7 @@ that commit. Do not use either workflow to replace an already published tag.
 
 Use the [versioning skill](../.github/skills/versioning/SKILL.md) and
 [versioning agent](../.github/agents/versioning.agent.md) for compatibility decisions.
-The historical `1.4.2` tag remains immutable. The next approved application-version bump uses
+The historical `1.4.3` tag remains immutable. The next approved application-version bump uses
 the exact project version as its tag without a prefix.
 
 ## Reviewed changelog contract

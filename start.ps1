@@ -1466,7 +1466,7 @@ function Get-WslcBuildFailureMessage {
         })
       'Verify the engine path directly with:'
       '  wslc pull mcr.microsoft.com/dotnet/sdk:10.0.400-alpine3.24@sha256:620e765fe18186c08399f7aa978f79f04b6bbf0ee1b3b8a91e2d5c9619e59da1'
-      '  wslc pull mcr.microsoft.com/dotnet/runtime-deps:10.0.11-alpine3.24@sha256:379b17d7d388a2a1b5330bfc2429a01091f85e255d3bce7981d65927d786c000'
+      '  wslc pull mcr.microsoft.com/dotnet/runtime-deps:10.0.12-alpine3.24@sha256:f23f2bc63f69aca51ae93beccf344123d9a0d79c114a5c4f24835bdbc43b9101'
       "If those fail, run 'wslc system session terminate' to recreate WSLC's independent network session, then retry the pulls."
       "A stale WSLC session survives 'wsl --shutdown', so shutting down ordinary WSL alone may not repair this failure."
       'If a fresh WSLC session still fails, check VPN, proxy, firewall, and WSL networking policy.'

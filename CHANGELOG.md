@@ -7,6 +7,15 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.4.4] - 2026-10-13
+
+### Fixed
+
+- Container validation now retries all transient readiness request failures after container
+  recreation.
+- Manual container release recovery accepts successful quality validation of the immutable release
+  tag and reports the exact recovery command when evidence is missing.
+
 ## [1.4.3] - 2026-10-13
 
 ### Changed
@@ -148,7 +157,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.3...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.4...HEAD
+[1.4.4]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.3...1.4.4
 [1.4.3]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.2...1.4.3
 [1.4.2]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.1...1.4.2
 [1.4.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.0...v1.4.1

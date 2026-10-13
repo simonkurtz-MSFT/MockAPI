@@ -376,7 +376,7 @@ The UI must be keyboard usable and responsive, with WCAG 2.2 AA as the design an
 - Keep local development, tests, coverage, and diagnostic cross-publication on CoreCLR. The developer CLI `publish` action is a managed-code check, not a release artifact; `container-build` produces the native AOT image.
 - Publish one multi-platform OCI image index containing `linux/amd64` and `linux/arm64` images. Keep tags and application behavior identical across architectures.
 - Build in `mcr.microsoft.com/dotnet/sdk:10.0.400-alpine3.24-aot@sha256:cd255a72d14d70260bb9b8dc493c3c37ce0877ef534f85ac1c931628364d7059`; keep its native compiler and linker out of the final image.
-- Run in `mcr.microsoft.com/dotnet/runtime-deps:10.0.11-alpine3.24@sha256:379b17d7d388a2a1b5330bfc2429a01091f85e255d3bce7981d65927d786c000`.
+- Run in `mcr.microsoft.com/dotnet/runtime-deps:10.0.12-alpine3.24@sha256:f23f2bc63f69aca51ae93beccf344123d9a0d79c114a5c4f24835bdbc43b9101`.
 - Run as the built-in non-root `app` user.
 - Listen on HTTP port `8080`; terminate TLS at the container host or ingress.
 - Disable the Kestrel `Server` response header.

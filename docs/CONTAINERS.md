@@ -67,7 +67,7 @@ A browser opening an MCR artifact page proves that Windows can reach the catalog
 
 ```powershell
 wslc pull mcr.microsoft.com/dotnet/sdk:10.0.400-alpine3.24-aot@sha256:cd255a72d14d70260bb9b8dc493c3c37ce0877ef534f85ac1c931628364d7059
-wslc pull mcr.microsoft.com/dotnet/runtime-deps:10.0.11-alpine3.24@sha256:379b17d7d388a2a1b5330bfc2429a01091f85e255d3bce7981d65927d786c000
+wslc pull mcr.microsoft.com/dotnet/runtime-deps:10.0.12-alpine3.24@sha256:f23f2bc63f69aca51ae93beccf344123d9a0d79c114a5c4f24835bdbc43b9101
 ```
 
 If Windows can reach `mcr.microsoft.com:443` but either pull fails, the fault is in WSLC networking rather than the Dockerfile or image tag. Recreate the current user's independent WSLC session and retry the pulls:
