@@ -70,9 +70,12 @@ an unchanged version.
 The `GITHUB_TOKEN` tag push does not trigger another workflow, so the final quality job explicitly
 calls the reusable container workflow after creating the tag and GitHub release. There is no
 container `latest` alias. For recovery, manually run **Publish release container** with the existing
-validated tag. For first-time tagging, manually run the complete **Quality engineering** workflow
-on `main`; it validates, tags, releases, and publishes that commit. Do not use either workflow to
-replace an already published tag.
+validated tag. If that tag's commit has no successful quality run, first run
+`gh workflow run quality.yml --ref <Version>` and wait for it to succeed, then retry
+**Publish release container**. A quality run dispatched at the immutable release tag validates the
+exact tagged source without creating or moving a tag. For first-time tagging, manually run the
+complete **Quality engineering** workflow on `main`; it validates, tags, releases, and publishes
+that commit. Do not use either workflow to replace an already published tag.
 
 Use the [versioning skill](../.github/skills/versioning/SKILL.md) and
 [versioning agent](../.github/agents/versioning.agent.md) for compatibility decisions.

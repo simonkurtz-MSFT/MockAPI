@@ -51,11 +51,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_COMMIT: ${{ steps.version.outputs.commit }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
           gh api "repos/$GITHUB_REPOSITORY/actions/workflows/quality.yml/runs?head_sha=$RELEASE_COMMIT&status=success&per_page=100" > quality-runs.json
-          jq --exit-status --arg sha "$RELEASE_COMMIT" \
-            '.workflow_runs | any(.head_sha == $sha and .head_branch == "main" and (.event == "push" or .event == "workflow_dispatch"))' quality-runs.json
+          if ! jq --exit-status --arg sha "$RELEASE_COMMIT" --arg tag "$RELEASE_TAG" \
+            '.workflow_runs | any(
+              .head_sha == $sha and
+              ((.event == "push" and .head_branch == "main") or
+               (.event == "workflow_dispatch" and (.head_branch == "main" or .head_branch == $tag)))
+            )' quality-runs.json >/dev/null; then
+            echo "::error::No successful Quality engineering run covers release commit $RELEASE_COMMIT. Run 'gh workflow run quality.yml --ref $RELEASE_TAG', wait for it to succeed, then retry this workflow."
+            exit 1
+          fi
 
   native-image:
     needs: preflight
