@@ -12,7 +12,7 @@ public static class MockRequestDispatcher
     /// <param name="statistics">The process-local collector updated for the dispatch outcome.</param>
     /// <returns>A task that completes after response bytes are written or the connection is aborted.</returns>
     /// <remarks><c>HEAD</c> requests receive configured status and headers without response body bytes. Query strings do not participate in matching.</remarks>
-    /// <exception cref="OperationCanceledException">The request is aborted while response bytes are being written.</exception>
+    /// <exception cref="OperationCanceledException">The request is aborted during the configured delay or while response bytes are being written.</exception>
     /// <exception cref="IOException">The response body cannot be written.</exception>
     public static async Task DispatchAsync(
         HttpContext context,

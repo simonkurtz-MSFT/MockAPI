@@ -153,18 +153,19 @@ describe("buildEndpointDefinition", () => {
       },
     });
 
-    it("includes a configured response delay and omits an immediate delay", () => {
-      const delayed = {
-        ...createEndpointEditorValues(),
-        delaySeconds: 3,
-      };
-
-      expect(buildEndpointDefinition(delayed, () => "delayed-id").response.delaySeconds).toBe(3);
-      expect(buildEndpointDefinition(createEndpointEditorValues(), () => "immediate-id").response).not.toHaveProperty(
-        "delaySeconds"
-      );
-    });
     expect(createId).not.toHaveBeenCalled();
+  });
+
+  it("includes a configured response delay and omits an immediate delay", () => {
+    const delayed = {
+      ...createEndpointEditorValues(),
+      delaySeconds: 3,
+    };
+
+    expect(buildEndpointDefinition(delayed, () => "delayed-id").response.delaySeconds).toBe(3);
+    expect(buildEndpointDefinition(createEndpointEditorValues(), () => "immediate-id").response).not.toHaveProperty(
+      "delaySeconds"
+    );
   });
 
   it("normalizes whitespace-only optional response text to null", () => {

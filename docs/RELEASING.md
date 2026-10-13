@@ -1,11 +1,29 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.4.4. This version decision publishes only after
+MockAPI's next stable application version is 1.5.0. This version decision publishes only after
 the quality, public-release audit, and native image validation gates below succeed.
 
-## 1.4.4 release summary
+## 1.5.0 release summary
 
-The planned release date is **2026-10-13**, with the immutable tag **`1.4.4`**.
+The planned release date is **2026-10-13**, with the immutable tag **`1.5.0`**.
+The [1.5.0 changelog entry](../CHANGELOG.md#150---2026-10-13) supplies the GitHub release notes.
+
+- Mock responses and intentional connection aborts support an optional bounded,
+  cancellation-aware delay.
+- Public-site links and application-version presentation are refined.
+- Container publication resolves pushed architecture-candidate digests unambiguously.
+
+### Compatibility and upgrade behavior
+
+These additions are backward compatible, so 1.5.0 is a minor release. Existing endpoint IDs,
+configuration documents, management API behavior, authentication behavior, and the configuration
+schema (`schemaVersion: "1.0"`) remain compatible; no migration is required. Configurations that
+use the new `delaySeconds` field require MockAPI 1.5.0 or later because older binaries reject
+unknown configuration fields.
+
+## 1.4.4 historical release summary
+
+The release date was **2026-10-13**, with the immutable tag **`1.4.4`**.
 The [1.4.4 changelog entry](../CHANGELOG.md#144---2026-10-13) supplies the GitHub release notes.
 
 - Container validation tolerates transient readiness request failures after recreation.

@@ -196,6 +196,7 @@ test("creates, edits, disables, and deletes an endpoint", async ({ page }) => {
   await page.locator("#field-name").fill("Browser endpoint");
   await page.locator("#field-description").fill("Created through the dashboard");
   await page.locator("#field-path").fill("/browser-test");
+  await page.getByLabel("Delay in seconds").fill("2");
   await page.locator("#field-body").fill('{"message":"created in browser"}');
   await page.locator("#field-body").blur();
   await expect(page.locator("#field-body")).toHaveValue('{\n  "message": "created in browser"\n}');
@@ -219,6 +220,7 @@ test("creates, edits, disables, and deletes an endpoint", async ({ page }) => {
   const operationId = await row.getAttribute("data-endpoint-id");
   await expect(page.getByLabel("Operation ID", { exact: true })).toHaveValue(operationId);
   await expect(page.getByLabel("Operation ID", { exact: true })).toHaveAttribute("readonly", "");
+  await expect(page.getByLabel("Delay in seconds")).toHaveValue("2");
   await page.locator("#field-name").fill("Edited browser endpoint");
   await page.locator("#field-description").fill("Updated through the dashboard");
   await page.getByRole("button", { name: "Apply endpoint" }).click();

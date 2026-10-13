@@ -7,6 +7,24 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-13
+
+### Added
+
+- Mock responses and intentional connection aborts can now use a bounded, cancellation-aware delay
+  of 1 through 300 seconds.
+
+### Changed
+
+- Public-site links open external destinations in a new window, and the site footer displays the
+  application version derived from project metadata.
+- Configuration files that use `delaySeconds` require MockAPI 1.5.0 or later; older binaries reject
+  the new field, while existing configuration files remain compatible with 1.5.0.
+
+### Fixed
+
+- Container publication resolves architecture-candidate digests unambiguously after pushing them.
+
 ## [1.4.4] - 2026-10-13
 
 ### Fixed
@@ -157,7 +175,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.4...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.5.0...HEAD
+[1.5.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.4...1.5.0
 [1.4.4]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.3...1.4.4
 [1.4.3]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.2...1.4.3
 [1.4.2]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.1...1.4.2

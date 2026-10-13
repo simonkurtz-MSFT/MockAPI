@@ -140,7 +140,7 @@ Every request follows the same lifecycle: define a response, match it by method 
 ### 1.3) Why MockAPI
 
 - **Turn expected HTTP outcomes into configuration.** Create normal responses, non-success status codes, repeated headers, empty bodies, conditional `429` rate limits, and connection failures without writing a disposable API.
-- **Test the paths that are hardest to reproduce.** Intentionally abort a connection before any HTTP response is sent, or return precise error payloads and headers for retry, fallback, and resilience testing.
+- **Test the paths that are hardest to reproduce.** Delay a response, intentionally abort a connection before any HTTP response is sent, or return precise error payloads and headers for timeout, retry, fallback, and resilience testing.
 - **Make behavior obvious and repeatable.** Matching uses only the HTTP method and exact normalized path. Query strings, headers, and bodies cannot silently select a different response.
 - **Edit safely while the server is running.** Valid changes take effect immediately; invalid or stale updates leave the active configuration untouched.
 - **Move the same mock between environments.** Run directly with .NET or use the self-contained, non-root Linux container on `amd64` and `arm64`; no Node.js or .NET SDK is required on the container host.
@@ -153,7 +153,7 @@ MockAPI is intentionally narrower than a general-purpose API virtualization plat
 | Choose MockAPI when you need...                                   | Consider another solution when you need...                                       |
 | ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | Exact method-and-path matching with a configured response         | Matching based on query values, request headers, or request bodies               |
-| Runtime editing through a dashboard, API, or versioned JSON       | Dynamic response templating, stateful scenarios, delays, or response sequences   |
+| Runtime editing through a dashboard, API, or versioned JSON       | Dynamic response templating, stateful scenarios, or response sequences           |
 | Explicit HTTP errors, conditional `429` responses, or disconnects | Recording and replaying traffic through a proxy                                  |
 | One portable service for local, CI, demo, or shared test use      | A generated mock derived from a large API contract or a full simulation platform |
 | A focused tool that is easy to inspect, persist, and operate      | Multi-user orchestration or distributed synchronization across replicas          |
@@ -166,7 +166,7 @@ MockAPI is intentionally narrower than a general-purpose API virtualization plat
 
 - **Deterministic routing:** Match enabled endpoints by HTTP method and exact normalized path; unmatched requests return `404`.
 - **Precise responses:** Return a configured status code, reason phrase, repeated headers, content type, and exact response body.
-- **Resilience scenarios:** Exercise conditional rolling-window `429` responses and intentional connection aborts.
+- **Resilience scenarios:** Exercise bounded response delays, conditional rolling-window `429` responses, and intentional connection aborts.
 
 #### 1.5.2) Manage Changes Safely
 
@@ -640,7 +640,7 @@ See [Live mock OpenAPI and APIM import](docs/MANAGEMENT_API.md#live-mock-openapi
 
 ### 3.1) Configuration
 
-MockAPI accepts complete JSON documents conforming to [schemas/mockapi.schema.json](schemas/mockapi.schema.json). [config/mockapi.json](config/mockapi.json) contains examples for normal responses, repeated headers, non-success status codes, empty bodies, and an intentional connection abort.
+MockAPI accepts complete JSON documents conforming to [schemas/mockapi.schema.json](schemas/mockapi.schema.json). [config/mockapi.json](config/mockapi.json) contains examples for normal and delayed responses, repeated headers, non-success status codes, empty bodies, and an intentional connection abort.
 
 The primary runtime switches control persistence and independently expose the dashboard, management API, OpenAPI document, and Swagger UI. Detailed settings, limits, endpoint fields, and persistence behavior are documented in the [configuration reference](docs/CONFIGURATION.md).
 
@@ -754,7 +754,7 @@ To review the GitHub Pages documentation locally, run `.\start.ps1 -Action site-
 
 The documentation site's **Toggle color theme** sun-icon button matches the dashboard. On first load, the theme follows the operating system unless a Light or Dark choice was saved. Clicking toggles between Light and Dark and saves the choice independently of dashboard preferences.
 
-The documentation gallery shows a populated dashboard overview, all nine Contoso Theme Parks (`/ctp`) example endpoints, and an expanded log of 16 sample requests. Use the left/right arrow buttons, the named view buttons, or the left/right arrow keys within the gallery to switch screenshots. Images open at full size in a new tab. The carousel does not advance automatically; without JavaScript, all three screenshots remain visible. Captures use only the checked-in example configuration and generated local requests, not a running deployment's data.
+The documentation gallery shows a populated dashboard overview, all 16 Contoso Theme Parks (`/ctp`) example endpoints, and an expanded log of 16 sample requests. Use the left/right arrow buttons, the named view buttons, or the left/right arrow keys within the gallery to switch screenshots. Images open at full size in a new tab. The carousel does not advance automatically; without JavaScript, all three screenshots remain visible. Captures use only the checked-in example configuration and generated local requests, not a running deployment's data.
 
 Site browser checks target WCAG 2.2 AA in light and dark themes, including text and control contrast, visible keyboard focus, control sizes, 320-pixel reflow, 200% text resizing with system and wider fallback fonts, reduced motion, and forced colors. Automated accessibility checks supplement manual review; they are not a conformance certification.
 
