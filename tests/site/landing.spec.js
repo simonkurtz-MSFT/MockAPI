@@ -2,7 +2,7 @@ const { test, expect } = require("@playwright/test");
 const AxeBuilder = require("@axe-core/playwright").default;
 const fs = require("node:fs");
 const path = require("node:path");
-const { renderSiteStyles } = require("../../scripts/build-site.cjs");
+const { readApplicationVersion, renderSiteStyles } = require("../../scripts/build-site.cjs");
 
 const dashboardRoot = path.join(__dirname, "..", "..", "src", "MockAPI", "wwwroot");
 const dashboardStyles = fs.readFileSync(path.join(dashboardRoot, "app.css"), "utf8");
@@ -123,6 +123,11 @@ test("quick starts, assets and accessibility work under the Pages repository pre
   await page.goto("./");
   await expect(page).toHaveTitle("MockAPI | Open-Source, Self-Hosted Mock API Server");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Configure the response.");
+  const version = readApplicationVersion();
+  await expect(page.getByRole("link", { name: `Version ${version}`, exact: true })).toHaveAttribute(
+    "href",
+    `https://github.com/simonkurtz-MSFT/MockAPI/releases/tag/${version}`
+  );
   await page.getByRole("link", { name: "Get started", exact: true }).last().click();
   await expect(page).toHaveURL(/#start$/);
   await expect(page.locator("body")).not.toContainText("Codespaces");
@@ -178,7 +183,10 @@ test("getting-started content stays usable on desktop and narrow screens", async
       await expect(card).toBeVisible();
       await expect(card.getByRole("heading")).toBeVisible();
     }
-    await expect(page.getByRole("link", { name: "Browse published images" })).toBeVisible();
+    const publishedImagesLink = page.getByRole("link", { name: "Browse published images" });
+    await expect(publishedImagesLink).toBeVisible();
+    await expect(publishedImagesLink).toHaveAttribute("target", "_blank");
+    await expect(publishedImagesLink).toHaveAttribute("rel", "noopener");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
 });
