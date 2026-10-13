@@ -28,6 +28,11 @@ public static class MockRequestDispatcher
             return;
         }
 
+        if (endpoint.Delay > TimeSpan.Zero)
+        {
+            await Task.Delay(endpoint.Delay, context.RequestAborted);
+        }
+
         if (endpoint.Behavior == MockResponseBehavior.AbortConnection)
         {
             statistics.RecordAbortedConnection(endpoint.Id, context.Request.Method, path, requestId);

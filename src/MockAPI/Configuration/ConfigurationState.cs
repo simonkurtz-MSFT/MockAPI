@@ -274,6 +274,7 @@ internal static class ConfigurationDocumentCanonicalizer
         Response = new MockResponseDefinition
         {
             Behavior = endpoint.Response.Behavior,
+            DelaySeconds = endpoint.Response.DelaySeconds,
             StatusCode = endpoint.Response.StatusCode,
             ReasonPhrase = endpoint.Response.ReasonPhrase,
             Headers = endpoint.Response.Headers

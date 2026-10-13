@@ -15,6 +15,7 @@ describe("createEndpointEditorValues", () => {
       enabled: true,
       methods: ["GET"],
       behavior: "response",
+      delaySeconds: 0,
       statusCode: 200,
       reasonPhrase: "OK",
       rateLimitEnabled: false,
@@ -32,6 +33,7 @@ describe("createEndpointEditorValues", () => {
       requestCount: 5,
       response: {
         statusCode: 429,
+        delaySeconds: 12,
         reasonPhrase: "Slow down",
         headers: { "Retry-After": ["10", "20"] },
         contentType: "application/json",
@@ -55,6 +57,7 @@ describe("createEndpointEditorValues", () => {
       id: "endpoint-id",
       methods: ["POST", "HEAD"],
       requestCount: 5,
+      delaySeconds: 12,
       headers: [{ name: "Retry-After", values: ["10", "20"] }],
       rateLimitEnabled: true,
       requestLimit: 5,
@@ -149,6 +152,18 @@ describe("buildEndpointDefinition", () => {
         },
       },
     });
+
+    it("includes a configured response delay and omits an immediate delay", () => {
+      const delayed = {
+        ...createEndpointEditorValues(),
+        delaySeconds: 3,
+      };
+
+      expect(buildEndpointDefinition(delayed, () => "delayed-id").response.delaySeconds).toBe(3);
+      expect(buildEndpointDefinition(createEndpointEditorValues(), () => "immediate-id").response).not.toHaveProperty(
+        "delaySeconds"
+      );
+    });
     expect(createId).not.toHaveBeenCalled();
   });
 
@@ -169,6 +184,7 @@ describe("buildEndpointDefinition", () => {
     const values = {
       ...createEndpointEditorValues(),
       behavior: "abortConnection",
+      delaySeconds: 2,
       statusCode: 503,
       reasonPhrase: "Unavailable",
       contentType: "text/plain",
@@ -179,6 +195,7 @@ describe("buildEndpointDefinition", () => {
 
     expect(buildEndpointDefinition(values, () => "abort-id").response).toEqual({
       behavior: "abortConnection",
+      delaySeconds: 2,
       reasonPhrase: null,
       headers: {},
       contentType: null,

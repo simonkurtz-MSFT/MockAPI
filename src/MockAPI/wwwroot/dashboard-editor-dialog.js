@@ -58,6 +58,7 @@ export function createDashboardEditorDialog({ documentRoot, createId, copyToClip
     "field-body": "textarea",
     "field-body-json-status": "p",
     "field-content-type": "input",
+    "field-delay-seconds": "input",
     "field-description": "textarea",
     "field-enabled": "input",
     "field-name": "input",
@@ -210,6 +211,7 @@ export function createDashboardEditorDialog({ documentRoot, createId, copyToClip
     elements["field-description"].value = values.description;
     elements["field-path"].value = values.path;
     elements["field-behavior"].value = values.behavior;
+    elements["field-delay-seconds"].value = String(values.delaySeconds);
     setStatusValue(values.statusCode);
     elements["field-reason"].value = values.reasonPhrase;
     elements["field-content-type"].value = values.contentType;
@@ -255,6 +257,7 @@ export function createDashboardEditorDialog({ documentRoot, createId, copyToClip
       behavior: /** @type {import("./dashboard-core.js").MockResponse["behavior"]} */ (
         elements["field-behavior"].value
       ),
+      delaySeconds: Number(elements["field-delay-seconds"].value),
       statusCode: selectedStatusCode(),
       reasonPhrase: elements["field-reason"].value,
       contentType: elements["field-content-type"].value,

@@ -422,6 +422,19 @@ public sealed class ConfigurationValidatorTests
         Assert.True(HasError(result, "endpoints[0].response.statusCode", "required"));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(301)]
+    public void Validate_RejectsResponseDelayOutsideSupportedRange(int delaySeconds)
+    {
+        var response = CreateResponse() with { DelaySeconds = delaySeconds };
+
+        var result = ConfigurationValidator.Validate(
+            CreateDocument(CreateEndpoint(1) with { Response = response }));
+
+        Assert.True(HasError(result, "endpoints[0].response.delaySeconds", "range"));
+    }
+
     [Fact]
     public void Validate_AcceptsEmptyAbortConnectionResponse()
     {

@@ -82,6 +82,7 @@ public sealed class ConfigurationSchemaTests
         Assert.Empty(redirect.Response.Body);
 
         var serverError = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ctp/demo-faults/parade-schedule");
+        Assert.Equal(3, serverError.Response.DelaySeconds);
         Assert.Equal(["GET"], serverError.Methods);
         Assert.Equal(500, serverError.Response.StatusCode);
         Assert.Equal("{\"error\":\"parade_schedule_unavailable\",\"message\":\"The parade schedule hit a little hiccup. Please try again later.\"}", serverError.Response.Body);

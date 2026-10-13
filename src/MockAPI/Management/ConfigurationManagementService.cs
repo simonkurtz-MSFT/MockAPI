@@ -217,6 +217,7 @@ public sealed class ConfigurationManagementService(
 
     private static bool ResponsesEqual(MockResponseDefinition left, MockResponseDefinition right) =>
         left.Behavior == right.Behavior &&
+        left.DelaySeconds == right.DelaySeconds &&
         left.StatusCode == right.StatusCode &&
         string.Equals(left.ReasonPhrase, right.ReasonPhrase, StringComparison.Ordinal) &&
         HeadersEqual(left.Headers, right.Headers) &&

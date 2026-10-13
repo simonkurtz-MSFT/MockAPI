@@ -103,6 +103,12 @@
           "enum": ["response", "abortConnection"],
           "default": "response"
         },
+        "delaySeconds": {
+          "description": "Optional intentional delay before the configured response or connection abort begins.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300
+        },
         "statusCode": {
           "type": "integer",
           "minimum": 100,

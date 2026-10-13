@@ -59,6 +59,11 @@ public sealed record MockResponseDefinition
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public MockResponseBehavior Behavior { get; init; }
 
+    /// <summary>Gets the optional intentional delay, in whole seconds, before the configured behavior begins.</summary>
+    /// <remarks>The delay honors request cancellation and is limited to 300 seconds.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? DelaySeconds { get; init; }
+
     /// <summary>Gets the terminal HTTP status code, or <see langword="null"/> for connection-abort behavior.</summary>
     public int? StatusCode { get; init; }
 

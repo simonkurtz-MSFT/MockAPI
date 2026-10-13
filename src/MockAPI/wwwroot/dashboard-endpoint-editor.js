@@ -84,6 +84,7 @@ export const HTTP_STATUS_REASONS = new Map(HTTP_STATUSES.map(([code, reason]) =>
  * @property {string[]} methods Selected HTTP methods.
  * @property {number|null} requestCount Optional request count preserved while editing.
  * @property {"response"|"abortConnection"} behavior Response behavior.
+ * @property {number} delaySeconds Intentional delay before the configured behavior.
  * @property {number} statusCode Terminal response status.
  * @property {string} reasonPhrase Optional HTTP/1.x reason phrase.
  * @property {string} contentType Optional terminal response media type.
@@ -116,6 +117,7 @@ export function createEndpointEditorValues(endpoint = null) {
     methods: endpoint ? [...endpoint.methods] : ["GET"],
     requestCount: endpoint?.requestCount ?? null,
     behavior: response?.behavior || "response",
+    delaySeconds: response?.delaySeconds || 0,
     statusCode: response?.statusCode || 200,
     reasonPhrase: endpoint ? response?.reasonPhrase || "" : HTTP_STATUS_REASONS.get("200"),
     contentType: response?.contentType || "application/json; charset=utf-8",
@@ -156,6 +158,7 @@ export function buildEndpointDefinition(values, createId) {
   /** @type {import("./dashboard-core.js").MockResponse} */
   const response = {
     ...(abortsConnection ? { behavior: "abortConnection" } : { statusCode: values.statusCode }),
+    ...(values.delaySeconds > 0 ? { delaySeconds: values.delaySeconds } : {}),
     reasonPhrase: abortsConnection ? null : values.reasonPhrase.trim() || null,
     headers,
     contentType: abortsConnection ? null : values.contentType.trim() || null,

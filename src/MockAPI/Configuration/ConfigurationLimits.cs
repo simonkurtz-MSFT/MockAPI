@@ -19,6 +19,8 @@ public static class ConfigurationLimits
     public const int MinimumTestRequestCount = 1;
     /// <summary>Gets the maximum number of requests suggested by an endpoint for dashboard testing.</summary>
     public const int MaximumTestRequestCount = 5;
+    /// <summary>Gets the maximum intentional delay before a matched endpoint completes its configured behavior.</summary>
+    public const int MaximumResponseDelaySeconds = 300;
     /// <summary>Gets the maximum UTF-8 size of a configured response body, in bytes.</summary>
     public const int MaximumBodyBytes = 1024 * 1024;
     /// <summary>Gets the maximum number of response header fields configured for one endpoint.</summary>

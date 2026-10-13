@@ -161,11 +161,12 @@
     {
       "id": "a276b184-ecf6-4377-bf45-5ef1dc8f7433",
       "name": "Parade schedule fault demo",
-      "description": "Intentional HTTP failure demo: the fictional parade schedule service always returns 500 Internal Server Error with a themed JSON error. Use it to test client error handling; it does not cause a real application error or represent live park operations.",
+      "description": "Intentional slow HTTP failure demo: the fictional parade schedule service waits 3 seconds before returning 500 Internal Server Error with a themed JSON error. Use it to test client timeout and error handling; it does not cause a real application error or represent live park operations.",
       "enabled": true,
       "methods": ["GET"],
       "path": "/ctp/demo-faults/parade-schedule",
       "response": {
+        "delaySeconds": 3,
         "statusCode": 500,
         "reasonPhrase": "Internal Server Error",
         "headers": {

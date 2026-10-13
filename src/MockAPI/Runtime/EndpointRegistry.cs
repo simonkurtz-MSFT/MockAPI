@@ -113,6 +113,7 @@ public sealed class RuntimeEndpoint
     private RuntimeEndpoint(
         Guid id,
         MockResponseBehavior behavior,
+        int? delaySeconds,
         int? statusCode,
         string? reasonPhrase,
         ImmutableArray<RuntimeResponseHeader> headers,
@@ -123,6 +124,7 @@ public sealed class RuntimeEndpoint
     {
         Id = id;
         Behavior = behavior;
+        Delay = delaySeconds is null ? TimeSpan.Zero : TimeSpan.FromSeconds(delaySeconds.Value);
         StatusCode = statusCode;
         ReasonPhrase = reasonPhrase;
         Headers = headers;
@@ -137,6 +139,9 @@ public sealed class RuntimeEndpoint
 
     /// <summary>Gets whether the endpoint writes a response or aborts the connection.</summary>
     public MockResponseBehavior Behavior { get; }
+
+    /// <summary>Gets the intentional delay before the endpoint begins its configured response behavior.</summary>
+    public TimeSpan Delay { get; }
 
     /// <summary>Gets the terminal HTTP status code, or <see langword="null"/> for connection-abort behavior.</summary>
     public int? StatusCode { get; }
@@ -191,6 +196,7 @@ public sealed class RuntimeEndpoint
         return new RuntimeEndpoint(
             definition.Id,
             response.Behavior,
+            response.DelaySeconds,
             response.StatusCode,
             response.ReasonPhrase,
             headers,

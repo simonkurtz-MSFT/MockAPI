@@ -847,6 +847,19 @@
             </select>
           </label>
           <label>
+            Delay in seconds
+            <span class="hint">Optional, up to 300</span>
+            <input
+              id="field-delay-seconds"
+              name="delaySeconds"
+              type="number"
+              min="0"
+              max="300"
+              inputmode="numeric"
+              value="0"
+            />
+          </label>
+          <label>
             Status code
             <span class="status-controls">
               <select id="field-status" name="status" required></select>

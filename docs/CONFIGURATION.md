@@ -76,6 +76,7 @@ binaries that do not know this field reject it.
 | `path`                  | Exact case-sensitive path beginning with `/`, at most 2,048 characters |
 | `requestCount`          | Optional dashboard test count from 1 through 5; defaults to 1          |
 | `response.behavior`     | Optional `response` (default) or `abortConnection`                     |
+| `response.delaySeconds` | Optional whole-second delay from 1 through 300 before behavior begins  |
 | `response.statusCode`   | Integer from 100 through 599; required only for `response`             |
 | `response.reasonPhrase` | Optional HTTP/1.1 reason phrase without control characters             |
 | `response.headers`      | Object whose values are arrays, preserving repeated values             |
@@ -90,6 +91,20 @@ The dashboard shows `ID` followed by the first eight characters of the endpoint 
 Set `requestCount` to preselect how many requests the dashboard sends from the endpoint test blade. Omit it to preselect one request.
 
 `HEAD` returns the configured status and headers without a response body. `OPTIONS` is not generated automatically.
+
+Set `response.delaySeconds` to wait before the configured response or connection abort begins. The delay
+accepts whole seconds from 1 through 300 and is canceled when the client disconnects. Omit the property for
+an immediate response. This is useful for testing client-side timeout and cancellation handling.
+
+```json
+{
+  "delaySeconds": 3,
+  "statusCode": 200,
+  "headers": {},
+  "contentType": "application/json; charset=utf-8",
+  "body": "{\"status\":\"finally ready\"}"
+}
+```
 
 Set `response.rateLimit` on a `429` response to allow `requestLimit` successful requests during a rolling `windowSeconds` interval. Requests up to and including that limit return the configured `successResponse`; later requests in the window return the top-level 429 response. The success status must be from 200 through 299. Counters are process-local, shared by all methods on the endpoint, and reset when configuration is replaced or the process restarts.
 
@@ -173,7 +188,7 @@ service contracts or require its Azure infrastructure.
 | `DELETE`  | `/ctp/reservations/42`                      | Simulate cancellation, `204`, with no body                       |
 | `GET`     | `/ctp/attractions/featured`                 | Redirect to Cloud Cruiser, `302`                                 |
 | `GET`     | `/ctp/attractions/cloud-cruiser/wait-times` | Static wait time, `200`; excessive polling returns `429`         |
-| `GET`     | `/ctp/demo-faults/parade-schedule`          | Intentional parade-service HTTP failure, `500`                   |
+| `GET`     | `/ctp/demo-faults/parade-schedule`          | Wait 3 seconds, then return an intentional HTTP failure, `500`   |
 | `GET`     | `/ctp/demo-faults/ride-sensor`              | Intentional connection abort; no HTTP response                   |
 | `POST`    | `/ctp/demo-faults/reservation-validation`   | Structured field-level validation failure, `422`, problem JSON   |
 | `POST`    | `/ctp/demo-faults/reservation-conflict`     | Full sample ride slot, `409`, problem JSON                       |
@@ -199,7 +214,8 @@ Wait-time polling permits four requests in a rolling 10-second window. Further r
 `429 Too Many Requests`, `Retry-After: 10`, and
 `{"error":"wait_times_rate_limited","message":"Take a little breather! Check back in 10 seconds."}`.
 Both outcomes demonstrate repeated `X-Mock-Source` header values. The dashboard preselects five requests.
-Fault routes are deliberately separated under `/ctp/demo-faults/`; no real park operations or safety
+The parade-schedule fault waits three seconds before returning its configured `500`, making it suitable
+for client timeout experiments. Fault routes are deliberately separated under `/ctp/demo-faults/`; no real park operations or safety
 systems are involved. Each endpoint's dashboard information button explains its behavior.
 
 The validation and conflict demos always fail, regardless of the request body. They do not perform

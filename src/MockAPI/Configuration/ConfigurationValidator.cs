@@ -252,7 +252,17 @@ public static class ConfigurationValidator
         {
             AddError(errors, $"{path}.behavior", "value", "Response behavior is not supported.");
         }
-        else if (response.Behavior == MockResponseBehavior.AbortConnection)
+
+        if (response.DelaySeconds is < 1 or > ConfigurationLimits.MaximumResponseDelaySeconds)
+        {
+            AddError(
+                errors,
+                $"{path}.delaySeconds",
+                "range",
+                $"Response delay must be between 1 and {ConfigurationLimits.MaximumResponseDelaySeconds} seconds.");
+        }
+
+        if (response.Behavior == MockResponseBehavior.AbortConnection)
         {
             ValidateAbortConnection(response, path, errors);
             return;

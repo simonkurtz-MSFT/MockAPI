@@ -1,4 +1,5 @@
 using System.Net;
+using System.Diagnostics;
 using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -230,6 +231,33 @@ public sealed class MockDispatcherTests
         Assert.Equal(1, snapshot.AbortedConnections);
         Assert.Equal(0, snapshot.FailedWrites);
         Assert.Equal(0, snapshot.ResponseBytes);
+    }
+
+    [Fact]
+    public async Task DelayedEndpoint_WaitsBeforeWritingConfiguredResponse()
+    {
+        await using var factory = new UnsecuredApplicationFactory();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        var endpoint = CreateEndpoint(["GET"], "/api/delayed", "ready") with
+        {
+            Response = new MockResponseDefinition
+            {
+                DelaySeconds = 1,
+                StatusCode = 200,
+                Headers = [],
+                ContentType = "text/plain",
+                Body = "ready"
+            }
+        };
+        Apply(configuration, CreateDocument(endpoint));
+        using var client = factory.CreateClient();
+        var stopwatch = Stopwatch.StartNew();
+
+        using var response = await client.GetAsync("/api/delayed", CancellationToken.None);
+
+        Assert.True(stopwatch.Elapsed >= TimeSpan.FromMilliseconds(900), $"Response completed after {stopwatch.Elapsed}.");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("ready", await response.Content.ReadAsStringAsync(CancellationToken.None));
     }
 
     [Fact]

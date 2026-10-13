@@ -14,6 +14,7 @@ Each mock endpoint must be able to define:
 - Additional response headers.
 - A response body and content type.
 - An intentional connection abort that sends no HTTP response.
+- An optional bounded delay before a configured response or connection abort.
 
 The application must also provide a dashboard to create, edit, delete, enable, and disable endpoints; inspect request/response statistics; and import/export endpoint configuration.
 
@@ -55,7 +56,7 @@ The new project should target .NET 10 and preserve the small, non-root, minimal-
 
 - Centralized management authorization, roles, MFA, and identity-provider integration. Optional HTTP Basic authentication is available for low-sensitivity administration.
 - Durable statistics across restarts.
-- Query-string, request-header, or request-body matching; route templates or alternate path matchers; response templating; delays; or response sequences.
+- Query-string, request-header, or request-body matching; route templates or alternate path matchers; response templating; or response sequences.
 - Multi-user editing and distributed synchronization across replicas.
 - TLS termination inside the container.
 
@@ -76,7 +77,7 @@ Use one ASP.NET Core application and one deployable container.
    Require the instance API key before mock dispatch unless an administrator explicitly disables protection.
    Missing security settings default to enforcement with no valid key, so mock calls fail closed.
 4. Look up an enabled endpoint in an immutable in-memory snapshot keyed by method and normalized path.
-5. Abort the connection immediately when configured; otherwise write the configured status, permitted custom headers, content type, and raw response bytes.
+5. Wait for the optional bounded, cancellation-aware endpoint delay, then abort the connection when configured; otherwise write the configured status, permitted custom headers, content type, and raw response bytes.
 6. Record statistics in a bounded, concurrency-safe collector.
 7. Return `404` when no enabled endpoint matches.
 
@@ -163,6 +164,7 @@ The future configuration asset should be `config/mockapi.json`, with its JSON Sc
 - `requestCount` is optional, defaults to 1 in the dashboard test blade, and accepts integers from 1 through 5.
 - `statusCode` is an integer from 100 through 599.
 - `behavior` defaults to `response`. `abortConnection` closes the connection before response headers and requires status code, reason phrase, headers, content type, and body to be absent or empty.
+- `delaySeconds` optionally waits 1 through 300 whole seconds before either response behavior begins and honors request cancellation.
 - `reasonPhrase` is optional and disallows control characters. HTTP/2 and HTTP/3 do not transmit reason phrases, so the dashboard and documentation must not imply otherwise.
 - `headers` maps a header name to an array of string values so repeated headers round-trip correctly.
 - Reject controlled or hop-by-hop headers, including `Connection`, `Content-Length`, `Date`, `Host`, `Server`, `Transfer-Encoding`, and `Upgrade`. The server owns protocol framing and default headers.
@@ -314,7 +316,7 @@ at 220px and align the collapse control with the first filter row when filters w
   names and paths receive the remaining space.
 - Show the existing operation ID as read-only in the endpoint edit dialog; new and duplicate drafts
   receive their own IDs when applied.
-- Create/edit form with a response/connection-abort behavior selector, header rows, status code, reason phrase caveat, content type, and a payload editor.
+- Create/edit form with a response/connection-abort behavior selector, optional delay, header rows, status code, reason phrase caveat, content type, and a payload editor.
 - Enable/disable toggle, edit action, delete confirmation, and endpoint duplication.
 - Stable-ID row selection with select-all for the current filtered result set and bulk enable, disable, and confirmed delete actions.
 - Filters for name, method, path, status, and enabled state.

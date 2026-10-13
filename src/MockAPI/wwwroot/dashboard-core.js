@@ -13,6 +13,7 @@
 /**
  * @typedef {Object} MockResponse
  * @property {"response"|"abortConnection"} [behavior] Omitted for the default HTTP response behavior.
+ * @property {number} [delaySeconds] Intentional whole-second delay before the configured behavior.
  * @property {number|null} [statusCode] Terminal status; absent or null for an abort.
  * @property {string|null} [reasonPhrase] Optional HTTP/1.x reason phrase.
  * @property {Readonly<Record<string, readonly string[]>>} headers Ordered response header values.
