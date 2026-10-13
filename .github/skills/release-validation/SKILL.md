@@ -33,7 +33,7 @@ Use this skill after publication, container, or release-related changes. Derive 
 13. Compare per-architecture image size and cold startup with the last recorded baseline; explain meaningful regressions.
 14. Report commands, measured results, skipped checks, accepted vulnerability exceptions, and residual risks.
 
-Follow `docs/RELEASING.md` for the publication boundary. Validate `v<Version>` against its resolved
+Follow `docs/RELEASING.md` for the publication boundary. Validate the exact `<Version>` tag against its resolved
 commit and successful quality prerequisites before native builds. A newly validated version tag
 automatically calls container publication after the final quality job publishes reviewed Keep a
 Changelog GitHub notes. Manual dispatch remains available only to recover an existing validated tag.

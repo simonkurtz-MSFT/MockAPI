@@ -68,7 +68,7 @@
 
 - Use `.github/agents/versioning.agent.md` when selecting, applying, or validating an application version or release tag.
 - Use `.github/skills/versioning/SKILL.md` for version-bump and release-tag tasks; follow `docs/RELEASING.md`.
-- Treat `<Version>` in `src/MockAPI/MockAPI.csproj` as the single application-version source and use release tags in exact `v<Version>` form.
+- Treat `<Version>` in `src/MockAPI/MockAPI.csproj` as the single application-version source and use release tags in exact `<Version>` form without a `v` prefix.
 - Never hard-code the current application release in test assertions. Test version presence and SemVer format; derive cross-surface consistency expectations from the project or assembly metadata. Keep fixed versions only as synthetic inputs and expected outputs for version-parser, ordering, and release-policy tests, or as independent protocol, schema, and tool contracts. Version bumps must not require test edits.
 - Keep `package.json` private and unversioned. Validated version changes on `main` are tagged and released by the final quality job using the matching reviewed, dated Keep a Changelog entry in `CHANGELOG.md`; ordinary commits never move a tag or rewrite a release.
 - Publish a new version's container automatically after exact-commit quality validation creates its immutable tag and GitHub release. Require native image validation and attach evidence to the existing GitHub release without replacing its changelog notes. Keep Pages deployment opt-in and stage only the explicit static-site asset allowlist; never upload the repository root.

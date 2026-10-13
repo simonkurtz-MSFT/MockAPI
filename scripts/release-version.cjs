@@ -67,7 +67,7 @@ function planTag({ version, previousVersion, head, existingCommit }) {
     throw new Error(`Version ${version} must be newer than ${previousVersion}.`);
   }
   if (existingCommit && existingCommit !== head) {
-    throw new Error(`Refusing to move existing tag v${version}. Select a new version.`);
+    throw new Error(`Refusing to move existing tag ${version}. Select a new version.`);
   }
   return existingCommit ? "existing" : "create";
 }
@@ -113,12 +113,11 @@ function emit(metadata) {
 
 function main(mode, requestedTag) {
   if (mode === "resolve") {
-    if (!requestedTag?.startsWith("v")) throw new Error("A release tag must use exact v<Version> form.");
-    validateVersion(requestedTag.slice(1));
+    validateVersion(requestedTag);
     const commit = tagCommit(requestedTag);
     if (!commit) throw new Error(`Tag ${requestedTag} does not exist. Run quality validation and tagging first.`);
     const version = readVersion(git("show", `${commit}:${projectPath}`));
-    if (requestedTag !== `v${version}`) throw new Error("The release tag does not match its project's version.");
+    if (requestedTag !== version) throw new Error("The release tag does not match its project's version.");
     git("merge-base", "--is-ancestor", commit, "origin/main");
     emit({ version, tag: requestedTag, commit, prerelease: version.includes("-") });
     return;
@@ -130,8 +129,8 @@ function main(mode, requestedTag) {
     throw new Error("package.json must remain private, unversioned development tooling.");
   }
   if (mode === "check") {
-    if (requestedTag && requestedTag !== `v${version}`) throw new Error("The tag must match the application version.");
-    emit({ version, tag: `v${version}`, prerelease: version.includes("-") });
+    if (requestedTag && requestedTag !== version) throw new Error("The tag must match the application version.");
+    emit({ version, tag: version, prerelease: version.includes("-") });
     return;
   }
   if (mode !== "tag") throw new Error("Usage: node scripts/release-version.cjs check [tag] | resolve <tag> | tag");
@@ -140,7 +139,7 @@ function main(mode, requestedTag) {
   if (before && !/^[0-9a-f]{40}$/.test(before)) throw new Error("BEFORE_SHA must be a full Git commit SHA.");
   const previousVersion = before && !/^0+$/.test(before) ? readPreviousVersion(before) : null;
   const head = git("rev-parse", "HEAD");
-  const tag = `v${version}`;
+  const tag = version;
   const decision = planTag({ version, previousVersion, head, existingCommit: tagCommit(tag) });
   if (decision !== "unchanged") {
     // Validate reviewed notes before creating the immutable tag, not after pushing it.

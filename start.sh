@@ -1566,8 +1566,8 @@ invoke_azure_import() {
   registryEndpoint="$(get_azd_environment_value "$environmentName" AZURE_CONTAINER_REGISTRY_ENDPOINT)"
   local registryName="${registryEndpoint%%.*}"
 
-  local sourceImage="${PUBLIC_IMAGE_REPOSITORY}:v${appVersion}"
-  local targetImage="mockapi:v${appVersion}"
+  local sourceImage="${PUBLIC_IMAGE_REPOSITORY}:${appVersion}"
+  local targetImage="mockapi:${appVersion}"
 
   local containerAppName
   containerAppName="$(az resource list \

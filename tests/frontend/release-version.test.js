@@ -130,8 +130,8 @@ describe("application release versions", () => {
         git(author, "commit", "-m", "Common parent");
         const base = git(author, "rev-parse", "HEAD");
         if (existingTag) {
-          git(author, "-c", "tag.gpgsign=false", "tag", `v${version}`);
-          git(author, "push", "origin", `refs/tags/v${version}`);
+          git(author, "-c", "tag.gpgsign=false", "tag", version);
+          git(author, "push", "origin", `refs/tags/${version}`);
         }
         saveVersion("1.0.0-beta.2");
         git(author, "commit", "-am", "Original tip");
@@ -154,13 +154,13 @@ describe("application release versions", () => {
         expect(result.status).toBe(status);
         expect(status === 0 ? result.stdout : result.stderr).toContain(message);
         expect(result.stdout).toContain(`Fetching previous push commit ${before}`);
-        const remoteTag = git(runner, "ls-remote", "origin", `refs/tags/v${version}^{}`);
+        const remoteTag = git(runner, "ls-remote", "origin", `refs/tags/${version}^{}`);
         if (message === "decision=create") {
           expect(remoteTag).toContain(git(runner, "rev-parse", "HEAD"));
         } else if (existingTag) {
-          expect(git(runner, "ls-remote", "origin", `refs/tags/v${version}`)).toContain(base);
+          expect(git(runner, "ls-remote", "origin", `refs/tags/${version}`)).toContain(base);
         } else {
-          expect(git(runner, "ls-remote", "origin", `refs/tags/v${version}`)).toBe("");
+          expect(git(runner, "ls-remote", "origin", `refs/tags/${version}`)).toBe("");
         }
       } finally {
         fs.rmSync(fixture, { recursive: true, force: true });
@@ -212,16 +212,16 @@ describe("application release versions", () => {
       const tagged = run("tag", before);
       expect(tagged.stderr).toBe("");
       expect(tagged.status).toBe(0);
-      expect(git("rev-parse", "v1.0.0-beta.2^{commit}")).toBe(releaseCommit);
-      expect(git("ls-remote", "origin", "refs/tags/v1.0.0-beta.2^{}")).toContain(releaseCommit);
+      expect(git("rev-parse", "1.0.0-beta.2^{commit}")).toBe(releaseCommit);
+      expect(git("ls-remote", "origin", "refs/tags/1.0.0-beta.2^{}")).toContain(releaseCommit);
       expect(run("tag", before).stdout).toContain("decision=existing");
-      expect(run("resolve", "", "v1.0.0-beta.2").stdout).toContain(`commit=${releaseCommit}`);
-      expect(run("resolve", "", "v1.0.0-beta.9").status).toBe(1);
-      git("tag", "v1.0.0-beta.4", releaseCommit);
-      expect(run("resolve", "", "v1.0.0-beta.4").status).toBe(1);
+      expect(run("resolve", "", "1.0.0-beta.2").stdout).toContain(`commit=${releaseCommit}`);
+      expect(run("resolve", "", "1.0.0-beta.9").status).toBe(1);
+      git("tag", "1.0.0-beta.4", releaseCommit);
+      expect(run("resolve", "", "1.0.0-beta.4").status).toBe(1);
       git("commit", "--allow-empty", "-m", "Ordinary change");
       expect(run("tag", releaseCommit).stdout).toContain("decision=unchanged");
-      expect(git("rev-parse", "v1.0.0-beta.2^{commit}")).toBe(releaseCommit);
+      expect(git("rev-parse", "1.0.0-beta.2^{commit}")).toBe(releaseCommit);
       expect(run("tag", "").status).toBe(1);
       fs.writeFileSync(path.join(checkout, "package.json"), '{"private":true,"version":"1.0.0"}');
       expect(run("check", "").status).toBe(1);

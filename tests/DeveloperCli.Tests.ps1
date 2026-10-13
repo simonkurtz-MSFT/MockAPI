@@ -1118,10 +1118,10 @@ write_color() { printf '%s\n' "$2"; }
   Assert-True ($result.ExitCode -eq 0) "Azure import failed: $($result.Output)"
   $commands = Get-Content -LiteralPath $commandLog -Raw
   Assert-True (
-    $commands -match "az acr import --name mockapiregistry --source docker\.io/simonkurtzmsft/mockapi:v$escapedApplicationVersion --image mockapi:v$escapedApplicationVersion"
+    $commands -match "az acr import --name mockapiregistry --source docker\.io/simonkurtzmsft/mockapi:$escapedApplicationVersion --image mockapi:$escapedApplicationVersion"
   ) "Azure import must copy the public versioned Docker Hub image into ACR without credentials. Commands:`n$commands"
   Assert-True (
-    $commands -match "az containerapp update --name mockapi-container-app --resource-group rg-process-environment-eastus2 --image mockapiregistry\.azurecr\.io/mockapi:v$escapedApplicationVersion"
+    $commands -match "az containerapp update --name mockapi-container-app --resource-group rg-process-environment-eastus2 --image mockapiregistry\.azurecr\.io/mockapi:$escapedApplicationVersion"
   ) 'Azure import must deploy the imported ACR image to the tagged Container App.'
   Assert-True (
     $commands -match 'az resource list[^\r\n]*--resource-group rg-process-environment-eastus2[^\r\n]*--tag azd-service-name=mockapi[^\r\n]*Microsoft\.App/containerApps[^\r\n]*--output tsv'

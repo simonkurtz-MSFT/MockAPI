@@ -50,8 +50,7 @@ function publishRelease({ repository, tag, commit, notes, verifyOnly = false, ru
   if (!/^[\w.-]+\/[\w.-]+$/.test(repository ?? "")) {
     throw new Error("GITHUB_REPOSITORY must identify the release repository.");
   }
-  if (!tag?.startsWith("v")) throw new Error("A release tag must use exact v<Version> form.");
-  validateVersion(tag.slice(1));
+  validateVersion(tag);
   if (!/^[0-9a-f]{40}$/.test(commit)) throw new Error("A release must target a full Git commit SHA.");
   const prerelease = tag.includes("-");
   const result = run("gh", ["api", "--paginate", "--slurp", `repos/${repository}/releases?per_page=100`], {
@@ -97,7 +96,7 @@ function publishRelease({ repository, tag, commit, notes, verifyOnly = false, ru
         "--target",
         commit,
         "--title",
-        `MockAPI ${tag}`,
+        `v${tag}`,
         "--notes-file",
         notesFile,
         ...options,
@@ -120,7 +119,7 @@ function main(mode, requestedTag) {
     console.log(`Validated Keep a Changelog notes for ${version}.`);
     return;
   }
-  if (requestedTag !== `v${version}`) throw new Error("The release tag must match the application version.");
+  if (requestedTag !== version) throw new Error("The release tag must match the application version.");
   const git = (...args) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
   const commit = git("rev-parse", "HEAD");
   if (git("rev-parse", `refs/tags/${requestedTag}^{commit}`) !== commit) {

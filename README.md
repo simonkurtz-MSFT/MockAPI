@@ -563,7 +563,7 @@ After the initial deployment:
 
 Choices `1` and `2` in the Azure submenu run these same pathways; `p1` and `p2` remain global aliases. The initial pathway runs the test suite and managed build before `azure-up`, which validates configuration, builds the native container, previews infrastructure changes, and requests confirmation before provisioning. The update pathway runs the test suite and managed build before `azure-deploy`, which updates existing resources and verifies readiness. Use the individual `azure-*` actions when only one stage is needed.
 
-`azure-import` reads `<Version>` from the application project, imports `docker.io/simonkurtzmsft/mockapi:v<Version>` as `mockapi:v<Version>` in the provisioned ACR without Docker Hub credentials, and updates the existing Container App to use that ACR image. It is an explicit per-version import, not a persistent upstream cache, and requires the Azure environment to be provisioned first.
+`azure-import` reads `<Version>` from the application project, imports `docker.io/simonkurtzmsft/mockapi:<Version>` as `mockapi:<Version>` in the provisioned ACR without Docker Hub credentials, and updates the existing Container App to use that ACR image. It is an explicit per-version import, not a persistent upstream cache, and requires the Azure environment to be provisioned first.
 
 Set both dashboard credential values to protect administration, including key generation in Settings. Leaving
 them empty leaves administration and security setup unauthenticated but does not unlock mock calls.

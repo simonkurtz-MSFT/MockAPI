@@ -700,8 +700,8 @@ function Invoke-AzureImport {
   $registryEndpoint = Get-AzdEnvironmentValue -EnvironmentName $environmentName -Name 'AZURE_CONTAINER_REGISTRY_ENDPOINT'
   $registryName = $registryEndpoint.Split('.')[0]
   $applicationVersion = Get-ApplicationVersion
-  $sourceImage = "docker.io/simonkurtzmsft/mockapi:v$applicationVersion"
-  $targetImage = "mockapi:v$applicationVersion"
+  $sourceImage = "docker.io/simonkurtzmsft/mockapi:$applicationVersion"
+  $targetImage = "mockapi:$applicationVersion"
   $deployedImage = "$registryEndpoint/$targetImage"
 
   $containerAppResult = Invoke-NativeTool -Executable 'az' -Arguments @(

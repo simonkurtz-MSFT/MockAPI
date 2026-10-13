@@ -26,8 +26,9 @@ description: Select, apply, or validate a MockAPI semantic application version, 
    `./start.ps1 -Action lint` (PowerShell) / `./start.sh --action lint` (Bash).
 7. A validated version change pushed to `main` is tagged and released by the final quality job.
    Validate the matching changelog entry before tagging and use it for GitHub release notes.
-   No-op changes do not move a tag or rewrite a release. Existing historical unprefixed tags
-   are left intact; new tags use `v<Version>`. GitHub token-created tags and releases do not
+   No-op changes do not move a tag or rewrite a release. Existing historical prefixed tags
+   are left intact; new tags use exact `<Version>` form without a `v` prefix.
+   GitHub token-created tags and releases do not
    trigger another workflow: release notes are published directly, and container publication
    is explicitly dispatched.
    After a force-push, tagging explicitly fetches a missing nonzero pre-push commit before

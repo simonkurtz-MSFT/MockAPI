@@ -11,13 +11,13 @@ const version = "1.2.3";
 const entry = `## [${version}] - 2026-10-01\n\n### Added\n\n- A reviewed feature.\n\n### Fixed\n\n- A regression.\n`;
 const notes = extractReleaseNotes(`# Changelog\n\n${entry}`, version);
 const release = {
-  tag_name: `v${version}`,
+  tag_name: version,
   target_commitish: commit,
   prerelease: false,
   draft: false,
   body: notes,
 };
-const candidate = { repository: "owner/mockapi", tag: `v${version}`, commit, notes };
+const candidate = { repository: "owner/mockapi", tag: version, commit, notes };
 
 describe("Keep a Changelog release notes", () => {
   it("extracts only the requested version, preserving Markdown and link definitions", () => {
@@ -63,8 +63,8 @@ describe("Keep a Changelog release notes", () => {
 
 describe("automatic GitHub releases", () => {
   it.each([
-    { tag: "v1.2.3", prerelease: false },
-    { tag: "v1.3.0-beta.1", prerelease: true },
+    { tag: "1.2.3", prerelease: false },
+    { tag: "1.3.0-beta.1", prerelease: true },
   ])("creates $tag from reviewed notes at the exact commit", ({ tag, prerelease }) => {
     let temporaryFile;
     const run = vi.fn((executable, args) => {
@@ -76,7 +76,7 @@ describe("automatic GitHub releases", () => {
       expect(args).toContain("--verify-tag");
       expect(args[args.indexOf("--target") + 1]).toBe(commit);
       expect(args[args.indexOf("--repo") + 1]).toBe(candidate.repository);
-      expect(args[args.indexOf("--title") + 1]).toBe(`MockAPI ${tag}`);
+      expect(args[args.indexOf("--title") + 1]).toBe(`v${tag}`);
       expect(args.includes("--prerelease")).toBe(prerelease);
       expect(args.includes("--latest=false")).toBe(prerelease);
       expect(args).not.toContain("--generate-notes");
@@ -89,7 +89,7 @@ describe("automatic GitHub releases", () => {
   });
 
   it("leaves matching published releases and their assets untouched on rerun", () => {
-    const run = vi.fn(() => JSON.stringify([[{ tag_name: "v1.2.2" }], [release]]));
+    const run = vi.fn(() => JSON.stringify([[{ tag_name: "1.2.2" }], [release]]));
     expect(publishRelease({ ...candidate, run })).toBe("existing");
     expect(run).toHaveBeenCalledTimes(1);
     expect(run.mock.calls[0][1]).toContain("--paginate");
@@ -153,7 +153,7 @@ describe("automatic GitHub releases", () => {
   it.each([
     { repository: "" },
     { repository: "owner/mockapi;unsafe" },
-    { tag: "1.2.3" },
+    { tag: "v1.2.3" },
     { tag: "v1.2.3;unsafe" },
     { commit: "main" },
   ])("rejects invalid release inputs before invoking GitHub: %j", (overrides) => {

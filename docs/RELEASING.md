@@ -39,18 +39,19 @@ in parser, ordering, and release-policy tests are independent fixtures and remai
 1. **Validate, tag, and release:** merge an approved version bump and its reviewed
    [changelog entry](../CHANGELOG.md) to `main`. The final
    [quality job](../.github/workflows/quality.yml) waits for coverage, dependency, smoke, and complete
-   browser checks before creating an annotated `v<Version>` tag at that exact commit and publishing
-   a GitHub release with that version's Keep a Changelog notes. Prerelease versions are marked as
-   prereleases and never marked as latest.
+   browser checks before creating an annotated `<Version>` tag at that exact commit and publishing
+   a GitHub release titled `v<Version>` with that version's Keep a Changelog notes. Prerelease
+   versions are marked as prereleases and never marked as latest.
 2. **Validate and publish images:** for a new version, the quality workflow calls
    [Publish release container](../.github/workflows/container-release.yml) with the validated tag.
    Both native images are built from the resolved tag commit, never the current branch tip.
    The workflow attaches evidence to the existing GitHub release without replacing its notes.
 
 Ordinary commits with an unchanged version do not create or move tags. A repeated tagging run
-is safe only at the same commit. Downgrades and reused tags fail. Existing historical tags such
-as `1.0.0-beta.3` remain untouched; new automation uses the `v` prefix. Introducing the automation
-does not bump the application or retroactively tag an unchanged version.
+is safe only at the same commit. Downgrades and reused tags fail. Existing historical tags,
+including tags with a `v` prefix, remain untouched; new automation uses exact `<Version>` tags
+without a prefix. Changing the convention does not bump the application or retroactively retag
+an unchanged version.
 
 The `GITHUB_TOKEN` tag push does not trigger another workflow, so the final quality job explicitly
 calls the reusable container workflow after creating the tag and GitHub release. There is no
@@ -61,7 +62,8 @@ replace an already published tag.
 
 Use the [versioning skill](../.github/skills/versioning/SKILL.md) and
 [versioning agent](../.github/agents/versioning.agent.md) for compatibility decisions.
-Creating the `v1.4.2` tag still requires the approved application-version bump to reach `main`.
+The historical `v1.4.2` tag remains immutable. The next approved application-version bump uses
+the exact project version as its tag without a prefix.
 
 ## Reviewed changelog contract
 
