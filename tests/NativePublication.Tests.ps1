@@ -17,6 +17,8 @@ Assert-True (([regex]::Matches($releaseWorkflow, 'uses: docker/build-push-action
 Assert-True ($releaseWorkflow -notmatch 'setup-qemu-action') 'Native AOT release compilation must not depend on QEMU.'
 Assert-True ($releaseWorkflow.Contains('docker save --output') -and $releaseWorkflow.Contains('docker load --input')) 'Publication must transfer the tested native images between jobs.'
 Assert-True ($releaseWorkflow.Contains('imagetools create --dry-run') -and $releaseWorkflow.Contains('.config.digest')) 'Publication must verify the tested image identity and index before tagging a release.'
+Assert-True ($releaseWorkflow.Contains('reference="$IMAGE_NAME@$digest"')) 'Publication must qualify pushed digests with the configured registry repository.'
+Assert-True ($releaseWorkflow -notmatch "RepoDigests") 'Publication must not select an ambiguous local repository digest after pushing an image.'
 Assert-True ($releaseWorkflow.Contains('workflow_call:') -and $releaseWorkflow.Contains('workflow_dispatch:')) 'Publication must support automatic version releases and manual recovery.'
 Assert-True ($releaseWorkflow -notmatch 'ENABLE_RELEASE_PUBLISHING|approve_publication|environment: release') 'Publication must not retain a separate approval gate after a validated version change.'
 Assert-True (([regex]::Matches($releaseWorkflow, 'ref: \$\{\{ needs\.preflight\.outputs\.commit \}\}')).Count -eq 2) 'Native build and publication must both check out the resolved tag commit.'

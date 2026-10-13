@@ -242,8 +242,14 @@ jobs:
             test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$expected_id")" = "linux/$arch"
             candidate="$IMAGE_NAME:candidate-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$arch"
             docker tag "$expected_id" "$candidate"
-            docker push "$candidate"
-            reference=$(docker image inspect --format '{{index .RepoDigests 0}}' "$candidate")
+            push_log="push-$arch.log"
+            docker push "$candidate" 2>&1 | tee "$push_log"
+            digest=$(sed -nE 's/^.*digest: (sha256:[0-9a-f]{64})( size:.*)?$/\1/p' "$push_log" | tail -n 1)
+            if [ -z "$digest" ]; then
+              echo "Docker did not report a digest after pushing $candidate." >&2
+              exit 1
+            fi
+            reference="$IMAGE_NAME@$digest"
             docker buildx imagetools inspect --raw "$reference" > "manifest-$arch.json"
             test "$(jq --raw-output '.mediaType' "manifest-$arch.json")" = 'application/vnd.oci.image.manifest.v1+json'
             test "$(jq --raw-output '.config.digest' "manifest-$arch.json")" = "$expected_id"
