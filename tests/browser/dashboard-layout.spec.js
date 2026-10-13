@@ -255,10 +255,46 @@ test("aligns expanded column bottoms without horizontal scrolling on an empty da
   }
 });
 
+test("uses spare viewport height for Endpoints and Request log without growing Statistics", async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1440 });
+  await expect(page.locator("html")).toHaveAttribute("data-dashboard-layout", "columns");
+  const statisticsHeight = (await page.locator(".statistics-workspace").boundingBox()).height;
+  let previousEndpointsHeight = 0;
+  let previousLogHeight = 0;
+  for (const height of [1440, 1800, 2400]) {
+    await page.setViewportSize({ width: 1920, height });
+    const endpoints = await page.locator(".workspace").boundingBox();
+    const log = await page.locator(".request-log-workspace").boundingBox();
+    const statistics = await page.locator(".statistics-workspace").boundingBox();
+    const footer = await page.locator(".app-footer").boundingBox();
+    const mainPadding = await page
+      .locator("main")
+      .evaluate((element) => parseFloat(getComputedStyle(element).paddingBottom));
+    expect(statistics.height).toBe(statisticsHeight);
+    expect(endpoints.height).toBeGreaterThan(previousEndpointsHeight);
+    expect(log.height).toBeGreaterThan(previousLogHeight);
+    expect(Math.abs(endpoints.y + endpoints.height - log.y - log.height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(footer.y - log.y - log.height - mainPadding)).toBeLessThanOrEqual(1);
+    expect(Math.abs(footer.y + footer.height - height)).toBeLessThanOrEqual(1);
+    for (const selector of [".table-wrap", ".request-log-table"]) {
+      const bounds = await page.locator(selector).boundingBox();
+      const panel = selector === ".table-wrap" ? endpoints : log;
+      expect(Math.abs(bounds.y + bounds.height - panel.y - panel.height)).toBeLessThanOrEqual(2);
+    }
+    previousEndpointsHeight = endpoints.height;
+    previousLogHeight = log.height;
+  }
+  await page.getByRole("button", { name: "Collapse endpoints" }).click();
+  expect((await page.locator(".workspace").boundingBox()).height).toBeLessThan(180);
+  await page.getByRole("button", { name: "Collapse request log" }).click();
+  expect((await page.locator(".request-log-workspace").boundingBox()).height).toBeLessThan(180);
+  expect((await page.locator(".statistics-workspace").boundingBox()).height).toBe(statisticsHeight);
+});
+
 test("fits populated endpoint rows within the wide-screen endpoint column", async ({ page }) => {
   await page.setViewportSize({ width: 1760, height: 900 });
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator(".endpoint-row")).toHaveCount(9);
+  await expect(page.locator(".endpoint-row")).toHaveCount(16);
   await expect(page.locator("html")).toHaveAttribute("data-dashboard-layout", "columns");
 
   const dimensions = await page.locator(".table-wrap").evaluate((element) => ({

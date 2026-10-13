@@ -10,7 +10,8 @@ applyTo: "src/MockAPI/wwwroot/**/*.{js,html,css},tests/{frontend,browser}/**/*.j
 - Keep `app.js` focused on page-level composition and orchestration. Put cohesive behavior, state, and lifecycle management in purpose-named importable modules instead of growing the entrypoint; wire those modules together through explicit dependencies.
 - Keep endpoint table selection/filter/group-local sort state in `dashboard-endpoint-table.js`, draft and captured-revision state in `dashboard-editor-dialog.js`, test-request batches and focus restoration in `dashboard-test-blade.js`, and statistics/request-log scope and rendering in `dashboard-statistics.js`. Keep management commands and confirmations in the entrypoint.
 - Show all filtered endpoints without pagination in a vertically scrollable table with sticky headers.
-  Keep API groups alphabetical regardless of operation sort. Display group-relative paths before
+  Keep API groups alphabetical regardless of operation sort; default operations to ascending path order.
+  Display group-relative paths before
   the information button and operation name; retain complete paths for configuration, filtering, and requests.
 - Keep API description drafts and captured revisions in `dashboard-api-description.js`; the endpoint table owns
   group and endpoint information buttons and shared Escape-dismissible plain-text popovers. Close previews
@@ -43,7 +44,7 @@ applyTo: "src/MockAPI/wwwroot/**/*.{js,html,css},tests/{frontend,browser}/**/*.j
 - Keep measured layout decisions and resize-listener/observer ownership in `dashboard-layout.js`. Test exact fit boundaries, viewport eligibility, scrollbar/padding deductions, and disposal. Keep preference normalization/persistence in `dashboard-preferences.js`; browser storage access must occur inside its guarded adapter calls.
 - Keep the first-paint bootstrap synchronous and inline to avoid theme/collapse flashing. Its conservative layout estimate is intentionally different from measured runtime layout; test the actual inline script against runtime theme/collapse defaults, legacy records, invalid records, and unavailable storage.
 - Keep `app.css` as one stylesheet with named sections in cascade order. Share panel chrome and typography tokens, keep component-specific rules local, and preserve the precedence of theme, responsive, and reduced-motion overrides. Do not introduce cascade layers or extra stylesheet requests without an explicit need.
-- Align expanded column bottoms through shared grid sizing. Empty endpoint tables and request-log tables must fit the supported column width; use automatic horizontal scrolling only for actual overflow, not permanently visible chart scrollbars.
+- Align expanded column bottoms through shared grid sizing. On roomy two-column viewports, use spare height above the footer for Endpoints and Request log without growing Statistics or collapsed panels. Empty endpoint tables and request-log tables must fit the supported column width; use automatic horizontal scrolling only for actual overflow, not permanently visible chart scrollbars.
 - Default all panels to expanded when collapse preferences are absent. Honor explicit saved collapse choices on reload and across layout transitions; do not stretch collapsed panels to force column alignment.
 - Show one Time column in Request log, using UTC by default. Keep the browser-only UTC/local time preference in Settings and apply it to entries and minute labels without changing UTC bucket identities or collapse state.
 - Apply initial collapse preferences in the HTML bootstrap before the dashboard modules load. Keep root collapse attributes synchronized with runtime hidden states so visibility and grid sizing agree from first paint.

@@ -65,19 +65,34 @@ test("shows all operations with relative paths and sorts within alphabetical API
   await importDocument(request, { ...emptyDocument, endpoints });
   const rows = page.locator("#endpoint-rows .endpoint-row");
   const groups = page.locator(".endpoint-group-toggle > strong");
+  const table = page.locator(".table-wrap");
   const ascendingNames = Array.from({ length: 12 }, (_, index) => `Operation ${String(index + 1).padStart(2, "0")}`);
+  const ascendingPaths = Array.from({ length: 12 }, (_, index) => `/route-${String(index + 1).padStart(2, "0")}`);
   await expect(rows).toHaveCount(24);
   await expect(groups).toHaveText(["alpha/", "zeta/"]);
-  await expect(rows.locator(".endpoint-name-heading > strong")).toHaveText([...ascendingNames, ...ascendingNames]);
+  await expect(rows.locator(".path-cell")).toHaveText([...ascendingPaths, ...ascendingPaths]);
+  await expect(rows.locator(".endpoint-name-heading > strong")).toHaveText([
+    ...ascendingNames.toReversed(),
+    ...ascendingNames.toReversed(),
+  ]);
+  await expect(table.getByRole("columnheader", { name: "Path" })).toHaveAttribute("aria-sort", "ascending");
+  await expect(table.getByRole("columnheader", { name: "Endpoint", exact: true })).toHaveAttribute("aria-sort", "none");
   await expect(page.locator(".table-wrap thead th").nth(1)).toHaveText("Path");
-  await expect(rows.first().locator("td").nth(1)).toHaveText("/route-12");
-  await expect(rows.first().locator(".path-cell")).toHaveAttribute("title", "/alpha/route-12");
+  await expect(rows.first().locator("td").nth(1)).toHaveText("/route-01");
+  await expect(rows.first().locator(".path-cell")).toHaveAttribute("title", "/alpha/route-01");
   expect((await request.get("/alpha/route-12")).status()).toBe(500);
   const stored = await (await request.get("/__mockapi/api/endpoints")).json();
   expect(stored.find((endpoint) => endpoint.id === endpoints[23].id).path).toBe("/alpha/route-12");
 
+  await page.locator('[data-sort-key="path"]').click();
+  await expect(table.getByRole("columnheader", { name: "Path" })).toHaveAttribute("aria-sort", "descending");
+  await expect(rows.locator(".path-cell")).toHaveText([...ascendingPaths.toReversed(), ...ascendingPaths.toReversed()]);
+  await expect(groups).toHaveText(["alpha/", "zeta/"]);
+
   await page.locator('[data-sort-key="name"]').click();
   await expect(groups).toHaveText(["alpha/", "zeta/"]);
+  await expect(rows.locator(".endpoint-name-heading > strong")).toHaveText([...ascendingNames, ...ascendingNames]);
+  await page.locator('[data-sort-key="name"]').click();
   await expect(rows.locator(".endpoint-name-heading > strong")).toHaveText([
     ...ascendingNames.toReversed(),
     ...ascendingNames.toReversed(),
@@ -111,7 +126,7 @@ test("shows all operations with relative paths and sorts within alphabetical API
 
 test("@smoke loads examples idempotently and filters by status", async ({ page, request }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(9);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(16);
   await expect(page.getByRole("navigation", { name: "Endpoint pages" })).toHaveCount(0);
   const responseHeader = page.getByRole("columnheader", { name: "Response" });
   await responseHeader.getByRole("button").click();
@@ -120,20 +135,20 @@ test("@smoke loads examples idempotently and filters by status", async ({ page, 
   await expect(page.locator("#endpoint-rows .endpoint-row").first().locator(".status-badge")).toHaveText("DROP");
   await page.getByRole("columnheader", { name: "Endpoint" }).getByRole("button").click();
   const exampleGroup = page.getByRole("button", { name: "Collapse ctp/" });
-  await expect(exampleGroup).toContainText("9");
+  await expect(exampleGroup).toContainText("16");
   await page.locator("#endpoint-rows .endpoint-row").first().locator(".selection-checkbox").check();
   await expect(page.locator("#selection-count")).toHaveText("1");
   await exampleGroup.click();
   await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(0);
   await expect(page.locator("#selection-count")).toHaveText("1");
   await page.locator("#select-all-endpoints").check();
-  await expect(page.locator("#selection-count")).toHaveText("9");
+  await expect(page.locator("#selection-count")).toHaveText("16");
   await page.getByRole("button", { name: "Expand ctp/" }).click();
-  await expect(page.locator("#endpoint-rows .selection-checkbox:checked")).toHaveCount(9);
+  await expect(page.locator("#endpoint-rows .selection-checkbox:checked")).toHaveCount(16);
   await page.locator("#select-all-endpoints").uncheck();
   await page.getByRole("button", { name: "Load examples" }).first().click();
   await expect(page.getByText("No example changes were needed")).toBeVisible();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(9);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(16);
 
   await page.locator("#filter-status").selectOption("3");
   await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(1);
@@ -145,7 +160,10 @@ test("@smoke loads examples idempotently and filters by status", async ({ page, 
   expect(redirect.headers().location).toBe("/ctp/attractions/cloud-cruiser");
 
   await page.locator("#filter-status").selectOption("5");
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(1);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(2);
+  await expect(
+    page.getByRole("row", { name: /Ticket service maintenance fault demo/ }).locator(".status-badge")
+  ).toHaveText("503");
   await expect(page.getByRole("row", { name: /Parade schedule fault demo/ }).locator(".status-badge")).toHaveText(
     "500"
   );
@@ -157,7 +175,13 @@ test("@smoke loads examples idempotently and filters by status", async ({ page, 
   });
 
   await page.locator("#filter-status").selectOption("4");
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(1);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(3);
+  await expect(
+    page.getByRole("row", { name: /Reservation validation fault demo/ }).locator(".status-badge")
+  ).toHaveText("422");
+  await expect(page.getByRole("row", { name: /Reservation conflict fault demo/ }).locator(".status-badge")).toHaveText(
+    "409"
+  );
   const rateLimitedRow = page.locator("#endpoint-rows").getByRole("row", { name: /Check Cloud Cruiser wait times/ });
   await expect(rateLimitedRow.locator(".endpoint-name-heading > strong")).toHaveText("Check Cloud Cruiser wait times");
   const responseCode = rateLimitedRow.locator(".status-badge");
@@ -221,7 +245,7 @@ test("keeps column geometry stable through group collapse and sorting, with cent
 }) => {
   const example = await (await request.get("/__mockapi/api/configuration/example")).json();
   await importDocument(request, example);
-  await expect(page.locator(".endpoint-row")).toHaveCount(9);
+  await expect(page.locator(".endpoint-row")).toHaveCount(16);
   for (const width of [1200, 1920]) {
     await page.setViewportSize({ width, height: 1000 });
     await expect(page.locator("html")).toHaveAttribute("data-dashboard-layout", width === 1200 ? "stacked" : "columns");
@@ -261,7 +285,7 @@ test("keeps column geometry stable through group collapse and sorting, with cent
     );
     expect(collapsed).toEqual(original);
     await page.getByRole("button", { name: "Expand ctp/", exact: true }).click();
-    await expect(page.locator(".endpoint-row")).toHaveCount(9);
+    await expect(page.locator(".endpoint-row")).toHaveCount(16);
     const expanded = await headers.evaluateAll((cells) =>
       cells.map((cell) => ({ x: cell.getBoundingClientRect().x, width: cell.getBoundingClientRect().width }))
     );
@@ -311,7 +335,7 @@ test("duplicate drafts do not display or reuse the source operation ID", async (
 test("selects multiple or all endpoints for bulk actions", async ({ page }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
   const rows = page.locator("#endpoint-rows .endpoint-row");
-  await expect(rows).toHaveCount(9);
+  await expect(rows).toHaveCount(16);
 
   await rows.nth(0).locator(".selection-checkbox").check();
   await rows.nth(1).locator(".selection-checkbox").check();
@@ -323,16 +347,16 @@ test("selects multiple or all endpoints for bulk actions", async ({ page }) => {
   await expect(rows.nth(1).getByRole("checkbox", { name: /^Enable |^Disable / })).not.toBeChecked();
 
   await page.locator("#select-all-endpoints").check();
-  await expect(page.locator("#selection-count")).toHaveText("9");
+  await expect(page.locator("#selection-count")).toHaveText("16");
   await page.getByRole("button", { name: "Enable", exact: true }).click();
-  await expect(page.getByText("Enabled 9 endpoints", { exact: true })).toBeVisible();
-  await expect(rows.getByRole("checkbox", { name: /^Disable / })).toHaveCount(9);
+  await expect(page.getByText("Enabled 16 endpoints", { exact: true })).toBeVisible();
+  await expect(rows.getByRole("checkbox", { name: /^Disable / })).toHaveCount(16);
 
   await page.locator("#select-all-endpoints").check();
   await page.locator("#bulk-delete").click();
-  await expect(page.getByRole("dialog", { name: "Delete 9 selected endpoints" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Delete 16 selected endpoints" })).toBeVisible();
   await page
-    .getByRole("dialog", { name: "Delete 9 selected endpoints" })
+    .getByRole("dialog", { name: "Delete 16 selected endpoints" })
     .getByRole("button", { name: "Delete", exact: true })
     .click();
   await expect(rows).toHaveCount(0);
@@ -368,26 +392,46 @@ test("color-codes response status families with accessible contrast, including h
     path: `/status-${statusCode}`,
     response: { statusCode, headers: {}, contentType: "text/plain", body: String(statusCode) },
   }));
+  endpoints.push({
+    id: "d90d0627-597c-45e1-a77d-22a3bc459aa0",
+    name: "Transport failure",
+    enabled: true,
+    methods: ["GET"],
+    path: "/transport-failure",
+    response: { behavior: "abortConnection", headers: {}, contentType: null, body: "" },
+  });
   await importDocument(request, { ...emptyDocument, endpoints });
 
   for (const theme of ["light", "dark"]) {
     await page.goto(`/?scoutTheme=${theme}`);
-    for (const statusCode of [101, 200, 302, 404, 503]) {
-      const statusClass = Math.floor(statusCode / 100);
-      const badge = page.getByRole("row", { name: new RegExp(`Status ${statusCode}`) }).locator(".status-badge");
-      await expect(badge).toHaveClass(new RegExp(`status-${statusClass}xx`));
-      const colors = await badge.evaluate((element) => {
+    for (const endpoint of endpoints) {
+      const statusCode = endpoint.response.statusCode;
+      const badge = page.getByRole("row", { name: new RegExp(endpoint.name) }).locator(".status-badge");
+      if (statusCode) await expect(badge).toHaveClass(new RegExp(`status-${Math.floor(statusCode / 100)}xx`));
+      await expect(badge).toHaveText(statusCode ? String(statusCode) : "DROP");
+      const colors = await badge.evaluate((element, statusCode) => {
+        const forcedColors = matchMedia("(forced-colors: active)").matches;
         const colorProbe = document.createElement("span");
-        colorProbe.style.backgroundColor = "var(--cp-surface)";
+        const statusToken = statusCode ? `--status-${Math.floor(statusCode / 100)}xx` : "--status-other";
+        colorProbe.style.backgroundColor = forcedColors ? "Highlight" : `var(${statusToken})`;
         document.body.append(colorProbe);
         const colors = {
-          background: getComputedStyle(colorProbe).backgroundColor,
+          expectedBackground: getComputedStyle(colorProbe).backgroundColor,
+          background: getComputedStyle(element).backgroundColor,
           foreground: getComputedStyle(element).color,
         };
         colorProbe.remove();
         return colors;
-      });
+      }, statusCode);
+      expect(colors.background).toBe(colors.expectedBackground);
       expect(contrastRatio(colors.foreground, colors.background)).toBeGreaterThanOrEqual(4.5);
+      await badge.hover();
+      const hoveredColors = await badge.evaluate((element) => ({
+        background: getComputedStyle(element).backgroundColor,
+        foreground: getComputedStyle(element).color,
+      }));
+      expect(hoveredColors.background).toBe(colors.background);
+      expect(contrastRatio(hoveredColors.foreground, hoveredColors.background)).toBeGreaterThanOrEqual(4.5);
     }
     await page.getByRole("row", { name: /Status 503/ }).hover();
     await expectNoUnreviewedAccessibilityViolations(page, "#endpoint-rows");
@@ -505,7 +549,7 @@ test("reports denied clipboard access when copying an endpoint URL", async ({ pa
 
 test("@smoke collapses endpoints and restores the preference", async ({ page }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(9);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(16);
 
   await page.getByRole("button", { name: "Collapse endpoints" }).click();
   await expect(page.locator("#endpoint-body")).toBeHidden();
@@ -518,7 +562,7 @@ test("@smoke collapses endpoints and restores the preference", async ({ page }) 
   const expand = page.getByRole("button", { name: "Expand endpoints" });
   await expect(expand).toHaveAttribute("aria-expanded", "false");
   await expand.click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(9);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(16);
   await expect(page.locator("#endpoint-controls")).toBeVisible();
   await expect(page.locator("#endpoint-toggle")).toBeFocused();
 });

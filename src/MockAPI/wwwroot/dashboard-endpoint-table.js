@@ -96,7 +96,7 @@ export function createDashboardEndpointTable({
     statisticsByEndpoint: new Map(),
     selectedEndpointIds: new Set(),
     collapsedEndpointGroups: new Set(),
-    endpointSort: { key: "name", direction: "ascending" },
+    endpointSort: { key: "path", direction: "ascending" },
     endpointsCollapsed: preferences.endpointsCollapsed,
     managementPending: false,
     pendingToggleFocus: null,

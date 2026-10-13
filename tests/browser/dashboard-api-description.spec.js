@@ -55,7 +55,7 @@ test("API description supports hover, keyboard editing, whitespace, and native e
   await expect(tooltip.locator("img")).toHaveCount(0);
   const exported = await (await request.get("/__mockapi/api/configuration/export")).json();
   expect(exported.apiDescriptions["/ctp"]).toBe(description);
-  expect(exported.endpoints).toHaveLength(9);
+  expect(exported.endpoints).toHaveLength(16);
   expect((await request.get("/ctp/parks")).status()).toBe(200);
   await page.reload();
   await info.focus();

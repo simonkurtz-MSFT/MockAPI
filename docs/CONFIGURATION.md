@@ -156,28 +156,42 @@ Uploaded imports replace the entire active document after validation and ETag ve
 
 ## Contoso Theme Parks Example
 
-The checked-in [example](../config/mockapi.json) contains nine endpoints in one cohesive API.
+The checked-in [example](../config/mockapi.json) contains sixteen endpoints in one cohesive API.
 **CTP stands for Contoso Theme Parks**, a fictional company where a little wonder awaits every visitor.
 Discover Starlight Gardens, explore its Cloud Cruiser roller coaster, and try a sample reservation.
 The fixtures are newly invented for MockAPI, inspired by the cohesive learning approach of the
 [Contoso Theme Parks project](https://github.com/contoso-theme-parks); they do not reproduce its original
 service contracts or require its Azure infrastructure.
 
-| Method        | Route                                       | Behavior                                                         |
-| ------------- | ------------------------------------------- | ---------------------------------------------------------------- |
-| `GET`, `HEAD` | `/ctp/parks`                                | Park discovery, `200`; `HEAD` omits the body                     |
-| `GET`         | `/ctp/attractions/cloud-cruiser`            | Ride details and a wait-times link, `200`                        |
-| `POST`        | `/ctp/reservations`                         | Sample reservation, `201`, with `Location: /ctp/reservations/42` |
-| `GET`         | `/ctp/reservations/42`                      | Retrieve the same sample reservation, `200`                      |
-| `DELETE`      | `/ctp/reservations/42`                      | Simulate cancellation, `204`, with no body                       |
-| `GET`         | `/ctp/attractions/featured`                 | Redirect to Cloud Cruiser, `302`                                 |
-| `GET`         | `/ctp/attractions/cloud-cruiser/wait-times` | Static wait time, `200`; excessive polling returns `429`         |
-| `GET`         | `/ctp/demo-faults/parade-schedule`          | Intentional parade-service HTTP failure, `500`                   |
-| `GET`         | `/ctp/demo-faults/ride-sensor`              | Intentional connection abort; no HTTP response                   |
+| Method    | Route                                       | Behavior                                                         |
+| --------- | ------------------------------------------- | ---------------------------------------------------------------- |
+| `GET`     | `/ctp/parks`                                | Park discovery, `200`; GET-only                                  |
+| `HEAD`    | `/ctp/health`                               | Static health fixture, `200`, with no body or content type       |
+| `GET`     | `/ctp/attractions/cloud-cruiser`            | Ride details and a wait-times link, `200`                        |
+| `POST`    | `/ctp/reservations`                         | Sample reservation, `201`, with `Location: /ctp/reservations/42` |
+| `GET`     | `/ctp/reservations/42`                      | Retrieve the same sample reservation, `200`                      |
+| `DELETE`  | `/ctp/reservations/42`                      | Simulate cancellation, `204`, with no body                       |
+| `GET`     | `/ctp/attractions/featured`                 | Redirect to Cloud Cruiser, `302`                                 |
+| `GET`     | `/ctp/attractions/cloud-cruiser/wait-times` | Static wait time, `200`; excessive polling returns `429`         |
+| `GET`     | `/ctp/demo-faults/parade-schedule`          | Intentional parade-service HTTP failure, `500`                   |
+| `GET`     | `/ctp/demo-faults/ride-sensor`              | Intentional connection abort; no HTTP response                   |
+| `POST`    | `/ctp/demo-faults/reservation-validation`   | Structured field-level validation failure, `422`, problem JSON   |
+| `POST`    | `/ctp/demo-faults/reservation-conflict`     | Full sample ride slot, `409`, problem JSON                       |
+| `GET`     | `/ctp/demo-faults/ticket-service`           | Maintenance failure, `503`, with `Retry-After: 30`               |
+| `GET`     | `/ctp/parks/starlight-gardens/schedule.csv` | Static CSV schedule, `200`, with an attachment filename          |
+| `PATCH`   | `/ctp/reservations/42`                      | Fixed four-visitor reservation, `200`; no stored update          |
+| `OPTIONS` | `/ctp/reservations/42`                      | Explicit preflight, `204`, with `Allow` and fixed CORS headers   |
+
+The HEAD-only `/ctp/health` fixture returns `200 OK` and `X-Mock-Source: MockAPI` without checking
+dependencies. GET `/ctp/health` and HEAD `/ctp/parks` return `404`. This mock route requires the
+instance API key when protection is enabled; it is separate from MockAPI's public `/health/live`
+and `/health/ready` probes.
 
 All park information and wait times are static. Reservation creation ignores the request body and
 stores nothing; cancellation changes nothing, and the sample reservation remains retrievable before
-creation and after cancellation. Query strings do not select different responses. All paths are exact
+creation and after cancellation. PATCH ignores the request body and returns a fixed four-visitor
+reservation; subsequent GET requests still return the original two-visitor fixture.
+Query strings do not select different responses. All paths are exact
 literals, not route templates. The featured-attraction redirect and reservation `Location` resolve to
 configured `GET` endpoints.
 
@@ -188,10 +202,35 @@ Both outcomes demonstrate repeated `X-Mock-Source` header values. The dashboard 
 Fault routes are deliberately separated under `/ctp/demo-faults/`; no real park operations or safety
 systems are involved. Each endpoint's dashboard information button explains its behavior.
 
+The validation and conflict demos always fail, regardless of the request body. They do not perform
+validation, check ride capacity, or create reservations. Both return `application/problem+json`:
+the validation response includes an `errors.partySize` array, and the conflict response describes a
+full Cloud Cruiser slot. The ticket-service demo uses the same problem media type and always returns
+`503`; its `Retry-After: 30` header is a client retry hint, not a timer that restores the service.
+The schedule download returns fictional events as UTF-8 `text/csv` with CRLF line endings and
+`Content-Disposition: attachment; filename="starlight-gardens-schedule.csv"`.
+
+The explicit OPTIONS example targets the PATCH path and has no body or content type. Its `Allow`
+header lists the configured `GET`, `PATCH`, `DELETE`, and `OPTIONS` methods on that path. Fixed CORS
+headers permit a non-credentialed cross-origin PATCH with `Content-Type` and `X-MockAPI-Key`;
+the PATCH response supplies matching `Access-Control-Allow-Origin: *` and exposes `X-Mock-Source`.
+The OPTIONS fixture ignores `Origin`, `Access-Control-Request-Method`, and
+`Access-Control-Request-Headers`; it is not a dynamic CORS policy, and other paths do not acquire
+automatic OPTIONS behavior. GET and DELETE on this path do not include matching CORS headers.
+API-key protection still applies to OPTIONS. Because browsers do not send the API key on preflight,
+the cross-origin browser demonstration requires explicitly disabling instance API-key protection
+in a controlled test environment. It does not work with credentialed browser requests or enable
+CORS on the dashboard or management API.
+
 The seven earlier `/ex` example IDs are retained so existing statistics attribution and built-in merge
 identity remain stable. On an instance with those examples already loaded, **Load examples** previews
 conflicts rather than silently moving routes. After reviewing, **Force update** replaces those seven
-definitions and adds the two new lookup endpoints without deleting unrelated endpoints. API descriptions
+definitions and adds the missing examples without deleting unrelated endpoints.
+Instances using the earlier nine-, thirteen-, or fifteen-endpoint `/ctp` example also receive a
+conflict preview for the stable parks endpoint ID: its HEAD method has moved to the new `/ctp/health`
+endpoint. No missing endpoints are added until the conflict is reviewed. **Force update** makes
+`/ctp/parks` GET-only and adds `/ctp/health` along with any other missing examples; repeated loading
+is then a no-op. API descriptions
 remain independent: old `/ex` metadata is retained, and an existing custom or empty `/ctp` description
 is preserved.
 

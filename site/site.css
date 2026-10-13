@@ -73,10 +73,6 @@ nav,
   font-weight: 600;
   text-decoration: none;
 }
-.site-header nav a:hover {
-  background: var(--cp-surface-soft);
-  text-decoration: underline;
-}
 .icon-button[hidden] {
   display: none;
 }

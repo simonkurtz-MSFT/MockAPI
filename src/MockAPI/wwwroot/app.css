@@ -466,7 +466,7 @@ html[data-request-log-collapsed="true"] #request-log-body {
 .metric {
   min-width: 0;
   min-height: 78px;
-  padding: 12px 14px;
+  padding: 10px 14px;
   border-right: 1px solid var(--cp-border);
   align-self: stretch;
   display: grid;
@@ -1127,7 +1127,7 @@ th {
 }
 th,
 td {
-  padding: 12px 14px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--cp-border);
   vertical-align: middle;
 }
@@ -1351,29 +1351,44 @@ tbody tr:hover {
   color: var(--cp-accent);
 }
 .status-badge {
-  color: var(--cp-text);
+  min-width: 42px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: var(--status-other);
+  color: var(--cp-accent-fg);
+  text-align: center;
 }
-.status-badge.status-1xx,
+.status-badge.status-1xx {
+  background: var(--status-1xx);
+}
+.status-badge.status-2xx {
+  background: var(--status-2xx);
+}
+.status-badge.status-3xx {
+  background: var(--status-3xx);
+}
+.status-badge.status-4xx {
+  background: var(--status-4xx);
+}
+.status-badge.status-5xx {
+  background: var(--status-5xx);
+}
 .request-log-result.status-1xx {
   color: var(--status-1xx);
 }
-.status-badge.status-2xx,
 .request-log-result.status-2xx {
   color: var(--status-2xx);
 }
-.status-badge.status-3xx,
 .request-log-result.status-3xx {
   color: var(--status-3xx);
 }
-.status-badge.status-4xx,
 .request-log-result.status-4xx {
   color: var(--status-4xx);
 }
-.status-badge.status-5xx,
 .request-log-result.status-5xx {
   color: var(--status-5xx);
 }
-.status-badge.status-other,
 .request-log-result.status-other {
   color: var(--status-other);
 }
@@ -2303,8 +2318,10 @@ html[data-theme="dark"] button:disabled {
     background: Highlight;
     color: HighlightText;
   }
-  .status-badge[class*="status-"] {
-    color: CanvasText;
+  .status-badge {
+    border-color: Highlight;
+    background: Highlight;
+    color: HighlightText;
   }
   .tutorial-backdrop {
     background: Canvas;
@@ -2330,6 +2347,18 @@ html[data-theme="dark"] button:disabled {
 
 /* Responsive layout: scrolling panels, columns, then narrow-screen overrides */
 @media (min-width: 1100px) and (min-height: 800px) {
+  html[data-dashboard-layout="columns"] main {
+    display: flex;
+    flex-direction: column;
+  }
+  html[data-dashboard-layout="columns"]:not([data-endpoints-collapsed="true"]):not([data-request-log-collapsed="true"])
+    .dashboard-layout {
+    flex: 1;
+  }
+  html[data-dashboard-layout="columns"]:not([data-endpoints-collapsed="true"]):not([data-request-log-collapsed="true"])
+    .table-wrap {
+    max-height: none;
+  }
   .dashboard-layout {
     --endpoint-column-min-height: clamp(480px, 70dvh, 1000px);
     --request-log-column-min-height: clamp(320px, 40dvh, 560px);

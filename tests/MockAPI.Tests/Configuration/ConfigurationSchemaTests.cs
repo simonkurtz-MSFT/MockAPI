@@ -20,7 +20,7 @@ public sealed class ConfigurationSchemaTests
         Assert.NotNull(document);
         Assert.True(ConfigurationValidator.Validate(document).IsValid);
 
-        Assert.Equal(9, document.Endpoints.Count);
+        Assert.Equal(16, document.Endpoints.Count);
         Assert.StartsWith("CTP stands for Contoso Theme Parks", document.ApiDescriptions!["/ctp"]);
         Assert.Contains("static", document.ApiDescriptions["/ctp"], StringComparison.OrdinalIgnoreCase);
         Assert.All(document.Endpoints, endpoint =>
@@ -30,8 +30,15 @@ public sealed class ConfigurationSchemaTests
         });
 
         var parks = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ctp/parks");
-        Assert.Equal(["GET", "HEAD"], parks.Methods);
+        Assert.Equal(["GET"], parks.Methods);
         Assert.Equal(200, parks.Response.StatusCode);
+        var health = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ctp/health");
+        Assert.Equal(["HEAD"], health.Methods);
+        Assert.Equal(200, health.Response.StatusCode);
+        Assert.Equal("OK", health.Response.ReasonPhrase);
+        Assert.Equal(["MockAPI"], health.Response.Headers["X-Mock-Source"]);
+        Assert.Null(health.Response.ContentType);
+        Assert.Empty(health.Response.Body);
         using var parkBody = JsonDocument.Parse(parks.Response.Body);
         var park = Assert.Single(parkBody.RootElement.GetProperty("parks").EnumerateArray());
         var attractionId = Assert.Single(park.GetProperty("attractionIds").EnumerateArray()).GetString();
@@ -82,6 +89,99 @@ public sealed class ConfigurationSchemaTests
         var abort = Assert.Single(document.Endpoints, endpoint => endpoint.Path == "/ctp/demo-faults/ride-sensor");
         Assert.Equal(MockResponseBehavior.AbortConnection, abort.Response.Behavior);
         Assert.Null(abort.Response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("/ctp/demo-faults/reservation-validation", "POST", 422)]
+    [InlineData("/ctp/demo-faults/reservation-conflict", "POST", 409)]
+    [InlineData("/ctp/demo-faults/ticket-service", "GET", 503)]
+    public void CheckedInExample_ProvidesStaticProblemResponses(string path, string method, int statusCode)
+    {
+        var document = JsonSerializer.Deserialize(
+            File.ReadAllText(ConfigurationSchemaFixture.ExamplePath),
+            MockApiJsonContext.Default.MockApiConfigurationDocument)!;
+        var endpoint = Assert.Single(document.Endpoints, endpoint => endpoint.Path == path);
+
+        Assert.Equal([method], endpoint.Methods);
+        Assert.Equal(statusCode, endpoint.Response.StatusCode);
+        Assert.Equal("application/problem+json; charset=utf-8", endpoint.Response.ContentType);
+        using var body = JsonDocument.Parse(endpoint.Response.Body);
+        Assert.Equal("about:blank", body.RootElement.GetProperty("type").GetString());
+        Assert.Equal(statusCode, body.RootElement.GetProperty("status").GetInt32());
+        Assert.Equal(endpoint.Response.ReasonPhrase, body.RootElement.GetProperty("title").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(body.RootElement.GetProperty("detail").GetString()));
+
+        if (statusCode == 422)
+        {
+            Assert.Equal("Party size must be between 1 and 6 visitors.",
+                Assert.Single(body.RootElement.GetProperty("errors").GetProperty("partySize").EnumerateArray()).GetString());
+        }
+        else if (statusCode == 409)
+        {
+            Assert.Equal("cloud-cruiser", body.RootElement.GetProperty("attractionId").GetString());
+        }
+        else
+        {
+            Assert.Equal(["30"], endpoint.Response.Headers["Retry-After"]);
+            Assert.Null(endpoint.Response.RateLimit);
+        }
+    }
+
+    [Fact]
+    public void CheckedInExample_ProvidesCsvScheduleDownload()
+    {
+        var document = JsonSerializer.Deserialize(
+            File.ReadAllText(ConfigurationSchemaFixture.ExamplePath),
+            MockApiJsonContext.Default.MockApiConfigurationDocument)!;
+        var schedule = Assert.Single(document.Endpoints, endpoint =>
+            endpoint.Path == "/ctp/parks/starlight-gardens/schedule.csv");
+
+        Assert.Equal(["GET"], schedule.Methods);
+        Assert.Equal(200, schedule.Response.StatusCode);
+        Assert.Equal("text/csv; charset=utf-8", schedule.Response.ContentType);
+        Assert.Equal(["attachment; filename=\"starlight-gardens-schedule.csv\""],
+            schedule.Response.Headers["Content-Disposition"]);
+        Assert.Equal(
+            "parkId,event,startTime\r\nstarlight-gardens,Park opening,09:00\r\nstarlight-gardens,Starlight parade,15:00\r\nstarlight-gardens,Park closing,21:00\r\n",
+            schedule.Response.Body);
+    }
+
+    [Fact]
+    public void CheckedInExample_ProvidesStaticPatchAndMatchingPreflight()
+    {
+        var document = JsonSerializer.Deserialize(
+            File.ReadAllText(ConfigurationSchemaFixture.ExamplePath),
+            MockApiJsonContext.Default.MockApiConfigurationDocument)!;
+        var update = Assert.Single(document.Endpoints, endpoint => endpoint.Methods.Contains("PATCH"));
+        var preflight = Assert.Single(document.Endpoints, endpoint => endpoint.Methods.Contains("OPTIONS"));
+
+        Assert.Equal(["PATCH"], update.Methods);
+        Assert.Equal("/ctp/reservations/42", update.Path);
+        Assert.Equal(200, update.Response.StatusCode);
+        Assert.Equal("application/json; charset=utf-8", update.Response.ContentType);
+        Assert.Equal(
+            "{\"id\":42,\"parkId\":\"starlight-gardens\",\"attractionId\":\"cloud-cruiser\",\"partySize\":4,\"status\":\"reserved\"}",
+            update.Response.Body);
+        Assert.Equal(["*"], update.Response.Headers["Access-Control-Allow-Origin"]);
+        Assert.Equal(["X-Mock-Source"], update.Response.Headers["Access-Control-Expose-Headers"]);
+
+        Assert.Equal(["OPTIONS"], preflight.Methods);
+        Assert.Equal(update.Path, preflight.Path);
+        Assert.Equal(204, preflight.Response.StatusCode);
+        Assert.Empty(preflight.Response.Body);
+        Assert.Null(preflight.Response.ContentType);
+        Assert.Equal(["*"], preflight.Response.Headers["Access-Control-Allow-Origin"]);
+        Assert.Equal(["PATCH, OPTIONS"], preflight.Response.Headers["Access-Control-Allow-Methods"]);
+        Assert.Equal(["Content-Type, X-MockAPI-Key"], preflight.Response.Headers["Access-Control-Allow-Headers"]);
+        var configuredMethods = document.Endpoints
+            .Where(endpoint => endpoint.Path == update.Path)
+            .SelectMany(endpoint => endpoint.Methods)
+            .Order()
+            .ToArray();
+        var advertisedMethods = Assert.Single(preflight.Response.Headers["Allow"]).Split(", ").Order().ToArray();
+        Assert.Equal(configuredMethods, advertisedMethods);
+        Assert.DoesNotContain("Access-Control-Allow-Credentials", preflight.Response.Headers.Keys);
+        Assert.DoesNotContain("Access-Control-Allow-Credentials", update.Response.Headers.Keys);
     }
 
     [Theory]

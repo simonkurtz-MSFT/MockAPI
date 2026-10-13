@@ -88,7 +88,7 @@ test("uses the consolidated Statistics reset control for overall and endpoint sc
 
 test("shows only configured endpoint requests without retaining query values", async ({ page, request }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(9);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(16);
   await request.post("/__mockapi/api/statistics/reset");
 
   const matchedResponse = await request.get("/ctp/parks?token=private-value");
@@ -138,7 +138,7 @@ test.describe("request log time zone", () => {
     }) => {
       await expect(page.locator(".request-log-empty")).toHaveAttribute("colspan", "7");
       await page.getByRole("button", { name: "Load examples" }).first().click();
-      await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(9);
+      await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(16);
       expect((await request.get("/ctp/parks")).status()).toBe(200);
       const entryTime = page.locator(".request-log-entry time").first();
       const bucketTime = page.locator(".request-log-bucket time").first();
@@ -220,7 +220,7 @@ test.describe("request log time zone", () => {
 
 test("collapses request log buckets and opens them from statistics columns", async ({ page, request }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(9);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(16);
   await request.post("/__mockapi/api/statistics/reset");
   const response = await request.get("/ctp/parks");
   expect(response.status()).toBe(200);

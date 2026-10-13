@@ -86,12 +86,20 @@ MockAPI suppresses the Kestrel `Server` header. It does not log configured reque
 
 The endpoint table shows all matching operations without paging. Scroll vertically to browse long
 lists; column headers remain visible. API groups stay alphabetical, and operations default to
-alphabetical name order within each group. Column header clicks sort operations inside expanded
+ascending path order within each group. Column header clicks sort operations inside expanded
 groups without reordering or expanding API groups. Filters and bulk selection cover the complete
 matching list, including collapsed groups.
 
+On roomy two-column layouts, expanded Endpoints and Request log panels use spare viewport height,
+with their tables scrolling internally. Statistics keeps its content-based height. Collapsed panels
+and smaller or stacked layouts retain their existing sizing.
+
 Hover over an operation's Attempts count to see its last-attempt time, or `Never` before any attempts.
 The count and tooltip update together as new attempts arrive.
+
+Endpoint response codes use filled rectangular badges in their status-family color, with contrasting
+text in light and dark themes. `DROP` uses a neutral badge for connection aborts; high-contrast mode
+uses system highlight colors. The displayed code remains readable without relying on color alone.
 
 Path appears immediately after the selection checkbox, before the information button and operation
 name. It omits the API group prefix: `/ctp/parks` appears as `/parks` under `ctp/`, and `/ctp` appears

@@ -395,7 +395,7 @@ test("previews a built-in conflict and force-updates only reviewed endpoints", a
   await expect(page.locator("#confirm-message")).toContainText("Discover the parks conflicts");
   await expectNoUnreviewedAccessibilityViolations(page);
   await page.getByRole("button", { name: "Force update" }).click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(9);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(16);
   const response = await request.get("/ctp/parks");
   expect(await response.text()).toBe(parks.response.body);
 });

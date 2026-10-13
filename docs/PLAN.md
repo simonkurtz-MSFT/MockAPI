@@ -273,7 +273,9 @@ Honor explicit saved collapse choices in both stacked and two-column layouts, in
 Apply saved collapse choices before the dashboard modules load so panels do not flash expanded or change height
 when those modules initialize. Missing, invalid, or unsupported collapse preferences retain the expanded default.
 When both columns are expanded, share their overall height so Endpoints and Request log end
-on the same horizontal line. Empty endpoint tables fit their panel; request-log columns fit
+on the same horizontal line. On roomy two-column viewports, use spare height above the footer
+to grow Endpoints and Request log while keeping Statistics content-sized. Do not stretch collapsed panels.
+Empty endpoint tables fit their panel; request-log columns fit
 the supported side-by-side width. Show a horizontal scrollbar only when content actually
 overflows, including the activity timeline.
 Use side-by-side panels only when all command groups fit on one row in the endpoint column.
@@ -300,7 +302,7 @@ at 220px and align the collapse control with the first filter row when filters w
 - Place Path after selection and before the information button and endpoint name. Display paths
   relative to the API group (use `/` for its root); keep full configured paths for requests and editing.
 - Show every filtered endpoint without paging in a vertically scrollable table with sticky headers.
-  Keep API groups alphabetical and default operations to alphabetical name order within each group.
+  Keep API groups alphabetical and default operations to ascending path order within each group.
   Header clicks sort operations within expanded groups, never reorder API groups.
 - Display each supported HTTP method in its own bordered badge to keep adjacent method names visually distinct.
 - Show endpoint descriptions behind the same information button before each endpoint name, not inline.

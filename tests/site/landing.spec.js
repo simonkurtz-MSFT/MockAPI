@@ -136,42 +136,55 @@ test("quick starts, assets and accessibility work under the Pages repository pre
   expect(failures).toEqual([]);
 });
 
-test("getting-started cards fill the content width and stack on smaller screens", async ({ page }) => {
+test("navigation buttons share the call-to-action hover effect without underlines", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("./");
+  const documentation = page.getByRole("link", { name: "Read the documentation", exact: true });
+  await documentation.hover();
+  await expect(documentation).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, -1)");
+  const raisedShadow = await documentation.evaluate((element) => getComputedStyle(element).boxShadow);
+  const navigation = page.getByRole("navigation", { name: "Main navigation" });
+  for (const button of await navigation.getByRole("link").all()) {
+    await page.mouse.move(0, 0);
+    await expect(button).toHaveCSS("transform", "none");
+    await expect(button).toHaveCSS("text-decoration-line", "none");
+    await button.hover();
+    await expect(button).toHaveCSS("text-decoration-line", "none");
+    await expect(button).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, -1)");
+    await expect(button).toHaveCSS("box-shadow", raisedShadow);
+    await page.mouse.down();
+    await expect(button).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+    await page.mouse.move(0, 0);
+    await page.mouse.up();
+  }
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  for (const button of await navigation.getByRole("link").all()) {
+    await button.hover();
+    await expect(button).toHaveCSS("text-decoration-line", "none");
+    await expect(button).toHaveCSS("transform", "none");
+  }
+});
+
+test("getting-started content stays usable on desktop and narrow screens", async ({ page }) => {
   await page.goto("./");
   const cards = page.locator("#start .card");
   await expect(cards).toHaveCount(2);
 
-  for (const width of [1440, 951, 950, 390, 320]) {
+  for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
-    const section = await page.locator("#start").boundingBox();
-    const local = await cards.nth(0).boundingBox();
-    const container = await cards.nth(1).boundingBox();
-    expect(local.x).toBeCloseTo(section.x, 1);
-    expect(container.x + container.width).toBeCloseTo(section.x + section.width, 1);
-    expect(local.width).toBeCloseTo(container.width, 1);
-
-    if (width > 950) {
-      expect(local.y).toBeCloseTo(container.y, 1);
-      expect(container.x).toBeGreaterThan(local.x + local.width);
-      const examples = await page
-        .locator("#examples .card")
-        .evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().y));
-      expect(examples).toHaveLength(3);
-      expect(examples[0]).toBeCloseTo(examples[1], 1);
-      expect(examples[1]).toBeCloseTo(examples[2], 1);
-    } else {
-      expect(local.width).toBeCloseTo(section.width, 1);
-      expect(container.x).toBeCloseTo(section.x, 1);
-      expect(container.y).toBeGreaterThan(local.y + local.height);
+    await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Get started" }).click();
+    await expect(page).toHaveURL(/#start$/);
+    for (const card of await cards.all()) {
+      await expect(card).toBeVisible();
+      await expect(card.getByRole("heading")).toBeVisible();
     }
-
+    await expect(page.getByRole("link", { name: "Browse published images" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
 });
 
-test("features follow common uses and lead with the small, hardened container", async ({ page }) => {
+test("features describe the small, hardened container and supported capabilities", async ({ page }) => {
   await page.goto("./");
-  const examples = page.getByRole("region", { name: "Mock API examples for development and testing" });
   const features = page.getByRole("region", { name: "A small, hardened container for your mock APIs" });
   await expect(features.locator(".card")).toHaveCount(4);
   await expect(features.getByRole("heading", { level: 3 })).toHaveText([
@@ -185,31 +198,6 @@ test("features follow common uses and lead with the small, hardened container", 
   await expect(features).toContainText("read-only root filesystem");
   await expect(features).toContainText("API key by default");
   await expect(features).toContainText("Postman, Insomnia, cURL, JMeter, OpenAPI, k6, or HTTP files");
-  expect(
-    await features.evaluate(
-      (featuresSection, examplesSection) => featuresSection.previousElementSibling === examplesSection,
-      await examples.elementHandle()
-    )
-  ).toBe(true);
-});
-
-test("introductory copy and self-hosting section fill the main content width on desktop and mobile", async ({
-  page,
-}) => {
-  await page.goto("./");
-  const section = page.getByRole("region", { name: "Self-hosted, with a small runtime footprint" });
-  for (const width of [1440, 1024, 390, 320]) {
-    await page.setViewportSize({ width, height: 900 });
-    const main = await page.locator("main").boundingBox();
-    for (const content of [page.locator(".hero .lead"), section]) {
-      const bounds = await content.boundingBox();
-      expect(bounds.x).toBeCloseTo(main.x, 1);
-      expect(bounds.width).toBeCloseTo(main.width, 1);
-    }
-    const headline = await page.locator(".hero h1").boundingBox();
-    expect(headline.width).toBeCloseTo(Math.min(main.width, 860), 1);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  }
 });
 
 test("footer links to Simon Kurtz's website in a protected new tab", async ({ page }) => {

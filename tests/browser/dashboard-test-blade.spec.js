@@ -103,6 +103,137 @@ test("tests body-bearing and empty-response endpoints", async ({ page }) => {
   await expect(page.locator("#test-response-body")).toHaveText("Empty response body.");
 });
 
+for (const { name, path, status, contentType } of [
+  {
+    name: "Reservation validation fault demo",
+    path: "/ctp/demo-faults/reservation-validation",
+    status: 422,
+    contentType: "application/problem+json; charset=utf-8",
+  },
+  {
+    name: "Reservation conflict fault demo",
+    path: "/ctp/demo-faults/reservation-conflict",
+    status: 409,
+    contentType: "application/problem+json; charset=utf-8",
+  },
+  {
+    name: "Ticket service maintenance fault demo",
+    path: "/ctp/demo-faults/ticket-service",
+    status: 503,
+    contentType: "application/problem+json; charset=utf-8",
+  },
+  {
+    name: "Download the park schedule",
+    path: "/ctp/parks/starlight-gardens/schedule.csv",
+    status: 200,
+    contentType: "text/csv; charset=utf-8",
+  },
+  {
+    name: "Update your ride reservation",
+    path: "/ctp/reservations/42",
+    status: 200,
+    contentType: "application/json; charset=utf-8",
+  },
+  {
+    name: "Check reservation preflight",
+    path: "/ctp/reservations/42",
+    status: 204,
+    contentType: null,
+  },
+  {
+    name: "Check the park API health",
+    path: "/ctp/health",
+    status: 200,
+    contentType: null,
+  },
+]) {
+  test(`previews and tests the built-in ${name} example`, async ({ page, request }) => {
+    const example = await (await request.get("/__mockapi/api/configuration/example")).json();
+    const endpoint = example.endpoints.find((candidate) => candidate.path === path && candidate.name === name);
+    await page.getByRole("button", { name: "Load examples" }).first().click();
+    const row = page.getByRole("row", { name: new RegExp(name) });
+    await expect(row.locator(".status-badge")).toHaveText(String(status));
+    await expect(row.locator(".method-badge")).toHaveText(endpoint.methods);
+    await row.getByRole("button", { name: `Endpoint information for ${name}`, exact: true }).hover();
+    await expect(row.getByText(endpoint.description, { exact: true })).toBeVisible();
+    await row.getByRole("button", { name: "Test", exact: true }).click();
+    await expect(page.getByLabel("Path and query")).toHaveValue(path);
+    await expect(page.locator("#test-method")).toHaveValue(endpoint.methods[0]);
+    if (endpoint.methods.includes("POST") || endpoint.methods.includes("PATCH")) {
+      await page.getByLabel("Request body", { exact: true }).fill('{"partySize":2}');
+    }
+    await page.getByRole("button", { name: "Send request" }).click();
+    await expect(page.locator("#test-status")).toHaveText(`Request completed with HTTP ${status}.`);
+    await expect(page.locator("#test-response-body")).toHaveText(endpoint.response.body || "Empty response body.");
+    if (contentType) {
+      await expect(page.locator("#test-response-headers")).toContainText(contentType);
+    }
+    if (status === 503) {
+      await expect(page.locator("#test-response-headers")).toContainText(/retry-after\s*: 30/);
+    }
+    if (contentType?.startsWith("text/csv")) {
+      await expect(page.locator("#test-response-headers")).toContainText(
+        'attachment; filename="starlight-gardens-schedule.csv"'
+      );
+    }
+    if (endpoint.methods.includes("PATCH")) {
+      expect((await (await request.get(path)).json()).partySize).toBe(2);
+    }
+    if (endpoint.methods.includes("OPTIONS")) {
+      await expect(page.locator("#test-response-headers")).toContainText(/allow\s*: GET, PATCH, DELETE, OPTIONS/);
+      await expect(page.locator("#test-response-headers")).toContainText(
+        /access-control-allow-methods\s*: PATCH, OPTIONS/
+      );
+      await expect(page.locator("#test-response-headers")).not.toContainText(/(?:^|\n)content-type\s*:/);
+    }
+    if (endpoint.methods.includes("HEAD")) {
+      await expect(page.locator("#test-response-headers")).toContainText(/x-mock-source\s*: MockAPI/);
+      await expect(page.locator("#test-response-headers")).not.toContainText(/(?:^|\n)content-type\s*:/);
+      expect((await request.get(path)).status()).toBe(404);
+      expect((await request.head("/ctp/parks")).status()).toBe(404);
+      await expect(page.getByRole("row", { name: /Discover the parks/ }).locator(".method-badge")).toHaveText(["GET"]);
+    }
+  });
+}
+
+test("performs a cross-origin PATCH preflight with API-key protection disabled", async ({ page, request, baseURL }) => {
+  const example = await (await request.get("/__mockapi/api/configuration/example")).json();
+  await page.getByRole("button", { name: "Load examples" }).first().click();
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(example.endpoints.length);
+  const clientUrl = new URL(baseURL);
+  clientUrl.hostname = "localhost";
+  await page.goto(clientUrl.href);
+  await expect(page.locator("#connection-status")).toHaveText("Live");
+
+  const result = await page.evaluate(async (url) => {
+    const response = await fetch(`${url}/ctp/reservations/42`, {
+      method: "PATCH",
+      credentials: "omit",
+      headers: {
+        "Content-Type": "application/json",
+        "X-MockAPI-Key": "sample-key-for-cors-demo",
+      },
+      body: '{"partySize":6}',
+    });
+    return {
+      status: response.status,
+      source: response.headers.get("X-Mock-Source"),
+      body: await response.json(),
+    };
+  }, baseURL);
+  expect(result.status).toBe(200);
+  expect(result.source).toBe("MockAPI");
+  expect(result.body.partySize).toBe(4);
+  expect((await (await request.get("/ctp/reservations/42")).json()).partySize).toBe(2);
+  const options = example.endpoints.find((endpoint) => endpoint.methods.includes("OPTIONS"));
+  await expect
+    .poll(async () => {
+      const statistics = await (await request.get("/__mockapi/api/statistics")).json();
+      return statistics.endpoints.find((endpoint) => endpoint.endpointId === options.id)?.totalRequests;
+    })
+    .toBe(1);
+});
+
 test("reports endpoint-test network errors", async ({ page, request }) => {
   await request.post("/__mockapi/api/statistics/reset");
   await page.getByRole("button", { name: "Load examples" }).first().click();
