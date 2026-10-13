@@ -7,6 +7,15 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.4.3] - 2026-10-13
+
+### Changed
+
+- Expanded the Contoso Theme Parks example configuration with additional endpoints and clearer
+  descriptions.
+- Refined dashboard layout and endpoint testing interactions without changing mock routing,
+  management API behavior, or the configuration schema.
+
 ## [1.4.2] - 2026-10-12
 
 ### Changed
@@ -139,8 +148,9 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.4.2...HEAD
-[1.4.2]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.4.1...v1.4.2
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.3...HEAD
+[1.4.3]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.2...1.4.3
+[1.4.2]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.1...1.4.2
 [1.4.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.0...v1.4.1
 [1.4.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.2.0...v1.3.0
