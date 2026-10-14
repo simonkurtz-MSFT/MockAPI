@@ -231,6 +231,12 @@ public sealed class MockDispatcherTests
         Assert.Equal(1, snapshot.AbortedConnections);
         Assert.Equal(0, snapshot.FailedWrites);
         Assert.Equal(0, snapshot.ResponseBytes);
+        Assert.Equal(1, Assert.Single(snapshot.Endpoints).TotalRequests);
+        var request = Assert.Single(snapshot.RecentRequests);
+        Assert.Equal(endpoint.Id, request.EndpointId);
+        Assert.Equal(RequestLogOutcome.Aborted, request.Outcome);
+        Assert.Null(request.StatusCode);
+        Assert.Equal(0, request.ResponseBytes);
     }
 
     [Fact]
@@ -344,6 +350,139 @@ public sealed class MockDispatcherTests
         Assert.Equal(0, snapshot.ResponseBytes);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Dispatcher_FailedRateLimitedResponseRecordsSelectedStatusAndRethrows(bool cancelWrite)
+    {
+        var configuration = new ConfigurationState();
+        var statistics = new RequestStatisticsCollector();
+        var endpoint = CreateEndpoint(["GET"], "/fails-rate-limited", "limited") with
+        {
+            Response = new MockResponseDefinition
+            {
+                StatusCode = 429,
+                Headers = [],
+                ContentType = "text/plain",
+                Body = "limited",
+                RateLimit = new MockRateLimitDefinition
+                {
+                    RequestLimit = 1,
+                    WindowSeconds = 300,
+                    SuccessResponse = new MockSuccessResponseDefinition
+                    {
+                        StatusCode = 202,
+                        Headers = [],
+                        ContentType = "text/plain",
+                        Body = "accepted"
+                    }
+                }
+            }
+        };
+        Apply(configuration, CreateDocument(endpoint));
+        var context = new DefaultHttpContext();
+        context.Request.Method = "GET";
+        context.Request.Path = endpoint.Path;
+        Exception failure = cancelWrite
+            ? new OperationCanceledException("Simulated response write cancellation.")
+            : new IOException("Simulated response write failure.");
+        context.Response.Body = new ThrowingWriteStream(failure);
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var exception = await Assert.ThrowsAnyAsync<Exception>(() =>
+                MockRequestDispatcher.DispatchAsync(context, configuration, statistics));
+
+            Assert.Same(failure, exception);
+            var snapshot = statistics.GetSnapshot();
+            var expectedStatus = attempt == 0 ? 202 : 429;
+            Assert.Equal(attempt + 1, snapshot.TotalRequests);
+            Assert.Equal(attempt + 1, snapshot.MatchedRequests);
+            Assert.Equal(attempt + 1, snapshot.FailedWrites);
+            Assert.Equal(0, snapshot.AbortedConnections);
+            Assert.Equal(0, snapshot.ResponseBytes);
+            Assert.Equal(1, snapshot.SuccessResponses);
+            Assert.Equal(attempt, snapshot.ClientErrorResponses);
+            Assert.Equal(1, snapshot.RecentMinutes[^1].SuccessResponses);
+            Assert.Equal(attempt, snapshot.RecentMinutes[^1].ClientErrorResponses);
+            var endpointStatistics = Assert.Single(snapshot.Endpoints);
+            Assert.Equal(endpoint.Id, endpointStatistics.EndpointId);
+            Assert.Equal(expectedStatus, endpointStatistics.LastStatusCode);
+            Assert.Equal(1, endpointStatistics.RecentMinutes[^1].SuccessResponses);
+            Assert.Equal(attempt, endpointStatistics.RecentMinutes[^1].ClientErrorResponses);
+            var request = snapshot.RecentRequests[0];
+            Assert.Equal(RequestLogOutcome.FailedWrite, request.Outcome);
+            Assert.Equal(expectedStatus, request.StatusCode);
+            Assert.Equal(0, request.ResponseBytes);
+        }
+    }
+
+    [Theory]
+    [InlineData(MockResponseBehavior.Response)]
+    [InlineData(MockResponseBehavior.AbortConnection)]
+    public async Task Dispatcher_CancelledDelayRecordsFailureWithoutStatusAgainstCapturedEndpoint(
+        MockResponseBehavior behavior)
+    {
+        var configuration = new ConfigurationState();
+        var statistics = new RequestStatisticsCollector();
+        var endpoint = CreateEndpoint(["GET"], "/cancelled-delay", string.Empty) with
+        {
+            Response = new MockResponseDefinition
+            {
+                Behavior = behavior,
+                DelaySeconds = 300,
+                StatusCode = behavior == MockResponseBehavior.Response ? 200 : null,
+                Headers = [],
+                Body = string.Empty
+            }
+        };
+        Apply(configuration, CreateDocument(endpoint));
+        using var cancellation = new CancellationTokenSource();
+        var context = new DefaultHttpContext();
+        context.Request.Method = "GET";
+        context.Request.Path = endpoint.Path;
+        context.RequestAborted = cancellation.Token;
+        context.Response.Body = new MemoryStream();
+
+        var dispatch = MockRequestDispatcher.DispatchAsync(context, configuration, statistics);
+        Assert.False(dispatch.IsCompleted);
+        Apply(configuration, CreateDocument(CreateEndpoint(["GET"], endpoint.Path, "replacement")));
+        cancellation.Cancel();
+
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => dispatch);
+
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+        Assert.Empty(context.Response.Headers);
+        Assert.Equal(0, context.Response.Body.Length);
+        var snapshot = statistics.GetSnapshot();
+        Assert.Equal(1, snapshot.TotalRequests);
+        Assert.Equal(1, snapshot.MatchedRequests);
+        Assert.Equal(1, snapshot.FailedWrites);
+        Assert.Equal(0, snapshot.AbortedConnections);
+        Assert.Equal(0, snapshot.ResponseBytes);
+        Assert.Equal(0, snapshot.InformationalResponses);
+        Assert.Equal(0, snapshot.SuccessResponses);
+        Assert.Equal(0, snapshot.RedirectionResponses);
+        Assert.Equal(0, snapshot.ClientErrorResponses);
+        Assert.Equal(0, snapshot.ServerErrorResponses);
+        var minute = snapshot.RecentMinutes[^1];
+        Assert.Equal(1, minute.Requests);
+        Assert.Equal(0, minute.SuccessResponses);
+        var endpointStatistics = Assert.Single(snapshot.Endpoints);
+        Assert.Equal(endpoint.Id, endpointStatistics.EndpointId);
+        Assert.Equal(1, endpointStatistics.TotalRequests);
+        Assert.Null(endpointStatistics.LastStatusCode);
+        Assert.Equal(1, endpointStatistics.RecentMinutes[^1].Requests);
+        Assert.Equal(0, endpointStatistics.RecentMinutes[^1].SuccessResponses);
+        var request = Assert.Single(snapshot.RecentRequests);
+        Assert.Equal(endpoint.Id, request.EndpointId);
+        Assert.Equal("GET", request.Method);
+        Assert.Equal(endpoint.Path, request.Path);
+        Assert.Equal(RequestLogOutcome.FailedWrite, request.Outcome);
+        Assert.Null(request.StatusCode);
+        Assert.Equal(0, request.ResponseBytes);
+    }
+
     [Fact]
     public async Task ConcurrentRequestsAndReplacements_ReturnOnlyCompleteResponses()
     {
@@ -408,11 +547,11 @@ public sealed class MockDispatcherTests
             }
         };
 
-    private sealed class ThrowingWriteStream : MemoryStream
+    private sealed class ThrowingWriteStream(Exception? exception = null) : MemoryStream
     {
         public override ValueTask WriteAsync(
             ReadOnlyMemory<byte> buffer,
             CancellationToken cancellationToken = default) =>
-            ValueTask.FromException(new IOException("Simulated response write failure."));
+            ValueTask.FromException(exception ?? new IOException("Simulated response write failure."));
     }
 }

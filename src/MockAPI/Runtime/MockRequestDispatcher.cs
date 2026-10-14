@@ -11,7 +11,11 @@ public static class MockRequestDispatcher
     /// <param name="configuration">The atomic configuration state used for route lookup.</param>
     /// <param name="statistics">The process-local collector updated for the dispatch outcome.</param>
     /// <returns>A task that completes after response bytes are written or the connection is aborted.</returns>
-    /// <remarks><c>HEAD</c> requests receive configured status and headers without response body bytes. Query strings do not participate in matching.</remarks>
+    /// <remarks>
+    /// <c>HEAD</c> requests receive configured status and headers without response body bytes.
+    /// Query strings do not participate in matching. Failed attempts retain the selected response status,
+    /// or no status when failure occurs before response selection, including cancellation during the delay.
+    /// </remarks>
     /// <exception cref="OperationCanceledException">The request is aborted during the configured delay or while response bytes are being written.</exception>
     /// <exception cref="IOException">The response body cannot be written.</exception>
     public static async Task DispatchAsync(
@@ -28,23 +32,26 @@ public static class MockRequestDispatcher
             return;
         }
 
-        if (endpoint.Delay > TimeSpan.Zero)
-        {
-            await Task.Delay(endpoint.Delay, context.RequestAborted);
-        }
-
-        if (endpoint.Behavior == MockResponseBehavior.AbortConnection)
-        {
-            statistics.RecordAbortedConnection(endpoint.Id, context.Request.Method, path, requestId);
-            context.Abort();
-            return;
-        }
-
+        var outcome = RequestLogOutcome.FailedWrite;
+        int? statusCode = null;
+        var responseBytes = 0L;
         try
         {
+            if (endpoint.Delay > TimeSpan.Zero)
+            {
+                await Task.Delay(endpoint.Delay, context.RequestAborted);
+            }
+
+            if (endpoint.Behavior == MockResponseBehavior.AbortConnection)
+            {
+                context.Abort();
+                outcome = RequestLogOutcome.Aborted;
+                return;
+            }
+
             var response = endpoint.SelectResponse();
-            var statusCode = response.StatusCode;
-            context.Response.StatusCode = statusCode;
+            statusCode = response.StatusCode;
+            context.Response.StatusCode = response.StatusCode;
             if (response.ReasonPhrase is not null)
             {
                 context.Features.Get<IHttpResponseFeature>()!.ReasonPhrase = response.ReasonPhrase;
@@ -63,19 +70,29 @@ public static class MockRequestDispatcher
                 context.Response.ContentType = response.ContentType;
             }
 
-            var responseBytes = 0L;
             if (!HttpMethods.IsHead(context.Request.Method) && !response.Body.IsEmpty)
             {
                 await context.Response.Body.WriteAsync(response.Body, context.RequestAborted);
                 responseBytes = response.Body.Length;
             }
 
-            statistics.RecordMatched(endpoint.Id, context.Request.Method, path, statusCode, responseBytes, requestId);
+            outcome = RequestLogOutcome.Response;
         }
-        catch
+        finally
         {
-            statistics.RecordFailedWrite(endpoint.Id, context.Request.Method, path, endpoint.StatusCode!.Value, requestId);
-            throw;
+            // Account once even when the delay or response write is cancelled.
+            switch (outcome)
+            {
+                case RequestLogOutcome.Response:
+                    statistics.RecordMatched(endpoint.Id, context.Request.Method, path, statusCode!.Value, responseBytes, requestId);
+                    break;
+                case RequestLogOutcome.Aborted:
+                    statistics.RecordAbortedConnection(endpoint.Id, context.Request.Method, path, requestId);
+                    break;
+                default:
+                    statistics.RecordFailedWrite(endpoint.Id, context.Request.Method, path, statusCode, requestId);
+                    break;
+            }
         }
     }
 

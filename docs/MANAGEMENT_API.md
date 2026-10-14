@@ -93,6 +93,12 @@ Bulk endpoint requests provide one or more unique stable endpoint IDs and an `op
 
 Statistics counters record every transport attempt seen by the mock dispatcher. For wire compatibility, fields such as `totalRequests`, `matchedRequests`, `unmatchedRequests`, and `recentMinutes[].requests` retain their existing names but contain transport-attempt counts. Statistics snapshots include at most 100 recent logical request summaries for configured endpoints in newest-first order; unmatched requests remain in aggregate statistics but are excluded from the request log. Dashboard-generated retries with the same request ID are coalesced into one summary whose `transportAttempts` value reports the physical dispatch count. Each summary contains the timestamp, method, normalized path, matched endpoint ID, outcome, HTTP status when available, and completed response byte count. The process never retains request or response bodies, headers, cookies, authorization values, or query values. Resetting all statistics clears the feed; resetting one endpoint removes its summaries.
 
+Cancellation during a configured delay records a matched `failedWrite` attempt with zero completed
+bytes and no HTTP status. These attempts contribute to request and failure totals, but not HTTP status
+classes. If writing fails after response selection, statistics retain the selected status, including
+the success status of a rate-limited endpoint, with zero completed bytes. Intentional connection aborts
+remain separate `aborted` outcomes. Existing logical-request retry coalescing applies to failures too.
+
 ## Dashboard Synchronization and Caching
 
 The dashboard opens one authenticated `GET /dashboard/events` connection. It receives a

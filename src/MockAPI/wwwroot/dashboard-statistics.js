@@ -384,7 +384,11 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
         ["Total attempts", statistics.totalRequests, "Every transport attempt seen by the mock dispatcher"],
         ["Matched", statistics.matchedRequests, "Transport attempts attributed to a configured endpoint"],
         ["Unmatched", statistics.unmatchedRequests, "Transport attempts that did not match an enabled endpoint"],
-        ["Failed writes", statistics.failedWrites, "Matched responses that could not be fully written"],
+        [
+          "Failed writes",
+          statistics.failedWrites,
+          "Matched attempts that failed before completion, including cancelled delays",
+        ],
         ["1xx responses", statistics.informationalResponses, "Informational responses"],
         ["2xx responses", statistics.successResponses, "Successful responses"],
         ["3xx responses", statistics.redirectionResponses, "Redirection responses"],

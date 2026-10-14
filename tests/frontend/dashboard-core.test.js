@@ -433,6 +433,22 @@ describe("explainEndpointStatistics", () => {
     );
   });
 
+  it.each([false, true])(
+    "explains statusless attempts without inventing a status (rate limited: %s)",
+    (rateLimited) => {
+      const response = {
+        statusCode: 429,
+        ...(rateLimited
+          ? { rateLimit: { requestLimit: 3, windowSeconds: 10, successResponse: { statusCode: 200 } } }
+          : {}),
+      };
+
+      expect(explainEndpointStatistics({ response }, { totalRequests: 1, lastStatusCode: null })).toBe(
+        "The latest matched attempt ended without a selected HTTP response, so no HTTP status was recorded. This can indicate an intentional connection abort or a failure before response selection, including cancellation during a configured delay."
+      );
+    }
+  );
+
   it("describes the configured response when no requests exist", () => {
     expect(explainEndpointStatistics(endpoint, null)).toBe(
       "No attempts have been observed. This endpoint is configured to return HTTP 429 for every matched request."
@@ -442,7 +458,7 @@ describe("explainEndpointStatistics", () => {
   it("explains an intentional connection abort without claiming a status", () => {
     const abortEndpoint = { response: { behavior: "abortConnection" } };
     expect(explainEndpointStatistics(abortEndpoint, { totalRequests: 1, lastStatusCode: null })).toBe(
-      "Every matched request intentionally aborts the connection before an HTTP response is sent."
+      "Matched requests are configured to abort the connection before an HTTP response is sent. Attempts cancelled during a configured delay are recorded as failures instead."
     );
     expect(explainEndpointStatistics(abortEndpoint, null)).toBe(
       "No attempts have been observed. This endpoint is configured to abort the connection without an HTTP response."

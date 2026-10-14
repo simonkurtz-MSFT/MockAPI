@@ -44,6 +44,54 @@ public sealed class RequestStatisticsCollectorTests
         Assert.Equal(1, endpoint.RecentMinutes[^1].ServerErrorResponses);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FailedAttemptWithoutSelectedResponseClearsLastStatusAndPreservesLogicalRequestDeduplication(
+        bool includeRequestDetails)
+    {
+        var collector = new RequestStatisticsCollector();
+        var endpointId = Guid.NewGuid();
+        collector.RecordMatched(endpointId, 201, 12);
+
+        if (includeRequestDetails)
+        {
+            collector.RecordFailedWrite(endpointId, "GET", "/cancelled", null, "logical-request");
+            collector.RecordFailedWrite(endpointId, "GET", "/cancelled", null, "logical-request");
+        }
+        else
+        {
+            collector.RecordFailedWrite(endpointId, null);
+        }
+
+        var snapshot = collector.GetSnapshot();
+        Assert.Equal(2, snapshot.TotalRequests);
+        Assert.Equal(2, snapshot.MatchedRequests);
+        Assert.Equal(1, snapshot.FailedWrites);
+        Assert.Equal(0, snapshot.AbortedConnections);
+        Assert.Equal(12, snapshot.ResponseBytes);
+        Assert.Equal(1, snapshot.SuccessResponses);
+        Assert.Equal(0, snapshot.InformationalResponses);
+        Assert.Equal(0, snapshot.RedirectionResponses);
+        Assert.Equal(0, snapshot.ClientErrorResponses);
+        Assert.Equal(0, snapshot.ServerErrorResponses);
+        Assert.Equal(2, snapshot.RecentMinutes[^1].Requests);
+        Assert.Equal(1, snapshot.RecentMinutes[^1].SuccessResponses);
+        var endpoint = Assert.Single(snapshot.Endpoints);
+        Assert.Equal(endpointId, endpoint.EndpointId);
+        Assert.Equal(2, endpoint.TotalRequests);
+        Assert.Null(endpoint.LastStatusCode);
+        Assert.Equal(12, endpoint.ResponseBytes);
+        Assert.Equal(2, endpoint.RecentMinutes[^1].Requests);
+        Assert.Equal(1, endpoint.RecentMinutes[^1].SuccessResponses);
+        var request = snapshot.RecentRequests[0];
+        Assert.Equal(endpointId, request.EndpointId);
+        Assert.Equal(RequestLogOutcome.FailedWrite, request.Outcome);
+        Assert.Null(request.StatusCode);
+        Assert.Equal(0, request.ResponseBytes);
+        Assert.Equal(includeRequestDetails ? 2 : 1, request.TransportAttempts);
+    }
+
     [Fact]
     public void RecentRequests_AreBoundedNewestFirstAndClearedByReset()
     {

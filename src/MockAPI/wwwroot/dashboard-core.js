@@ -119,7 +119,7 @@
  * @property {string} method Normalized HTTP method.
  * @property {string} path Normalized path without query values.
  * @property {string|null} endpointId Matched stable ID, or null when unmatched.
- * @property {number|null} statusCode Response status, or null when aborted.
+ * @property {number|null} statusCode Selected response status, or null for aborts and failures before response selection.
  * @property {"response"|"unmatched"|"failedWrite"|"aborted"} outcome Dispatch outcome.
  * @property {number} responseBytes Completed response-body byte count.
  * @property {number} transportAttempts Physical dispatches coalesced into this logical request.
@@ -129,7 +129,7 @@
  * @typedef {Object} EndpointStatistics
  * @property {string} endpointId Stable endpoint identifier.
  * @property {number} totalRequests Number of matched logical requests, including aborts and failed writes.
- * @property {number|null} lastStatusCode Most recently observed status, or null when aborted.
+ * @property {number|null} lastStatusCode Latest selected status, or null for aborts and failures before response selection.
  * @property {string|null} lastRequestUtc Most recent UTC request time, or null before activity.
  * @property {number} responseBytes Completed response-body byte count.
  * @property {readonly MinuteStatistics[]} recentMinutes Sixty oldest-first UTC minute buckets.
@@ -140,7 +140,7 @@
  * @property {number} totalRequests All recorded logical requests.
  * @property {number} matchedRequests Requests matched to enabled endpoints.
  * @property {number} unmatchedRequests Requests without a matching enabled endpoint.
- * @property {number} failedWrites Matched responses that failed while writing.
+ * @property {number} failedWrites Matched attempts that failed before completion, including cancelled delays.
  * @property {number} abortedConnections Requests intentionally aborted by configuration.
  * @property {number} informationalResponses Matched 1xx responses.
  * @property {number} successResponses Matched 2xx responses.
@@ -504,7 +504,7 @@ export function methodSupportsBody(method) {
 export function explainEndpointStatistics(endpoint, statistics) {
   if (endpoint.response.behavior === "abortConnection") {
     return statistics?.totalRequests
-      ? "Every matched request intentionally aborts the connection before an HTTP response is sent."
+      ? "Matched requests are configured to abort the connection before an HTTP response is sent. Attempts cancelled during a configured delay are recorded as failures instead."
       : "No attempts have been observed. This endpoint is configured to abort the connection without an HTTP response.";
   }
 
@@ -514,6 +514,10 @@ export function explainEndpointStatistics(endpoint, statistics) {
       return `No attempts have been observed. The first ${requestLimit} requests within ${windowSeconds} seconds return HTTP ${successResponse.statusCode}; later requests return HTTP ${endpoint.response.statusCode}.`;
     }
     return `No attempts have been observed. This endpoint is configured to return HTTP ${endpoint.response.statusCode} for every matched request.`;
+  }
+
+  if (statistics.lastStatusCode === null) {
+    return "The latest matched attempt ended without a selected HTTP response, so no HTTP status was recorded. This can indicate an intentional connection abort or a failure before response selection, including cancellation during a configured delay.";
   }
 
   const configuredStatus = endpoint.response.statusCode;

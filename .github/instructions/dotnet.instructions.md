@@ -33,6 +33,9 @@ applyTo: "**/*.{cs,csproj,sln,props,targets}"
 - Give every management operation a stable OpenAPI operation ID, concise summary, request-body metadata, typed success responses, and applicable problem responses. Document strong `If-Match` requirements in the operation description and test the generated document.
 - Return problem details for management API errors and avoid exposing exceptions or filesystem details.
 - Design concurrent statistics structures with bounded memory and test their rollover and contention behavior.
+- Account for every matched dispatch exactly once, including delay cancellation. Failed attempts retain the
+  selected response status, or no status before response selection, and contribute zero completed bytes.
+  Keep intentional connection aborts distinct and preserve logical-request retry coalescing.
 - Avoid reflection-heavy or dynamic features that undermine full trimming. Treat trim warnings as defects unless a narrowly documented suppression is necessary.
 - Container publication uses Native AOT; local managed development and diagnostic cross-publication remain CoreCLR. Keep single-file compression conditional on non-AOT publication and exclude native debug symbols at publish time.
 - Include source-generated JSON metadata for OpenAPI query-parameter types as well as request and response contracts; exercise optional OpenAPI and Swagger UI against the native binary.

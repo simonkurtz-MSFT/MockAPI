@@ -364,6 +364,9 @@ The UI must be keyboard usable and responsive, with WCAG 2.2 AA as the design an
 
 - Count every transport attempt seen by the mock dispatcher.
 - Distinguish matched, disabled/unmatched, and failed-to-write attempts.
+- Count cancellation during a configured delay as a matched failed-to-write attempt with zero
+  completed bytes and no HTTP status. Once a response is selected, failed writes retain its selected
+  status, including rate-limit success responses. Intentional connection aborts remain a distinct outcome.
 - Attribute attempts by stable endpoint ID, not path, so edits do not corrupt identity.
 - Use atomic counters for totals and a bounded ring buffer of 60 one-minute buckets, retaining 60 minutes of recent rate data.
 - Retain at most 100 newest-first request summaries containing only timestamp, method, normalized path, stable endpoint ID, outcome, status, and response byte count.

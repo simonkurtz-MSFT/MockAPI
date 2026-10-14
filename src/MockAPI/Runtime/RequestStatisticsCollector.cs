@@ -98,23 +98,23 @@ public sealed class RequestStatisticsCollector
         string? requestId = null) =>
         RecordMatchedCore(endpointId, method, path, statusCode, responseBytes, failedToWrite: false, requestId);
 
-    /// <summary>Records a matched response that failed while writing and contributed no completed body bytes.</summary>
+    /// <summary>Records a matched attempt that failed before completion and contributed no completed body bytes.</summary>
     /// <param name="endpointId">The stable ID of the matched endpoint.</param>
-    /// <param name="statusCode">The terminal status code configured for the endpoint.</param>
-    public void RecordFailedWrite(Guid endpointId, int statusCode) =>
+    /// <param name="statusCode">The selected response status, or <see langword="null"/> if no response was selected.</param>
+    public void RecordFailedWrite(Guid endpointId, int? statusCode) =>
         RecordFailedWrite(endpointId, string.Empty, string.Empty, statusCode);
 
-    /// <summary>Records a matched response that failed while writing and contributed no completed body bytes.</summary>
+    /// <summary>Records a matched attempt that failed before completion and contributed no completed body bytes.</summary>
     /// <param name="endpointId">The stable ID of the matched endpoint.</param>
     /// <param name="method">The normalized HTTP method.</param>
     /// <param name="path">The normalized request path without a query string.</param>
-    /// <param name="statusCode">The terminal status code configured for the endpoint.</param>
+    /// <param name="statusCode">The selected response status, or <see langword="null"/> if no response was selected.</param>
     /// <param name="requestId">An optional logical request ID used to count repeated transport attempts as one request.</param>
     public void RecordFailedWrite(
         Guid endpointId,
         string method,
         string path,
-        int statusCode,
+        int? statusCode,
         string? requestId = null) =>
         RecordMatchedCore(endpointId, method, path, statusCode, responseBytes: 0, failedToWrite: true, requestId);
 
@@ -249,7 +249,7 @@ public sealed class RequestStatisticsCollector
         Guid endpointId,
         string method,
         string path,
-        int statusCode,
+        int? statusCode,
         long responseBytes,
         bool failedToWrite,
         string? requestId = null)
@@ -393,7 +393,7 @@ public sealed class RequestStatisticsCollector
         }
     }
 
-    private void IncrementStatusClass(int statusCode)
+    private void IncrementStatusClass(int? statusCode)
     {
         switch (statusCode)
         {
@@ -436,11 +436,11 @@ public sealed class RequestStatisticsCollector
             _recentMinutes.Record(now);
         }
 
-        public void Record(DateTimeOffset now, int statusCode, long responseBytes)
+        public void Record(DateTimeOffset now, int? statusCode, long responseBytes)
         {
             Interlocked.Increment(ref _totalRequests);
             Interlocked.Exchange(ref _lastRequestUtcTicks, now.UtcTicks);
-            Interlocked.Exchange(ref _lastStatusCode, statusCode);
+            Interlocked.Exchange(ref _lastStatusCode, statusCode.GetValueOrDefault());
             Interlocked.Add(ref _responseBytes, responseBytes);
             _recentMinutes.Record(now, statusCode);
         }
@@ -598,7 +598,7 @@ public sealed class RequestStatisticsCollector
 /// <param name="TotalRequests">All logical requests observed by the mock dispatcher.</param>
 /// <param name="MatchedRequests">Logical requests matched to an enabled endpoint, including aborts and failed writes.</param>
 /// <param name="UnmatchedRequests">Logical requests for which no enabled method/path pair matched.</param>
-/// <param name="FailedWrites">Matched responses that threw while writing.</param>
+/// <param name="FailedWrites">Matched attempts that failed before completion, including cancellation during a configured delay.</param>
 /// <param name="AbortedConnections">Matched requests intentionally aborted by configuration.</param>
 /// <param name="InformationalResponses">Matched responses classified from status codes 100 through 199.</param>
 /// <param name="SuccessResponses">Matched responses classified from status codes 200 through 299.</param>
@@ -637,7 +637,7 @@ public enum RequestLogOutcome
     [JsonStringEnumMemberName("unmatched")]
     Unmatched,
 
-    /// <summary>The configured response failed while being written.</summary>
+    /// <summary>The matched attempt failed before completion, including cancellation during a configured delay.</summary>
     [JsonStringEnumMemberName("failedWrite")]
     FailedWrite,
 
@@ -651,7 +651,7 @@ public enum RequestLogOutcome
 /// <param name="Method">The normalized HTTP method.</param>
 /// <param name="Path">The normalized request path without query values.</param>
 /// <param name="EndpointId">The stable matched endpoint ID, or <see langword="null"/> when unmatched.</param>
-/// <param name="StatusCode">The HTTP status code, or <see langword="null"/> when the connection was aborted.</param>
+/// <param name="StatusCode">The selected HTTP status code, or <see langword="null"/> for intentional aborts or failures before response selection.</param>
 /// <param name="Outcome">The dispatch outcome.</param>
 /// <param name="ResponseBytes">The number of completed response body bytes.</param>
 /// <param name="TransportAttempts">The number of physical dispatches coalesced into this logical request.</param>
@@ -669,7 +669,7 @@ public sealed record RequestLogEntrySnapshot(
 /// <param name="EndpointId">The stable endpoint ID.</param>
 /// <param name="TotalRequests">Matched logical requests attributed to the endpoint, including aborts and failed writes.</param>
 /// <param name="LastRequestUtc">The latest recorded logical-request time in UTC, or <see langword="null"/> when none was recorded.</param>
-/// <param name="LastStatusCode">The latest recorded status code, or <see langword="null"/> when the latest request aborted.</param>
+/// <param name="LastStatusCode">The latest selected status code, or <see langword="null"/> when the latest request aborted or failed before response selection.</param>
 /// <param name="ResponseBytes">Completed response body bytes attributed to the endpoint.</param>
 /// <param name="RecentMinutes">Exactly 60 UTC minute buckets in ascending time order.</param>
 public sealed record EndpointStatisticsSnapshot(
