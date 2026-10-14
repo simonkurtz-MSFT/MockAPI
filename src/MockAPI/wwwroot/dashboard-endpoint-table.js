@@ -21,6 +21,7 @@ import {
  * @property {(descriptions: Readonly<Record<string, string>>|null|undefined) => void} updateApiDescriptions Replaces path-based metadata from the same configuration revision.
  * @property {(statistics: import("./dashboard-core.js").DashboardStatistics) => void} updateStatistics Refreshes activity cells without replacing unchanged row controls.
  * @property {(pending: boolean) => void} setPending Disables mutation controls and preserves toggle focus.
+ * @property {() => string[]} getSelectedEndpointIds Returns a detached snapshot of selected stable IDs.
  * @property {() => void} clearSelection Clears selected IDs and renders.
  * @property {() => void} render Renders from the current inputs and view state.
  * @property {() => void} dispose Removes static/row listeners. The coordinator must stop supplying updates after disposal.
@@ -505,6 +506,9 @@ export function createDashboardEndpointTable({
       updateEndpointStatistics();
     },
     setPending,
+    getSelectedEndpointIds() {
+      return [...state.selectedEndpointIds];
+    },
     clearSelection() {
       state.selectedEndpointIds.clear();
       renderEndpoints();

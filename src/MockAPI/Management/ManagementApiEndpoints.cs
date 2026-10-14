@@ -120,16 +120,17 @@ public static class ManagementApiEndpoints
                 StatusCodes.Status428PreconditionRequired,
                 StatusCodes.Status500InternalServerError);
 
-        group.MapGet("/configuration/export", (HttpContext context, CancellationToken _) => ExportConfigurationAsync(context, configuration))
+        group.MapGet("/configuration/export", (HttpContext context, CancellationToken _, Guid[]? endpointId = null) => ExportConfigurationAsync(context, configuration, endpointId))
             .WithName("ExportConfiguration")
             .WithSummary("Export the active MockAPI configuration")
+            .WithDescription("Downloads every endpoint when endpointId is omitted. Repeat endpointId to export only the selected stable endpoint IDs.")
             .Produces(StatusCodes.Status200OK, contentType: "application/json");
 
         WithProblemResponses(
-                group.MapGet("/configuration/export/{format}", (HttpContext context, string format, bool? download, CancellationToken _) => ExportConfigurationAsync(context, configuration, format, download ?? true))
+                group.MapGet("/configuration/export/{format}", (HttpContext context, string format, bool? download, CancellationToken _, Guid[]? endpointId = null) => ExportConfigurationAsync(context, configuration, endpointId, format, download ?? true))
                     .WithName("ExportConfigurationFormat")
                     .WithSummary("Export the active configuration in a supported format")
-                    .WithDescription("Downloads an attachment by default. Set the optional download query parameter to false to view the artifact inline in the browser.")
+                    .WithDescription("Downloads an attachment by default. Set the optional download query parameter to false to view the artifact inline in the browser. Repeat endpointId to export only the selected stable endpoint IDs; omit it to export all endpoints.")
                     .Produces(StatusCodes.Status200OK, contentType: "application/octet-stream"),
                 StatusCodes.Status404NotFound);
 
@@ -480,14 +481,16 @@ public static class ManagementApiEndpoints
     private static async Task ExportConfigurationAsync(
         HttpContext context,
         ConfigurationManagementService service,
+        Guid[]? endpointIds,
         string? format = null,
         bool download = true)
     {
         var snapshot = service.Current;
+        var document = FilterExportDocument(snapshot.GetDocument(), endpointIds);
         SetETag(context, snapshot);
         if (format is not null)
         {
-            if (!ConfigurationExportService.TryExport(format, snapshot.GetDocument(), out var export,
+            if (!ConfigurationExportService.TryExport(format, document, out var export,
                 context.RequestServices.GetRequiredService<ApiKeySecurity>().Status.Enabled))
             {
                 await WriteProblemAsync(
@@ -512,7 +515,26 @@ public static class ManagementApiEndpoints
         context.Response.StatusCode = StatusCodes.Status200OK;
         context.Response.ContentType = "application/json; charset=utf-8";
         context.Response.Headers.ContentDisposition = "attachment; filename=mockapi.json";
-        await context.Response.Body.WriteAsync(snapshot.ExportUtf8(), context.RequestAborted);
+        var content = endpointIds is null or { Length: 0 }
+            ? snapshot.ExportUtf8()
+            : JsonSerializer.SerializeToUtf8Bytes(document, MockApiJsonContext.Default.MockApiConfigurationDocument);
+        await context.Response.Body.WriteAsync(content, context.RequestAborted);
+    }
+
+    private static MockApiConfigurationDocument FilterExportDocument(
+        MockApiConfigurationDocument document,
+        Guid[]? endpointIds)
+    {
+        if (endpointIds is null or { Length: 0 })
+        {
+            return document;
+        }
+
+        var selectedIds = endpointIds.ToHashSet();
+        return document with
+        {
+            Endpoints = document.Endpoints.Where(endpoint => selectedIds.Contains(endpoint.Id)).ToArray()
+        };
     }
 
     private static async Task SaveConfigurationAsync(

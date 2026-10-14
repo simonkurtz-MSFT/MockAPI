@@ -23,10 +23,17 @@ test("imports, automatically saves, and exports configuration", async ({ page, r
       body: "imported",
     },
   };
+  const secondEndpoint = {
+    ...endpoint,
+    id: "d27c9760-d505-4c60-8c13-07f47a096c87",
+    name: "Second imported endpoint",
+    path: "/second-imported-browser",
+    response: { ...endpoint.response, body: "second" },
+  };
   await page.locator("#import-file").setInputFiles({
     name: "mockapi.json",
     mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify({ ...emptyDocument, endpoints: [endpoint] })),
+    buffer: Buffer.from(JSON.stringify({ ...emptyDocument, endpoints: [endpoint, secondEndpoint] })),
   });
   await page.getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByRole("row", { name: /Imported endpoint/ })).toBeVisible();
@@ -38,12 +45,23 @@ test("imports, automatically saves, and exports configuration", async ({ page, r
   await page.getByRole("link", { name: "Export" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("mockapi.json");
+  const allExport = JSON.parse(await readFile(await download.path(), "utf8"));
+  expect(allExport.endpoints.map(({ id }) => id)).toEqual([endpoint.id, secondEndpoint.id]);
+
+  await page.getByRole("checkbox", { name: `Select ${endpoint.name}`, exact: true }).check();
+  const selectedDownloadPromise = page.waitForEvent("download");
+  await page.getByRole("link", { name: "Export" }).click();
+  const selectedDownload = await selectedDownloadPromise;
+  const selectedExport = JSON.parse(await readFile(await selectedDownload.path(), "utf8"));
+  expect(selectedExport.endpoints.map(({ id }) => id)).toEqual([endpoint.id]);
 
   await page.getByLabel("Export format").selectOption("postman");
   const postmanDownloadPromise = page.waitForEvent("download");
   await page.getByRole("link", { name: "Export" }).click();
   const postmanDownload = await postmanDownloadPromise;
   expect(postmanDownload.suggestedFilename()).toBe("mockapi.postman_collection.json");
+  const postmanExport = JSON.parse(await readFile(await postmanDownload.path(), "utf8"));
+  expect(postmanExport.item.map(({ name }) => name)).toEqual([`${endpoint.name} (GET)`]);
 
   await page.getByLabel("Export format").selectOption("openapi");
   const openApiDownloadPromise = page.waitForEvent("download");

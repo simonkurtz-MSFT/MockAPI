@@ -15,6 +15,34 @@ public sealed class ManagementApiTests
     private const string EndpointsPath = "/__mockapi/api/endpoints";
 
     [Fact]
+    public async Task ExportSelection_OmittedExportsAllAndSpecifiedIdsFilterEveryFormat()
+    {
+        await using var factory = new UnsecuredApplicationFactory();
+        using var client = factory.CreateClient();
+        var first = CreateEndpoint("/export-first", "first");
+        var second = CreateEndpoint("/export-second", "second");
+        using var firstCreated = await SendEndpointAsync(client, HttpMethod.Post, EndpointsPath, first, "\"0\"");
+        using var secondCreated = await SendEndpointAsync(client, HttpMethod.Post, EndpointsPath, second, "\"1\"");
+
+        var all = await client.GetFromJsonAsync(
+            "/__mockapi/api/configuration/export",
+            MockApiJsonContext.Default.MockApiConfigurationDocument);
+        Assert.Equal([first.Id, second.Id], all!.Endpoints.Select(endpoint => endpoint.Id));
+
+        var selectedPath = $"/__mockapi/api/configuration/export?endpointId={second.Id}";
+        var selected = await client.GetFromJsonAsync(
+            selectedPath,
+            MockApiJsonContext.Default.MockApiConfigurationDocument);
+        Assert.Equal(second.Id, Assert.Single(selected!.Endpoints).Id);
+
+        using var postman = await client.GetAsync(
+            $"/__mockapi/api/configuration/export/postman?endpointId={second.Id}");
+        using var postmanJson = await ReadJsonAsync(postman);
+        var item = Assert.Single(postmanJson.RootElement.GetProperty("item").EnumerateArray());
+        Assert.StartsWith(second.Name, item.GetProperty("name").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ApiDescriptionEdit_PreservesExactMockResponseAndSurvivesEndpointDeletionAndExport()
     {
         await using var factory = new UnsecuredApplicationFactory();

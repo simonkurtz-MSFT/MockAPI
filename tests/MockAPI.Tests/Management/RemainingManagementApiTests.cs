@@ -1344,11 +1344,24 @@ public sealed class RemainingManagementApiTests : IDisposable
         });
 
         var exportOperation = paths.GetProperty($"{BasePath}/configuration/export/{{format}}").GetProperty("get");
-        var downloadParameter = exportOperation.GetProperty("parameters").EnumerateArray()
+        var exportParameters = exportOperation.GetProperty("parameters").EnumerateArray().ToArray();
+        var downloadParameter = exportParameters
             .Single(parameter => parameter.GetProperty("name").GetString() == "download");
         Assert.Equal("query", downloadParameter.GetProperty("in").GetString());
         Assert.False(downloadParameter.TryGetProperty("required", out var required) && required.GetBoolean());
+        var endpointIdParameter = exportParameters
+            .Single(parameter => parameter.GetProperty("name").GetString() == "endpointId");
+        Assert.Equal("query", endpointIdParameter.GetProperty("in").GetString());
+        Assert.Equal("array", endpointIdParameter.GetProperty("schema").GetProperty("type").GetString());
+        Assert.False(endpointIdParameter.TryGetProperty("required", out required) && required.GetBoolean());
         Assert.Contains("inline", exportOperation.GetProperty("description").GetString(), StringComparison.Ordinal);
+        Assert.Contains("selected stable endpoint IDs", exportOperation.GetProperty("description").GetString(), StringComparison.Ordinal);
+
+        var nativeExportOperation = paths.GetProperty($"{BasePath}/configuration/export").GetProperty("get");
+        Assert.Contains("endpointId", nativeExportOperation.GetProperty("description").GetString(), StringComparison.Ordinal);
+        Assert.Contains(
+            nativeExportOperation.GetProperty("parameters").EnumerateArray(),
+            parameter => parameter.GetProperty("name").GetString() == "endpointId");
 
         var importOperation = paths
             .GetProperty($"{BasePath}/configuration/import")

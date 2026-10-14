@@ -485,10 +485,8 @@ function bindEvents() {
   pageEvents.listen(elements["load-example-button"], "click", () => loadBuiltInConfiguration("example"));
   pageEvents.listen(elements["empty-load-example-button"], "click", () => loadBuiltInConfiguration("example"));
   pageEvents.listen(elements["import-button"], "click", () => elements["import-file"].click());
-  pageEvents.listen(elements["export-format"], "change", (event) => {
-    const suffix = event.currentTarget.value === "native" ? "" : `/${event.currentTarget.value}`;
-    elements["export-button"].href = `${API}/configuration/export${suffix}`;
-  });
+  pageEvents.listen(elements["export-format"], "change", updateExportUrl);
+  pageEvents.listen(elements["export-button"], "click", updateExportUrl);
   pageEvents.listen(elements["import-file"], "change", () => {
     const file = elements["import-file"].files[0];
     if (file) importConfiguration(file);
@@ -513,6 +511,16 @@ function bindEvents() {
     document.documentElement.dataset.theme = next;
     dashboardPreferencesStore.update({ theme: next });
   });
+}
+
+function updateExportUrl() {
+  const format = elements["export-format"].value;
+  const suffix = format === "native" ? "" : `/${format}`;
+  const url = new URL(`${API}/configuration/export${suffix}`, window.location.origin);
+  for (const endpointId of endpointTable.getSelectedEndpointIds()) {
+    url.searchParams.append("endpointId", endpointId);
+  }
+  elements["export-button"].href = `${url.pathname}${url.search}`;
 }
 
 function setManagementPending(pending) {

@@ -73,6 +73,11 @@ Management routes allow 120 requests per client address in a rolling one-minute 
 
 Portable export formats are `postman`, `insomnia`, `curl`, `jmeter`, `openapi`, `k6`, and `http`. Only enabled endpoints are included. The generated artifacts use `http://localhost:8080` as their editable default base URL. Postman, JMeter, and k6 exports include assertions for configured responses; cURL, Insomnia, and HTTP exports provide runnable requests; OpenAPI describes the configured responses.
 
+Both export routes accept repeated `endpointId` query parameters containing stable endpoint UUIDs. Omitting
+`endpointId` exports every endpoint; providing one or more values limits the native document or portable
+artifact to those endpoints. The dashboard applies the same rule: Export includes every endpoint when the
+selection is empty and only the selected endpoints otherwise.
+
 API description edits accept `{"path":"/ctp","description":"Contoso Theme Parks overview"}` and require the
 editor's captured strong `If-Match` ETag. Both properties are required strings; an empty description
 clears its displayed text. Success returns `200` with the complete configuration status, including
