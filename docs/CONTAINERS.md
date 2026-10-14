@@ -195,7 +195,7 @@ The image is not a native Windows container and does not contain Windows or macO
 
 ## Multi-Architecture Release Boundary
 
-Native AOT release builds require the target Linux OS and native toolchain. CI uses `ubuntu-24.04` for `linux-musl-x64` and `ubuntu-24.04-arm` for `linux-musl-arm64`, with compilation taking place inside the matching Alpine AOT SDK container. Local Windows/macOS development uses the Linux container engine rather than attempting cross-OS AOT publication.
+Native AOT release builds require the target Linux OS and native toolchain. CI uses `ubuntu-26.04` for `linux-musl-x64` and `ubuntu-26.04-arm` for `linux-musl-arm64`, with compilation taking place inside the matching Alpine AOT SDK container. Local Windows/macOS development uses the Linux container engine rather than attempting cross-OS AOT publication.
 
 The developer CLI `publish` action still cross-publishes trimmed CoreCLR artifacts for both runtime identifiers as a managed-code diagnostic. It explicitly sets `PublishAot=false`; these artifacts are not shipped. The `container-build` action is the Native AOT build path. Managed unit tests and coverage remain available without a native compiler installed on the host.
 

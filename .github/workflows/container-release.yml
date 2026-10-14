@@ -28,10 +28,12 @@ concurrency:
 
 env:
   IMAGE_NAME: simonkurtzmsft/mockapi
+  RUNNER_X64: &runner-x64 ubuntu-26.04
+  RUNNER_ARM64: &runner-arm64 ubuntu-26.04-arm
 
 jobs:
   preflight:
-    runs-on: ubuntu-24.04
+    runs-on: *runner-x64
     timeout-minutes: 5
     permissions:
       contents: read
@@ -108,10 +110,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-24.04
+          - runner: *runner-x64
             platform: linux/amd64
             suffix: amd64
-          - runner: ubuntu-24.04-arm
+          - runner: *runner-arm64
             platform: linux/arm64
             suffix: arm64
     runs-on: ${{ matrix.runner }}
@@ -230,7 +232,7 @@ jobs:
 
   publish:
     needs: [preflight, native-image]
-    runs-on: ubuntu-24.04
+    runs-on: *runner-x64
     timeout-minutes: 30
     permissions:
       contents: write

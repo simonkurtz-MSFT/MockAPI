@@ -71,10 +71,11 @@ concurrency:
 
 env:
   DOTNET_NOLOGO: "true"
+  RUNNER_X64: &runner-x64 ubuntu-26.04
 
 jobs:
   coverage:
-    runs-on: ubuntu-latest
+    runs-on: *runner-x64
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -139,7 +140,7 @@ jobs:
             artifacts/coverage/backend/**/backend-tests.trx
 
   browser-smoke:
-    runs-on: ubuntu-latest
+    runs-on: *runner-x64
     timeout-minutes: 20
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48
@@ -176,7 +177,7 @@ jobs:
     if: >-
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
+    runs-on: *runner-x64
     timeout-minutes: 5
     permissions:
       contents: write
@@ -219,7 +220,7 @@ jobs:
 
   browser-chromium:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
+    runs-on: *runner-x64
     timeout-minutes: 30
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48

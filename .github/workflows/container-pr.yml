@@ -33,9 +33,13 @@ on:
 permissions:
   contents: read
 
+env:
+  RUNNER_X64: &runner-x64 ubuntu-26.04
+  RUNNER_ARM64: &runner-arm64 ubuntu-26.04-arm
+
 jobs:
   managed-code:
-    runs-on: ubuntu-latest
+    runs-on: *runner-x64
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -65,10 +69,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-24.04
+          - runner: *runner-x64
             platform: linux/amd64
             suffix: amd64
-          - runner: ubuntu-24.04-arm
+          - runner: *runner-arm64
             platform: linux/arm64
             suffix: arm64
     runs-on: ${{ matrix.runner }}

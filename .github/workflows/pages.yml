@@ -55,9 +55,12 @@ on:
 permissions:
   contents: read
 
+env:
+  RUNNER_X64: &runner-x64 ubuntu-26.04
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: *runner-x64
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -81,7 +84,7 @@ jobs:
   deploy:
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.ENABLE_PAGES == 'true'
-    runs-on: ubuntu-latest
+    runs-on: *runner-x64
     timeout-minutes: 10
     permissions:
       pages: write
