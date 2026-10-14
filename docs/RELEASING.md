@@ -1,11 +1,28 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.5.0. This version decision publishes only after
+MockAPI's next stable application version is 1.5.2. This version decision publishes only after
 the quality, public-release audit, and native image validation gates below succeed.
 
-## 1.5.0 release summary
+## 1.5.2 release summary
 
-The planned release date is **2026-10-13**, with the immutable tag **`1.5.0`**.
+The planned release date is **2026-10-14**, with the immutable tag **`1.5.2`**.
+The [1.5.2 changelog entry](../CHANGELOG.md#152---2026-10-14) supplies the GitHub release notes.
+
+- Dashboard endpoint table presentation and editing guidance are refined.
+- CI uses pinned Ubuntu 26.04 runners and pnpm 12.10.0.
+- Container publication validates exact-commit quality evidence and rejects an existing release
+  image tag before publication.
+
+### Compatibility and upgrade behavior
+
+These dashboard and release-pipeline changes do not change mock routing, the management API,
+authentication behavior, or the configuration schema (`schemaVersion: "1.0"`), so 1.5.2 is a
+patch release. Existing endpoint IDs and configuration documents remain compatible; no migration
+is required.
+
+## 1.5.0 historical release summary
+
+The release date was **2026-10-13**, with the immutable tag **`1.5.0`**.
 The [1.5.0 changelog entry](../CHANGELOG.md#150---2026-10-13) supplies the GitHub release notes.
 
 - Mock responses and intentional connection aborts support an optional bounded,

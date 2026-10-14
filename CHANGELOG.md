@@ -7,6 +7,20 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-10-14
+
+### Changed
+
+- Dashboard endpoint tables use clearer path and status emphasis, group spacing, tooltips, and
+  API-description editing guidance.
+- CI uses pinned Ubuntu 26.04 runners, and the development pnpm version is updated to 12.10.0.
+
+### Fixed
+
+- Container publication validates exact-commit quality evidence from one qualifying run, performs
+  registry and credential checks before native builds, and refuses to replace an existing release
+  image tag.
+
 ## [1.5.1] - 2026-10-13
 
 ### Changed
@@ -182,7 +196,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.5.1...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.5.2...HEAD
+[1.5.2]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.5.1...1.5.2
 [1.5.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.5.0...1.5.1
 [1.5.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.4...1.5.0
 [1.4.4]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.3...1.4.4
