@@ -1,11 +1,31 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.6.1. This version decision publishes only after
+MockAPI's next stable application version is 1.6.2. This version decision publishes only after
 the quality, public-release audit, and native image validation gates below succeed.
 
-## 1.6.1 release summary
+## 1.6.2 release summary
 
-The planned release date is **2026-10-14**, with the immutable tag **`1.6.1`**.
+The planned release date is **2026-10-14**, with the immutable tag **`1.6.2`**.
+The [1.6.2 changelog entry](../CHANGELOG.md#162---2026-10-14) supplies the GitHub release notes.
+
+- Valid Basic credentials establish a one-time, process-scoped secure dashboard session cookie
+  instead of repeating PBKDF2 verification for every administrative request in the same browser
+  session.
+- Dashboard endpoint loading and test-response presentation are refined, including formatted JSON
+  responses with continued access to raw response bodies.
+- Deployment documentation consistently sets Azure Container Apps minimum and maximum replica
+  counts to 1, and container release guidance documents the required Docker Hub token permissions.
+
+### Compatibility and upgrade behavior
+
+These changes do not alter mock routing, management API contracts, credential configuration, or
+the configuration schema (`schemaVersion: "1.0"`), so 1.6.2 is a patch release. Existing endpoint
+IDs and configuration documents remain compatible; no migration is required. Dashboard sessions
+are process-scoped, consistent with the documented single-replica deployment model.
+
+## 1.6.1 historical release summary
+
+The release date was **2026-10-14**, with the immutable tag **`1.6.1`**.
 The [1.6.1 changelog entry](../CHANGELOG.md#161---2026-10-14) supplies the GitHub release notes.
 
 - Native AOT OpenAPI generation includes endpoint-selection query parameter metadata.

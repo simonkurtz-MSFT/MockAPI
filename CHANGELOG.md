@@ -7,6 +7,29 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-10-14
+
+### Added
+
+- The dashboard shows an accessible loading state while endpoints are fetched and can pretty-print
+  valid JSON test responses while preserving access to their raw bodies.
+
+### Changed
+
+- Dashboard endpoint testing uses a more compact response layout, and the built-in parade schedule
+  example is labeled as a timeout demonstration.
+- Deployment documentation now aligns Azure Container Apps to minimum and maximum replica counts of
+  1 so process-local configuration and statistics remain consistent while the application stays
+  continuously available.
+- Container release guidance documents the Docker Hub token permissions needed to publish images
+  and remove temporary architecture tags.
+
+### Security
+
+- Valid Basic credentials now establish a one-time, process-scoped secure dashboard session cookie,
+  replacing per-request PBKDF2 work for subsequent administrative requests in the same browser
+  session.
+
 ## [1.6.1] - 2026-10-14
 
 ### Changed
@@ -227,7 +250,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.6.1...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.6.2...HEAD
+[1.6.2]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.6.1...1.6.2
 [1.6.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.6.0...1.6.1
 [1.6.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.5.2...1.6.0
 [1.5.2]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.5.1...1.5.2
