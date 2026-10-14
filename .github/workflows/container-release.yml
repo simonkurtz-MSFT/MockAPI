@@ -291,6 +291,12 @@ jobs:
           for arch in amd64 arm64; do
             docker load --input "native-images/image-$arch.tar"
             expected_id=$(cat "native-images/image-$arch.id")
+            expected_config_digest=$(
+              tar --extract --to-stdout \
+                --file "native-images/image-$arch.tar" \
+                "blobs/sha256/${expected_id#sha256:}" |
+                jq --exit-status --raw-output '.config.digest'
+            )
             test "$(docker image inspect --format '{{.Id}}' "mockapi:release-$arch")" = "$expected_id"
             test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$expected_id")" = "linux/$arch"
             candidate="$IMAGE_NAME:candidate-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$arch"
@@ -302,10 +308,14 @@ jobs:
               echo "Docker did not report a digest after pushing $candidate." >&2
               exit 1
             fi
+            if [ "$digest" != "$expected_id" ]; then
+              echo "Pushed manifest digest $digest does not match tested image digest $expected_id." >&2
+              exit 1
+            fi
             reference="$IMAGE_NAME@$digest"
             docker buildx imagetools inspect --raw "$reference" > "manifest-$arch.json"
             test "$(jq --raw-output '.mediaType' "manifest-$arch.json")" = 'application/vnd.oci.image.manifest.v1+json'
-            test "$(jq --raw-output '.config.digest' "manifest-$arch.json")" = "$expected_id"
+            test "$(jq --raw-output '.config.digest' "manifest-$arch.json")" = "$expected_config_digest"
             jq '{compressedLayerBytes: ([.layers[].size] | add)}' "manifest-$arch.json" > "size-$arch.json"
             references+=("$reference")
           done
@@ -317,6 +327,50 @@ jobs:
           docker buildx imagetools create --tag "$IMAGE_NAME:$IMAGE_TAG" "${references[@]}"
           docker buildx imagetools inspect --raw "$IMAGE_NAME:$IMAGE_TAG" > published-index.json
           diff <(jq --sort-keys . index.json) <(jq --sort-keys . published-index.json)
+      - name: Remove temporary candidate tags
+        if: always()
+        shell: bash
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          authentication=$(
+            jq --null-input --compact-output \
+              --arg identifier "$DOCKERHUB_USERNAME" \
+              --arg secret "$DOCKERHUB_TOKEN" \
+              '{identifier: $identifier, secret: $secret}'
+          )
+          access_token=$(
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header 'Accept: application/json' \
+              --header 'Content-Type: application/json' \
+              --data "$authentication" \
+              https://hub.docker.com/v2/auth/token |
+              jq --exit-status --raw-output '.access_token'
+          )
+          for arch in amd64 arm64; do
+            candidate="candidate-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$arch"
+            response_file="delete-$arch.json"
+            status=$(
+              curl --silent --show-error \
+                --output "$response_file" \
+                --write-out '%{http_code}' \
+                --request DELETE \
+                --header "Authorization: Bearer $access_token" \
+                "https://hub.docker.com/v2/repositories/$IMAGE_NAME/tags/$candidate/"
+            )
+            if [ "$status" = 204 ]; then
+              echo "Removed temporary Docker Hub tag $IMAGE_NAME:$candidate."
+            elif [ "$status" = 404 ]; then
+              echo "Temporary Docker Hub tag $IMAGE_NAME:$candidate was not present."
+            else
+              cat "$response_file" >&2
+              echo "Docker Hub returned HTTP $status while removing $IMAGE_NAME:$candidate." >&2
+              exit 1
+            fi
+          done
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: mockapi-multi-platform-index
