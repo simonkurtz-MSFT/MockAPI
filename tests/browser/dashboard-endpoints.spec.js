@@ -25,20 +25,34 @@ test("displays each supported HTTP method in a separate bordered badge", async (
   await expect(badges).toHaveText(["GET", "HEAD"]);
   for (const theme of ["light", "dark"]) {
     await page.evaluate((value) => (document.documentElement.dataset.theme = value), theme);
+    const responseStyle = await page.locator(".status-badge").evaluate((element) => {
+      const computed = getComputedStyle(element);
+      return {
+        borderRadius: computed.borderTopLeftRadius,
+        height: computed.height,
+        minWidth: computed.minWidth,
+      };
+    });
     for (const badge of await badges.all()) {
       const style = await badge.evaluate((element) => {
         const computed = getComputedStyle(element);
         return {
           borderStyle: computed.borderTopStyle,
           borderWidth: computed.borderTopWidth,
-          padding: computed.paddingLeft,
+          borderRadius: computed.borderTopLeftRadius,
+          height: computed.height,
+          minWidth: computed.minWidth,
           foreground: computed.color,
           background: computed.backgroundColor,
         };
       });
       expect(style.borderStyle).toBe("solid");
       expect(style.borderWidth).toBe("1px");
-      expect(style.padding).toBe("6px");
+      expect({
+        borderRadius: style.borderRadius,
+        height: style.height,
+        minWidth: style.minWidth,
+      }).toEqual(responseStyle);
       expect(contrastRatio(style.foreground, style.background)).toBeGreaterThanOrEqual(4.5);
     }
   }
@@ -69,7 +83,7 @@ test("shows all operations with relative paths and sorts within alphabetical API
   const ascendingNames = Array.from({ length: 12 }, (_, index) => `Operation ${String(index + 1).padStart(2, "0")}`);
   const ascendingPaths = Array.from({ length: 12 }, (_, index) => `/route-${String(index + 1).padStart(2, "0")}`);
   await expect(rows).toHaveCount(24);
-  await expect(groups).toHaveText(["alpha/", "zeta/"]);
+  await expect(groups).toHaveText(["alpha", "zeta"]);
   await expect(rows.locator(".path-cell")).toHaveText([...ascendingPaths, ...ascendingPaths]);
   await expect(rows.locator(".endpoint-name-heading > strong")).toHaveText([
     ...ascendingNames.toReversed(),
@@ -80,6 +94,21 @@ test("shows all operations with relative paths and sorts within alphabetical API
   await expect(page.locator(".table-wrap thead th").nth(1)).toHaveText("Path");
   await expect(rows.first().locator("td").nth(1)).toHaveText("/route-01");
   await expect(rows.first().locator(".path-cell")).toHaveAttribute("title", "/alpha/route-01");
+  const cellStyles = await rows.first().evaluate((row) => {
+    const path = getComputedStyle(row.querySelector(".path-cell"));
+    const endpoint = getComputedStyle(row.querySelector(".endpoint-name-heading > strong"));
+    const response = getComputedStyle(row.querySelector(".status-badge"));
+    return {
+      pathWeight: path.fontWeight,
+      endpointWeight: endpoint.fontWeight,
+      responseRadius: response.borderTopLeftRadius,
+    };
+  });
+  expect(cellStyles).toEqual({
+    pathWeight: "700",
+    endpointWeight: "400",
+    responseRadius: "5px",
+  });
   expect((await request.get("/alpha/route-12")).status()).toBe(500);
   const stored = await (await request.get("/__mockapi/api/endpoints")).json();
   expect(stored.find((endpoint) => endpoint.id === endpoints[23].id).path).toBe("/alpha/route-12");
@@ -87,10 +116,10 @@ test("shows all operations with relative paths and sorts within alphabetical API
   await page.locator('[data-sort-key="path"]').click();
   await expect(table.getByRole("columnheader", { name: "Path" })).toHaveAttribute("aria-sort", "descending");
   await expect(rows.locator(".path-cell")).toHaveText([...ascendingPaths.toReversed(), ...ascendingPaths.toReversed()]);
-  await expect(groups).toHaveText(["alpha/", "zeta/"]);
+  await expect(groups).toHaveText(["alpha", "zeta"]);
 
   await page.locator('[data-sort-key="name"]').click();
-  await expect(groups).toHaveText(["alpha/", "zeta/"]);
+  await expect(groups).toHaveText(["alpha", "zeta"]);
   await expect(rows.locator(".endpoint-name-heading > strong")).toHaveText([...ascendingNames, ...ascendingNames]);
   await page.locator('[data-sort-key="name"]').click();
   await expect(rows.locator(".endpoint-name-heading > strong")).toHaveText([
@@ -98,18 +127,18 @@ test("shows all operations with relative paths and sorts within alphabetical API
     ...ascendingNames.toReversed(),
   ]);
   await page.locator('[data-sort-key="response"]').click();
-  await expect(groups).toHaveText(["alpha/", "zeta/"]);
+  await expect(groups).toHaveText(["alpha", "zeta"]);
   await expect(rows.first().locator(".status-badge")).toHaveText("500");
 
-  await page.getByRole("button", { name: "Collapse alpha/", exact: true }).click();
+  await page.getByRole("button", { name: "Collapse alpha", exact: true }).click();
   await page.locator('[data-sort-key="path"]').click();
   await expect(rows).toHaveCount(12);
-  await expect(groups).toHaveText(["alpha/", "zeta/"]);
-  await expect(page.getByRole("button", { name: "Expand alpha/", exact: true })).toBeVisible();
+  await expect(groups).toHaveText(["alpha", "zeta"]);
+  await expect(page.getByRole("button", { name: "Expand alpha", exact: true })).toBeVisible();
   await expect(rows.locator(".path-cell")).toHaveText(
     Array.from({ length: 12 }, (_, index) => `/route-${String(index + 1).padStart(2, "0")}`)
   );
-  await page.getByRole("button", { name: "Expand alpha/", exact: true }).click();
+  await page.getByRole("button", { name: "Expand alpha", exact: true }).click();
   await expect(rows).toHaveCount(24);
   await page.locator("#select-all-endpoints").check();
   await expect(page.locator("#selection-count")).toHaveText("24");
@@ -134,7 +163,7 @@ test("@smoke loads examples idempotently and filters by status", async ({ page, 
   await expect(responseHeader).toHaveAttribute("aria-sort", "descending");
   await expect(page.locator("#endpoint-rows .endpoint-row").first().locator(".status-badge")).toHaveText("DROP");
   await page.getByRole("columnheader", { name: "Endpoint" }).getByRole("button").click();
-  const exampleGroup = page.getByRole("button", { name: "Collapse ctp/" });
+  const exampleGroup = page.getByRole("button", { name: "Collapse ctp" });
   await expect(exampleGroup).toContainText("16");
   await page.locator("#endpoint-rows .endpoint-row").first().locator(".selection-checkbox").check();
   await expect(page.locator("#selection-count")).toHaveText("1");
@@ -143,7 +172,7 @@ test("@smoke loads examples idempotently and filters by status", async ({ page, 
   await expect(page.locator("#selection-count")).toHaveText("1");
   await page.locator("#select-all-endpoints").check();
   await expect(page.locator("#selection-count")).toHaveText("16");
-  await page.getByRole("button", { name: "Expand ctp/" }).click();
+  await page.getByRole("button", { name: "Expand ctp" }).click();
   await expect(page.locator("#endpoint-rows .selection-checkbox:checked")).toHaveCount(16);
   await page.locator("#select-all-endpoints").uncheck();
   await page.getByRole("button", { name: "Load examples" }).first().click();
@@ -256,7 +285,21 @@ test("keeps column geometry stable through group collapse and sorting, with cent
     const original = await headers.evaluateAll((cells) =>
       cells.map((cell) => ({ x: cell.getBoundingClientRect().x, width: cell.getBoundingClientRect().width }))
     );
+    expect(original[1].width).toBeLessThan(310);
     expect(original[2].width).toBeGreaterThan(original[4].width * 2);
+    const groupCell = await page
+      .locator(".endpoint-group-row > th")
+      .first()
+      .evaluate((cell) => {
+        const computed = getComputedStyle(cell);
+        return {
+          paddingInlineStart: computed.paddingInlineStart,
+          x: cell.getBoundingClientRect().x,
+        };
+      });
+    const groupCaret = await page.locator(".endpoint-group-chevron").first().boundingBox();
+    expect(groupCell.paddingInlineStart).toBe("0px");
+    expect(groupCaret.x - groupCell.x).toBeLessThanOrEqual(14);
     for (const [column, maximumWidth] of [
       [4, 80],
       [5, 80],
@@ -280,13 +323,13 @@ test("keeps column geometry stable through group collapse and sorting, with cent
     expect(buttons[0].x).toBeGreaterThanOrEqual(actionBounds.x);
     expect(buttons.at(-1).x + buttons.at(-1).width).toBeLessThanOrEqual(actionBounds.x + actionBounds.width);
     for (const button of buttons) expect(button.width).toBe(32);
-    await page.getByRole("button", { name: "Collapse ctp/", exact: true }).click();
+    await page.getByRole("button", { name: "Collapse ctp", exact: true }).click();
     await expect(page.locator(".endpoint-row")).toHaveCount(0);
     const collapsed = await headers.evaluateAll((cells) =>
       cells.map((cell) => ({ x: cell.getBoundingClientRect().x, width: cell.getBoundingClientRect().width }))
     );
     expect(collapsed).toEqual(original);
-    await page.getByRole("button", { name: "Expand ctp/", exact: true }).click();
+    await page.getByRole("button", { name: "Expand ctp", exact: true }).click();
     await expect(page.locator(".endpoint-row")).toHaveCount(16);
     const expanded = await headers.evaluateAll((cells) =>
       cells.map((cell) => ({ x: cell.getBoundingClientRect().x, width: cell.getBoundingClientRect().width }))

@@ -269,7 +269,7 @@ export function groupEndpointsByPath(endpoints) {
     .sort(([left], [right]) => collator.compare(left, right))
     .map(([key, groupedEndpoints]) => ({
       key,
-      label: key === "/" ? "/" : `${key}/`,
+      label: key,
       endpoints: groupedEndpoints,
     }));
 }

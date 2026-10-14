@@ -21,9 +21,12 @@ test("API description supports hover, keyboard editing, whitespace, and native e
   await expect(info).toBeVisible();
   await info.hover();
   const tooltip = page.getByRole("tooltip");
+  await expect(tooltip.locator("strong")).toHaveText("ctp");
   await expect(tooltip).toContainText("CTP stands for Contoso Theme Parks");
   await expect(tooltip).toContainText("Starlight Gardens");
   await expect(tooltip).toContainText("static MockAPI examples");
+  await expect(tooltip.locator("p")).toHaveCSS("margin-top", "8px");
+  await expect(tooltip.locator("small").last()).toHaveText("Click the information button to edit.");
   await expect(tooltip).toHaveCSS("text-transform", "none");
   const previewBounds = await tooltip.boundingBox();
   await page.mouse.move(previewBounds.x + previewBounds.width / 2, previewBounds.y + previewBounds.height / 2);
@@ -148,6 +151,9 @@ test("endpoint information is keyboard accessible and untrusted descriptions and
   await expect(tooltip).toBeHidden();
   await info.hover();
   await expect(tooltip.locator("p")).toHaveText(payload);
+  await expect(tooltip.locator("strong")).toHaveText(endpoint.name);
+  await expect(tooltip.locator("p")).toHaveCSS("margin-top", "8px");
+  await expect(tooltip.locator("small").last()).toHaveText("Click the information button to edit.");
   await expect(tooltip).toHaveCSS("text-transform", "none");
   await expect(tooltip.locator("p")).toHaveCSS("white-space", "pre-wrap");
   const previewBounds = await tooltip.boundingBox();

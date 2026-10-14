@@ -1056,7 +1056,7 @@ textarea {
 .table-wrap:has(.endpoint-group-row) .endpoint-selection-column {
   width: 34px;
 }
-.table-wrap:has(.endpoint-group-row) .endpoint-name-column {
+.table-wrap:has(.endpoint-group-row) .endpoint-path-column {
   width: 22%;
 }
 .table-wrap:has(.endpoint-group-row) .endpoint-methods-column {
@@ -1075,6 +1075,9 @@ textarea {
 .table-wrap:has(.endpoint-group-row) th,
 .table-wrap:has(.endpoint-group-row) td {
   padding-inline: 8px;
+}
+.table-wrap:has(.endpoint-group-row) .endpoint-group-row > th {
+  padding-inline-start: 0;
 }
 .table-wrap:has(.endpoint-group-row) .sortable-header {
   padding-inline: 0;
@@ -1232,6 +1235,7 @@ tbody tr:hover {
   overflow-wrap: anywhere;
 }
 .api-description-tooltip p {
+  margin-top: 8px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1323,10 +1327,14 @@ tbody tr:hover {
 .endpoint-name-heading > strong {
   min-width: 0;
   flex: 1;
+  font-weight: 400;
   overflow-wrap: anywhere;
 }
 .endpoint-name-heading .api-description-button {
   margin: 0;
+}
+.path-cell {
+  font-weight: 700;
 }
 .method-list {
   display: flex;
@@ -1334,10 +1342,12 @@ tbody tr:hover {
   gap: 4px;
 }
 .method-list .method-badge {
-  padding: 2px 6px;
+  min-width: 42px;
+  padding: 3px 6px;
   border: 1px solid var(--cp-border);
-  border-radius: 4px;
+  border-radius: 5px;
   background: var(--cp-bg-elevated);
+  text-align: center;
 }
 .method-badge,
 .status-badge {
@@ -1354,7 +1364,7 @@ tbody tr:hover {
   min-width: 42px;
   padding: 3px 6px;
   border: 1px solid transparent;
-  border-radius: 3px;
+  border-radius: 5px;
   background: var(--status-other);
   color: var(--cp-accent-fg);
   text-align: center;

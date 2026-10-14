@@ -185,13 +185,13 @@ describe("groupEndpointsByPath", () => {
       { key: "/", label: "/", endpoints: [{ id: "root", path: "/" }] },
       {
         key: "inference-failover",
-        label: "inference-failover/",
+        label: "inference-failover",
         endpoints: [
           { id: "one", path: "/inference-failover/200/chat/completions" },
           { id: "three", path: "/inference-failover/429/chat/completions" },
         ],
       },
-      { key: "orders", label: "orders/", endpoints: [{ id: "two", path: "/orders" }] },
+      { key: "orders", label: "orders", endpoints: [{ id: "two", path: "/orders" }] },
     ]);
   });
 });

@@ -230,7 +230,7 @@ export function createDashboardEndpointTable({
     const header = makeElement("div", "endpoint-group-header");
     const { info, tooltip } = createDescriptionControl({
       id: `api-description-${encodeURIComponent(path)}`,
-      title: path,
+      title: group.label,
       description: description || "No API description yet.",
       label: `Edit API description for ${path}`,
       onActivate: () => onEditApiDescription(path, description),
@@ -259,7 +259,7 @@ export function createDashboardEndpointTable({
     // Configuration is untrusted text, never HTML or executable JavaScript.
     tooltip.append(makeElement("strong", null, title), makeElement("p", null, description));
     if (detail) tooltip.append(makeElement("small", "api-description-detail", detail));
-    tooltip.append(makeElement("small", null, "Activate the information button to edit."));
+    tooltip.append(makeElement("small", null, "Click the information button to edit."));
     info.setAttribute("aria-describedby", tooltip.id);
     function showDescription() {
       const bounds = info.getBoundingClientRect();
