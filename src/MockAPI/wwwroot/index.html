@@ -1112,10 +1112,14 @@
               Response headers
               <pre id="test-response-headers" tabindex="0">No response yet.</pre>
             </label>
-            <label>
-              Raw response body
-              <pre id="test-response-body" tabindex="0">No response yet.</pre>
-            </label>
+            <div class="response-body">
+              <div class="response-body-heading">
+                <span id="test-response-body-label">Raw response body</span>
+                <button id="test-toggle-json" class="button secondary" type="button" hidden>Pretty print</button>
+              </div>
+              <pre id="test-response-body" tabindex="0" aria-labelledby="test-response-body-label">
+No response yet.</pre>
+            </div>
           </section>
         </div>
       </aside>

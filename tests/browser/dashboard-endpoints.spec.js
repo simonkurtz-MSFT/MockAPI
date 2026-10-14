@@ -193,7 +193,7 @@ test("@smoke loads examples idempotently and filters by status", async ({ page, 
   await expect(
     page.getByRole("row", { name: /Ticket service maintenance fault demo/ }).locator(".status-badge")
   ).toHaveText("503");
-  await expect(page.getByRole("row", { name: /Parade schedule fault demo/ }).locator(".status-badge")).toHaveText(
+  await expect(page.getByRole("row", { name: /Parade schedule timeout demo/ }).locator(".status-badge")).toHaveText(
     "500"
   );
   const serverError = await request.get("/ctp/demo-faults/parade-schedule");

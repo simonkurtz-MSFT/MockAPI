@@ -2125,7 +2125,8 @@ fieldset {
   overflow-y: auto;
   padding: 20px 22px 28px;
   display: grid;
-  gap: 28px;
+  align-content: start;
+  gap: 18px;
 }
 .blade-body h3 {
   margin: 0;
@@ -2162,7 +2163,7 @@ fieldset {
   margin-top: 14px;
 }
 .test-response {
-  padding-top: 24px;
+  padding-top: 18px;
   border-top: 1px solid var(--cp-border);
 }
 .test-status {
@@ -2209,6 +2210,27 @@ fieldset {
   color: var(--cp-text);
   padding: 10px;
   font-weight: 400;
+}
+.response-body {
+  margin-top: 14px;
+}
+.response-body-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+  color: var(--cp-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.response-body-heading .button {
+  min-height: 30px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.response-body-heading .button[hidden] {
+  display: none;
 }
 
 /* Notifications and page footer */

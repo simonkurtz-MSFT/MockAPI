@@ -160,3 +160,23 @@ export function formatResponseHeaders(entries) {
   const longestName = Math.max(0, ...entries.map(([name]) => name.length));
   return entries.map(([name, value]) => `${name.padEnd(longestName)} : ${value}`).join("\n");
 }
+
+/**
+ * Formats a response body only when its Content-Type identifies JSON and the body is valid JSON.
+ *
+ * @param {string} body Raw response body.
+ * @param {[string, string][]} headers Response header entries.
+ * @returns {string|null} Indented JSON, or null when pretty printing is not available.
+ */
+export function formatPrettyJsonResponseBody(body, headers) {
+  const contentType = headers.find(([name]) => name.toLowerCase() === "content-type")?.[1];
+  const mediaType = contentType?.split(";", 1)[0].trim().toLowerCase();
+  const isJson = mediaType === "application/json" || mediaType?.endsWith("+json");
+  if (!isJson || !body) return null;
+
+  try {
+    return JSON.stringify(JSON.parse(body), null, 2);
+  } catch {
+    return null;
+  }
+}

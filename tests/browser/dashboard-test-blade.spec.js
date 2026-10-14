@@ -94,6 +94,18 @@ test("tests body-bearing and empty-response endpoints", async ({ page }) => {
   await expect(page.locator("#test-response-body")).toHaveText(
     '{"id":42,"parkId":"starlight-gardens","attractionId":"cloud-cruiser","partySize":2,"status":"reserved"}'
   );
+  const prettyPrint = page.getByRole("button", { name: "Pretty print" });
+  await expect(prettyPrint).toBeVisible();
+  await prettyPrint.click();
+  await expect(page.locator("#test-response-body-label")).toHaveText("Pretty response body");
+  await expect(page.locator("#test-response-body")).toHaveText(
+    '{\n  "id": 42,\n  "parkId": "starlight-gardens",\n  "attractionId": "cloud-cruiser",\n  "partySize": 2,\n  "status": "reserved"\n}'
+  );
+  await page.getByRole("button", { name: "Show raw" }).click();
+  await expect(page.locator("#test-response-body-label")).toHaveText("Raw response body");
+  await expect(page.locator("#test-response-body")).toHaveText(
+    '{"id":42,"parkId":"starlight-gardens","attractionId":"cloud-cruiser","partySize":2,"status":"reserved"}'
+  );
   await page.keyboard.press("Escape");
 
   const deleteRow = page.getByRole("row", { name: /Cancel your ride reservation/ });
@@ -101,6 +113,25 @@ test("tests body-bearing and empty-response endpoints", async ({ page }) => {
   await page.getByRole("button", { name: "Send request" }).click();
   await expect(page.locator("#test-status")).toHaveText("Request completed with HTTP 204.");
   await expect(page.locator("#test-response-body")).toHaveText("Empty response body.");
+  await expect(page.getByRole("button", { name: "Pretty print" })).toBeHidden();
+});
+
+test("keeps request and response sections compact and closes from the backdrop", async ({ page }) => {
+  await page.getByRole("button", { name: "Load examples" }).first().click();
+  const trigger = page.getByRole("row", { name: /Discover the parks/ }).getByRole("button", { name: "Test" });
+  await trigger.click();
+
+  const requestActions = await page.locator(".test-actions").boundingBox();
+  const responseSection = await page.locator(".test-response").boundingBox();
+  expect(responseSection.y - (requestActions.y + requestActions.height)).toBeLessThanOrEqual(20);
+
+  if (page.viewportSize().width > 640) {
+    await page.locator("#test-blade-backdrop").click({ position: { x: 10, y: 10 } });
+  } else {
+    await page.getByRole("button", { name: "Close endpoint test" }).last().click();
+  }
+  await expect(page.locator("#test-blade-shell")).toBeHidden();
+  await expect(trigger).toBeFocused();
 });
 
 for (const { name, path, status, contentType } of [

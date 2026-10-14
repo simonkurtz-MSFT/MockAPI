@@ -1,7 +1,7 @@
 "use strict";
 
 import { formatTestResponseDetails } from "./dashboard-core.js?v={{ASSET_VERSION}}";
-import { formatResponseHeaders } from "./dashboard-test-request.js?v={{ASSET_VERSION}}";
+import { formatPrettyJsonResponseBody, formatResponseHeaders } from "./dashboard-test-request.js?v={{ASSET_VERSION}}";
 import {
   createDashboardDom,
   createDashboardEventScope,
@@ -52,6 +52,7 @@ export function createDashboardTestBlade({
     "test-request-count": "input",
     "test-request-headers": "textarea",
     "test-response-body": "pre",
+    "test-response-body-label": "span",
     "test-response-headers": "pre",
     "test-response-status": "dd",
     "test-response-time": "dd",
@@ -59,6 +60,7 @@ export function createDashboardTestBlade({
     "test-send": "button",
     "test-security-warning": "div",
     "test-status": "p",
+    "test-toggle-json": "button",
   });
   const events = createDashboardEventScope();
   /** @type {{testTrigger: HTMLElement|null, testEndpointId: string|null}} */
@@ -70,6 +72,9 @@ export function createDashboardTestBlade({
   let disposed = false;
   let securityCheckGeneration = 0;
   let batchCancelled = false;
+  let rawResponseBody = "";
+  let prettyResponseBody = null;
+  let showingPrettyResponse = false;
 
   function renderSecurityWarning(warning) {
     const container = elements["test-security-warning"];
@@ -171,13 +176,29 @@ export function createDashboardTestBlade({
   }
 
   function resetTestResponse() {
+    rawResponseBody = "";
+    prettyResponseBody = null;
+    showingPrettyResponse = false;
     elements["test-status"].textContent = "Send a request to inspect its response.";
     elements["test-response-status"].textContent = "—";
     elements["test-response-time"].textContent = "—";
     elements["test-response-url"].textContent = "—";
     elements["test-response-headers"].textContent = "No response yet.";
     elements["test-response-body"].textContent = "No response yet.";
+    elements["test-response-body-label"].textContent = "Raw response body";
+    elements["test-toggle-json"].textContent = "Pretty print";
+    elements["test-toggle-json"].hidden = true;
     elements["test-copy-response"].disabled = true;
+  }
+
+  function toggleJsonResponseFormatting() {
+    if (prettyResponseBody === null) return;
+    showingPrettyResponse = !showingPrettyResponse;
+    elements["test-response-body"].textContent = showingPrettyResponse ? prettyResponseBody : rawResponseBody;
+    elements["test-response-body-label"].textContent = showingPrettyResponse
+      ? "Pretty response body"
+      : "Raw response body";
+    elements["test-toggle-json"].textContent = showingPrettyResponse ? "Show raw" : "Pretty print";
   }
 
   async function sendTestRequest() {
@@ -239,7 +260,13 @@ export function createDashboardTestBlade({
         elements["test-response-time"].textContent = `${result.elapsedMilliseconds.toFixed(1)} ms`;
         elements["test-response-url"].textContent = result.url;
         elements["test-response-headers"].textContent = responseHeaders || "No response headers.";
-        elements["test-response-body"].textContent = result.body || "Empty response body.";
+        rawResponseBody = result.body || "Empty response body.";
+        prettyResponseBody = formatPrettyJsonResponseBody(result.body, result.headers);
+        showingPrettyResponse = false;
+        elements["test-response-body"].textContent = rawResponseBody;
+        elements["test-response-body-label"].textContent = "Raw response body";
+        elements["test-toggle-json"].textContent = "Pretty print";
+        elements["test-toggle-json"].hidden = prettyResponseBody === null;
         elements["test-status"].textContent =
           requestCount === 1
             ? `Request completed with HTTP ${result.status}.`
@@ -309,6 +336,7 @@ export function createDashboardTestBlade({
   events.listen(elements["test-copy-response"], "click", () => {
     copyToClipboard(testResponseText(), "Response details copied");
   });
+  events.listen(elements["test-toggle-json"], "click", toggleJsonResponseFormatting);
   events.listen(document, "keydown", (event) => {
     if (event.defaultPrevented || event.key !== "Escape" || elements["test-blade-shell"].hidden) return;
     event.preventDefault();

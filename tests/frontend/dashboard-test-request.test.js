@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createEndpointTestRequestController,
+  formatPrettyJsonResponseBody,
   formatResponseHeaders,
   getEndpointTestSecurityWarning,
 } from "../../src/MockAPI/wwwroot/dashboard-test-request.js";
@@ -246,5 +247,21 @@ describe("formatResponseHeaders", () => {
       ])
     ).toBe("a      : one\nlonger : two");
     expect(formatResponseHeaders([])).toBe("");
+  });
+});
+
+describe("formatPrettyJsonResponseBody", () => {
+  it.each(["application/json; charset=utf-8", "application/problem+json"])(
+    "indents valid JSON for %s responses",
+    (contentType) => {
+      expect(formatPrettyJsonResponseBody('{"error":"later","retry":true}', [["content-type", contentType]])).toBe(
+        '{\n  "error": "later",\n  "retry": true\n}'
+      );
+    }
+  );
+
+  it("does not format non-JSON or malformed response bodies", () => {
+    expect(formatPrettyJsonResponseBody('{"value":1}', [["content-type", "text/plain"]])).toBeNull();
+    expect(formatPrettyJsonResponseBody("{invalid", [["Content-Type", "application/json"]])).toBeNull();
   });
 });
