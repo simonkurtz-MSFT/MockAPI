@@ -103,12 +103,29 @@ an unchanged version.
 The `GITHUB_TOKEN` tag push does not trigger another workflow, so the final quality job explicitly
 calls the reusable container workflow after creating the tag and GitHub release. There is no
 container `latest` alias. For recovery, manually run **Publish release container** with the existing
-validated tag. If that tag's commit has no successful quality run, first run
+validated tag. Recovery requires a completed quality run for the exact tagged commit with
+successful `coverage`, `browser-smoke`, and `browser-chromium` jobs in that same run. A failure
+in later tagging, release, or container-publication jobs does not invalidate those passed checks.
+Checks from separate runs are never combined. If that tag's commit has no qualifying run, first run
 `gh workflow run quality.yml --ref <Version>` and wait for it to succeed, then retry
 **Publish release container**. A quality run dispatched at the immutable release tag validates the
 exact tagged source without creating or moving a tag. For first-time tagging, manually run the
 complete **Quality engineering** workflow on `main`; it validates, tags, releases, and publishes
-that commit. Do not use either workflow to replace an already published tag.
+that commit. Its reusable container call relies on the caller's successful prerequisite jobs,
+not historical evidence from the still-running caller. Do not use either workflow to replace
+an already published tag.
+
+Dispatch **Publish release container** from `main`, supplying the immutable release tag as its
+input so recovery uses the current workflow fixes while building the exact tagged source.
+Preflight verifies the tagged GitHub release and Docker Hub credentials before native builds.
+It also checks Docker daemon availability and rejects an existing container release tag or a
+failed registry lookup before compilation. Publication rechecks tag absence after native
+validation so another publisher cannot silently replace an immutable release.
+Both native runners check Docker, PowerShell 7, curl, and jq availability before compilation;
+the AMD64 and ARM64 hosted runner images supply those tools. Missing tools fail explicitly.
+Native validation and scan evidence is uploaded even on failure; publication still requires
+both native jobs to succeed. Quality validation runs the native publication contract tests
+before tagging, as well as the release-quality evidence tests in the frontend suite.
 
 Use the [versioning skill](../.github/skills/versioning/SKILL.md) and
 [versioning agent](../.github/agents/versioning.agent.md) for compatibility decisions.
@@ -223,8 +240,13 @@ budget, or SBOM disclosure review: those remain human release gates.
   Unchanged versions remain no-ops; downgrades and tag reuse still fail. If the remote can no
   longer provide the previous commit, tagging fails explicitly rather than assuming a new version.
 - **Existing tag points elsewhere:** choose a new version. Never delete, move, or force-push it.
-- **No matching quality evidence:** run quality validation for the tagged commit through the
-  normal `main` workflow. Investigate expired evidence or legacy tags rather than bypassing the gate.
+- **No matching quality evidence:** run `gh workflow run quality.yml --ref <Version>` and wait
+  for all three quality prerequisite jobs to succeed in a completed run. Retry container
+  publication from `main`. A failed earlier container job alone does not require repeating quality
+  validation. Investigate expired evidence or legacy tags rather than bypassing the gate.
+- **Missing or invalid Docker Hub credentials:** configure `DOCKERHUB_USERNAME` and
+  `DOCKERHUB_TOKEN` repository secrets, then retry. Preflight authenticates before native builds;
+  repository write authorization is exercised only when pushing the validated candidate images.
 - **Native build, persistence, or scan failure:** no container image reaches the release tag;
   the earlier GitHub changelog release remains. Fix the cause;
   approve any time-bounded vulnerability exception separately rather than ignoring unfixed CVEs.

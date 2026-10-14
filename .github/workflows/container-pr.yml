@@ -75,6 +75,11 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Verify native runner prerequisites
+        run: |
+          set -euo pipefail
+          for tool in docker pwsh curl jq; do command -v "$tool"; done
+          pwsh -NoProfile -Command 'if ($PSVersionTable.PSVersion.Major -lt 7) { throw "PowerShell 7 is required." }'
       - name: Preserve OCI images in the native runner image store
         run: bash ./scripts/Enable-OciImageStore.sh
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
@@ -121,6 +126,7 @@ jobs:
             --read-only --cpus 0.5 --memory 256m \
             --publish 8080:8080 --volume mockapi-data:/data \
             --env MockApi__RequireApiKey=false \
+            --env MockApi__EnableOpenApi=true --env MockApi__EnableSwaggerUi=true \
             mockapi:pr-${{ matrix.suffix }}
           curl --retry 20 --retry-all-errors --retry-delay 1 --fail --silent http://localhost:8080/health/ready
           pwsh -NoProfile ./scripts/Test-PublishedApplication.ps1
@@ -131,6 +137,7 @@ jobs:
             --read-only --cpus 0.5 --memory 256m \
             --publish 8080:8080 --volume mockapi-data:/data \
             --env MockApi__RequireApiKey=false \
+            --env MockApi__EnableOpenApi=true --env MockApi__EnableSwaggerUi=true \
             mockapi:pr-${{ matrix.suffix }}
           curl --retry 20 --retry-all-errors --retry-delay 1 --fail --silent http://localhost:8080/health/ready
           pwsh -NoProfile ./scripts/Test-PublishedApplication.ps1 -VerifyPersistence

@@ -196,6 +196,27 @@ function Get-GitHubActionRuntime {
   throw "GitHub Action '$Repository@$Reference' does not expose action.yml or action.yaml."
 }
 
+function Get-GitHubActionCommitDate {
+  param(
+    [Parameter(Mandatory)][string] $Repository,
+    [Parameter(Mandatory)][string] $Reference
+  )
+
+  $headers = @{
+    Accept = 'application/vnd.github+json'
+    'X-GitHub-Api-Version' = '2022-11-28'
+  }
+  if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_TOKEN)) {
+    $headers.Authorization = "Bearer $env:GITHUB_TOKEN"
+  }
+
+  $commit = Invoke-RestMethod "https://api.github.com/repos/$Repository/commits/$Reference" -Headers $headers
+  if ([string]::IsNullOrWhiteSpace([string] $commit.commit.author.date)) {
+    throw "GitHub Action '$Repository@$Reference' did not expose a commit author date."
+  }
+  return [DateTimeOffset]::Parse([string] $commit.commit.author.date)
+}
+
 $pnpm = Get-Command pnpm -ErrorAction Stop
 & $pnpm.Source install --frozen-lockfile --lockfile-only
 if ($LASTEXITCODE -ne 0) {
@@ -237,16 +258,11 @@ foreach ($actionReference in $actionReferences) {
     throw "GitHub Action '$repository@$ref' must use an immutable 40-character commit SHA."
   }
   $sha = $ref
-  $patch = (Invoke-WebRequest "https://github.com/$repository/commit/$sha.patch").Content
-  $dateLine = ($patch -split "`n" | Where-Object { $_ -like 'Date: *' } | Select-Object -First 1)
-  if ([string]::IsNullOrWhiteSpace($dateLine)) {
-    throw "GitHub Action '$repository@$ref' did not expose a commit date."
-  }
   $runtime = Get-GitHubActionRuntime -Repository $repository -Reference $ref
   if ($runtime -match '^node(?<major>\d+)$' -and [int] $Matches.major -lt 24) {
     $violations.Add("GitHubActions:${repository}@${ref} declares unsupported runtime '$runtime'; use a Node 24 or newer release.")
   }
-  $published = [DateTimeOffset]::Parse($dateLine.Substring(6).Trim())
+  $published = Get-GitHubActionCommitDate -Repository $repository -Reference $sha
   Add-Result -Ecosystem GitHubActions -Name $repository -Version $ref -Published $published
 }
 

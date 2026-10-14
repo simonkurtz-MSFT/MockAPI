@@ -7,6 +7,11 @@ on:
         description: Existing validated Git tag in exact <Version> form
         required: true
         type: string
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
   workflow_dispatch:
     inputs:
       tagname:
@@ -21,10 +26,12 @@ concurrency:
   group: container-release-${{ inputs.tagname }}
   cancel-in-progress: false
 
+env:
+  IMAGE_NAME: simonkurtzmsft/mockapi
+
 jobs:
   preflight:
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -34,6 +41,15 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
+      - name: Require dispatch from main
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::Run container publication from main with an existing validated tag."
+            exit 1
+          fi
+          for tool in docker gh; do command -v "$tool"; done
+          docker info >/dev/null
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
@@ -47,23 +63,44 @@ jobs:
           REQUESTED_TAG: ${{ inputs.tagname }}
         run: node scripts/release-version.cjs resolve "$REQUESTED_TAG"
       - name: Require successful quality evidence for this exact commit
-        if: github.event_name == 'workflow_dispatch'
+        # Reusable workflows inherit the caller's event, including manual quality runs.
+        if: github.event_name == 'workflow_dispatch' && github.workflow == 'Publish release container'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_COMMIT: ${{ steps.version.outputs.commit }}
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: |
+          node scripts/release-quality.cjs
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ steps.version.outputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify the existing changelog release before native builds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_TAG: ${{ steps.version.outputs.tag }}
+        run: node scripts/release-notes.cjs verify "$IMAGE_TAG"
+      - name: Verify Docker Hub credentials before native builds
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          IMAGE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
           set -euo pipefail
-          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/quality.yml/runs?head_sha=$RELEASE_COMMIT&status=success&per_page=100" > quality-runs.json
-          if ! jq --exit-status --arg sha "$RELEASE_COMMIT" --arg tag "$RELEASE_TAG" \
-            '.workflow_runs | any(
-              .head_sha == $sha and
-              ((.event == "push" and .head_branch == "main") or
-               (.event == "workflow_dispatch" and (.head_branch == "main" or .head_branch == $tag)))
-            )' quality-runs.json >/dev/null; then
-            echo "::error::No successful Quality engineering run covers release commit $RELEASE_COMMIT. Run 'gh workflow run quality.yml --ref $RELEASE_TAG', wait for it to succeed, then retry this workflow."
+          if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "::error::Configure both DOCKERHUB_USERNAME and DOCKERHUB_TOKEN repository secrets."
             exit 1
           fi
+          printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+          if docker manifest inspect "$IMAGE_NAME:$IMAGE_TAG" > /dev/null 2> tag-check.txt; then
+            echo "::error::Refusing to replace existing release tag $IMAGE_NAME:$IMAGE_TAG."
+            exit 1
+          elif ! grep -Eqi 'manifest unknown|not found|no such manifest' tag-check.txt; then
+            cat tag-check.txt >&2
+            exit 1
+          fi
+          docker logout
 
   native-image:
     needs: preflight
@@ -84,6 +121,11 @@ jobs:
         with:
           ref: ${{ needs.preflight.outputs.commit }}
           persist-credentials: false
+      - name: Verify native runner prerequisites
+        run: |
+          set -euo pipefail
+          for tool in docker pwsh curl jq; do command -v "$tool"; done
+          pwsh -NoProfile -Command 'if ($PSVersionTable.PSVersion.Major -lt 7) { throw "PowerShell 7 is required." }'
       - name: Preserve OCI images in the native runner image store
         run: bash ./scripts/Enable-OciImageStore.sh
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
@@ -125,6 +167,7 @@ jobs:
             --read-only --cpus 0.5 --memory 256m \
             --publish 8080:8080 --volume mockapi-data:/data \
             --env MockApi__RequireApiKey=false \
+            --env MockApi__EnableOpenApi=true --env MockApi__EnableSwaggerUi=true \
             mockapi:release-${{ matrix.suffix }}
           curl --retry 20 --retry-all-errors --retry-delay 1 --fail --silent http://localhost:8080/health/ready
           pwsh -NoProfile ./scripts/Test-PublishedApplication.ps1
@@ -136,6 +179,7 @@ jobs:
             --read-only --cpus 0.5 --memory 256m \
             --publish 8080:8080 --volume mockapi-data:/data \
             --env MockApi__RequireApiKey=false \
+            --env MockApi__EnableOpenApi=true --env MockApi__EnableSwaggerUi=true \
             mockapi:release-${{ matrix.suffix }}
           curl --retry 20 --retry-all-errors --retry-delay 1 --fail --silent http://localhost:8080/health/ready
           pwsh -NoProfile ./scripts/Test-PublishedApplication.ps1 -VerifyPersistence
@@ -162,12 +206,20 @@ jobs:
           set -euo pipefail
           docker image inspect --format '{{.Id}}' mockapi:release-${{ matrix.suffix }} > image-${{ matrix.suffix }}.id
           docker save --output image-${{ matrix.suffix }}.tar mockapi:release-${{ matrix.suffix }}
+      - name: Capture native container diagnostics on failure
+        if: failure()
+        run: |
+          if docker container inspect mockapi > container-${{ matrix.suffix }}.json; then
+            docker logs mockapi > container-${{ matrix.suffix }}.log 2>&1
+          fi
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
         with:
           name: native-${{ matrix.suffix }}-evidence
           retention-days: 14
           path: |
             container-${{ matrix.suffix }}.json
+            container-${{ matrix.suffix }}.log
             image-${{ matrix.suffix }}.json
             idle-stats-${{ matrix.suffix }}.txt
             loaded-stats-${{ matrix.suffix }}.txt
@@ -178,12 +230,11 @@ jobs:
 
   publish:
     needs: [preflight, native-image]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: write
     env:
-      IMAGE_NAME: simonkurtzmsft/mockapi
       IMAGE_TAG: ${{ needs.preflight.outputs.tag }}
       RELEASE_COMMIT: ${{ needs.preflight.outputs.commit }}
     steps:
