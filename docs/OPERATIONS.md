@@ -12,7 +12,7 @@
 
 See [Live mock OpenAPI and APIM import](MANAGEMENT_API.md#live-mock-openapi-and-apim-import) for download links, backend URL configuration, and re-import requirements. The live mock export depends on the management API, not on the separate management OpenAPI or Swagger UI switches.
 
-Optional HTTP Basic authentication protects all administrative surfaces when both `MockApi__DashboardUsername` and `MockApi__DashboardPasswordHash` are configured. This includes the dashboard and static assets, management API, OpenAPI document, and Swagger UI. Health remains public; mock calls require an API key by default. Missing pairs and malformed hashes fail startup.
+Optional HTTP Basic authentication protects all administrative surfaces when both `MockApi__DashboardUsername` and `MockApi__DashboardPasswordHash` are configured. This includes the dashboard and static assets, management API, OpenAPI document, and Swagger UI. After valid Basic credentials are presented, MockAPI issues an `HttpOnly`, `Secure`, `SameSite=Strict` browser-session cookie so the expensive password verification is performed once per application and browser session instead of once per asset and API request. The cookie is invalid after the browser session ends or the application process restarts. Health remains public; mock calls require an API key by default. Missing pairs and malformed hashes fail startup.
 
 ### Mock API keys
 
@@ -162,7 +162,7 @@ Use `pathway-azure-initial` for the normal first deployment and `pathway-azure-u
 
 The deployment uses these controls:
 
-- Container Apps Consumption at `0.25` vCPU and `0.5 GiB,` with zero minimum and one maximum replica.
+- Container Apps Consumption at `0.25` vCPU and `0.5 GiB,` with one minimum and one maximum replica so the application remains continuously available.
 - A user-assigned managed identity with `AcrPull` on the Basic registry and `Storage Blob Data Contributor` scoped to the configuration container; registry administration and storage local authentication are disabled.
 - HTTPS-only external ingress and HTTP liveness/readiness probes.
 - A private Standard LRS Blob container for saved configuration, accessed with managed identity from a VNet-integrated Container Apps environment.
@@ -171,7 +171,7 @@ The deployment uses these controls:
 
 Container Apps Express is not currently compatible with MockAPI's deployment requirements. Track its feature readiness in [FEATURES.md](FEATURES.md#azure-container-apps-express).
 
-Container compute scales to zero. Basic ACR, Blob storage, private endpoints, private DNS, and Log Analytics ingestion can still incur charges until `azure-down` removes the resource group. The storage account disables shared-key authentication and public network access; the application reaches its Blob private endpoint through the dedicated environment subnet.
+Container compute does not scale to zero; the deployment keeps one replica running for predictable availability and dashboard latency. Container compute, Basic ACR, Blob storage, private endpoints, private DNS, and Log Analytics ingestion can incur charges until `azure-down` removes the resource group. The storage account disables shared-key authentication and public network access; the application reaches its Blob private endpoint through the dedicated environment subnet.
 
 ### Custom domain and Azure-managed TLS
 

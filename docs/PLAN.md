@@ -372,7 +372,7 @@ The UI must be keyboard usable and responsive, with WCAG 2.2 AA as the design an
 - Retain at most 100 newest-first request summaries containing only timestamp, method, normalized path, stable endpoint ID, outcome, status, and response byte count.
 - Do not retain request or response bodies, authorization headers, cookies, or query values.
 - Treat statistics as process-local and reset them on restart in the initial release.
-- Document that multiple replicas have independent configuration and statistics; run one replica unless a shared store is added later.
+- Document that multiple replicas have independent configuration and statistics. Configure one minimum and one maximum replica so the application remains continuously available without inconsistent process-local state; do not enable scale-to-zero or multiple replicas unless an approved design changes these requirements.
 
 ## 11. Container and Publication
 
@@ -401,7 +401,7 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
 
 - Bind management routes to the same listener initially, but support disabling the dashboard and management API independently.
 - Use one `Dockerfile` for all deployments. Removing dashboard assets yields negligible image-size savings; deployments that do not need the dashboard disable it with `MockApi__EnableDashboard=false` and can disable the remaining administrative surfaces independently.
-- Support optional Basic authentication for administrative paths. Require the username and PBKDF2-SHA256 password hash together; when both are absent, leave administrative paths unauthenticated and clearly warn against direct exposure to untrusted networks.
+- Support optional Basic authentication for administrative paths. Require the username and PBKDF2-SHA256 password hash together. After successful Basic authentication, issue a process-scoped, browser-session-only `HttpOnly`, `Secure`, `SameSite=Strict` cookie so password derivation occurs once per application and browser session rather than once per administrative request. When both credentials are absent, leave administrative paths unauthenticated and clearly warn against direct exposure to untrusted networks.
 - Require `X-MockAPI-Key` for mock calls by default, separately from endpoint matching and administrative Basic authentication.
   Health probes remain public. When administrator credentials are configured, require them for security Settings;
   when they are absent, allow the same anonymous administration as other management routes so an operator can
@@ -648,7 +648,7 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
 ## 16. Confirmed Decisions
 
 - Use `MockAPI` as the product, repository, solution, and primary assembly name.
-- Support optional Basic authentication for management and dashboard routes. Require the username and PBKDF2-SHA256 password hash together; when both are absent, clearly warn that administrative routes are public and should remain on localhost or a protected network unless intentional public access is approved.
+- Support optional Basic authentication for management and dashboard routes. Require the username and PBKDF2-SHA256 password hash together and exchange valid Basic credentials for a process-scoped secure browser-session cookie. When both credentials are absent, clearly warn that administrative routes are public and should remain on localhost or a protected network unless intentional public access is approved.
 - Automatically persist runtime configuration changes after immediate activation. If saving fails, changes
   remain active but visibly unsaved until a subsequent automatic save or explicit **Retry save** succeeds.
 - Treat built-in example loading as an idempotent merge by stable endpoint ID, distinct from replacement import; require a conflict preview and explicit forced update before divergent built-in entries can replace active entries.

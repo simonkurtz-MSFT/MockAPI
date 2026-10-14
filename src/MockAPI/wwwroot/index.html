@@ -444,7 +444,14 @@
               </div>
             </div>
 
-            <div class="table-wrap" role="region" aria-label="Endpoint registry" tabindex="0">
+            <div
+              id="endpoint-table-region"
+              class="table-wrap"
+              role="region"
+              aria-label="Endpoint registry"
+              aria-busy="true"
+              tabindex="0"
+            >
               <table>
                 <colgroup>
                   <col class="endpoint-selection-column" />
@@ -507,6 +514,10 @@
                 </thead>
                 <tbody id="endpoint-rows"></tbody>
               </table>
+              <div id="endpoint-loading-state" class="endpoint-loading-state" role="status">
+                <span class="loading-spinner" aria-hidden="true"></span>
+                <strong>Loading endpoints</strong>
+              </div>
               <div id="empty-state" class="empty-state" hidden>
                 <strong id="empty-state-title">No endpoints yet</strong>
                 <p id="empty-state-description">Load working examples or begin with a blank configuration.</p>

@@ -10,10 +10,14 @@ internal sealed class DashboardBasicAuthentication(RequestDelegate next, MockApi
 {
     private const string Scheme = "Basic";
     private const string HashVersion = "v1";
+    private const string SessionCookieName = "__Host-MockAPI-Session";
     private const int MinimumIterations = 100_000;
     private const int SaltLength = 16;
     private const int HashLength = 32;
+    private const int SessionNonceLength = 32;
+    private const int SessionSignatureLength = 32;
     private readonly PasswordHash? _passwordHash = ParseConfiguration(options);
+    private readonly byte[]? _sessionSigningKey = CreateSessionSigningKey(options);
 
     public async Task InvokeAsync(HttpContext context)
     {
@@ -23,10 +27,17 @@ internal sealed class DashboardBasicAuthentication(RequestDelegate next, MockApi
             return;
         }
 
+        if (HasValidSession(context.Request))
+        {
+            await next(context);
+            return;
+        }
+
         if (TryReadCredentials(context.Request.Headers.Authorization, out var username, out var password)
             && FixedTimeEquals(username, options.DashboardUsername!)
             && VerifyPassword(password, _passwordHash.Value))
         {
+            IssueSession(context.Response);
             await next(context);
             return;
         }
@@ -34,6 +45,48 @@ internal sealed class DashboardBasicAuthentication(RequestDelegate next, MockApi
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
         context.Response.Headers.WWWAuthenticate = "Basic realm=\"MockAPI Dashboard\", charset=\"UTF-8\"";
         context.Response.Headers.CacheControl = "no-store";
+    }
+
+    private bool HasValidSession(HttpRequest request)
+    {
+        if (!request.Cookies.TryGetValue(SessionCookieName, out var cookie)
+            || cookie.Length != (SessionNonceLength + SessionSignatureLength) * 2)
+        {
+            return false;
+        }
+
+        byte[] value;
+        try
+        {
+            value = Convert.FromHexString(cookie);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+
+        var nonce = value.AsSpan(0, SessionNonceLength);
+        var suppliedSignature = value.AsSpan(SessionNonceLength, SessionSignatureLength);
+        var expectedSignature = HMACSHA256.HashData(_sessionSigningKey!, nonce);
+        return CryptographicOperations.FixedTimeEquals(suppliedSignature, expectedSignature);
+    }
+
+    private void IssueSession(HttpResponse response)
+    {
+        var nonce = RandomNumberGenerator.GetBytes(SessionNonceLength);
+        var signature = HMACSHA256.HashData(_sessionSigningKey!, nonce);
+        var cookie = Convert.ToHexString(nonce) + Convert.ToHexString(signature);
+        response.Cookies.Append(
+            SessionCookieName,
+            cookie,
+            new CookieOptions
+            {
+                HttpOnly = true,
+                IsEssential = true,
+                Path = "/",
+                SameSite = SameSiteMode.Strict,
+                Secure = true
+            });
     }
 
     internal static bool IsAdministrativePath(PathString path) =>
@@ -62,6 +115,11 @@ internal sealed class DashboardBasicAuthentication(RequestDelegate next, MockApi
 
     internal static void ValidateConfiguration(MockApiOptions options) =>
         _ = ParseConfiguration(options);
+
+    private static byte[]? CreateSessionSigningKey(MockApiOptions options) =>
+        string.IsNullOrWhiteSpace(options.DashboardUsername)
+            ? null
+            : RandomNumberGenerator.GetBytes(32);
 
     private static PasswordHash? ParseConfiguration(MockApiOptions options)
     {

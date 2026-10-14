@@ -9,6 +9,32 @@ const endpoint = {
   response: { statusCode: 200, headers: {}, contentType: "text/plain", body: "live response" },
 };
 
+test("shows endpoint loading progress instead of the empty prompt during initial synchronization", async ({ page }) => {
+  let releaseEndpoints;
+  const endpointsGate = new Promise((resolve) => {
+    releaseEndpoints = resolve;
+  });
+  await page.route("**/__mockapi/api/endpoints", async (route) => {
+    await endpointsGate;
+    await route.continue();
+  });
+
+  try {
+    await page.reload({ waitUntil: "commit" });
+    const region = page.locator("#endpoint-table-region");
+    await expect(page.locator("#endpoint-loading-state")).toHaveText("Loading endpoints");
+    await expect(page.locator("#empty-state")).toBeHidden();
+    await expect(region).toHaveAttribute("aria-busy", "true");
+  } finally {
+    releaseEndpoints();
+  }
+
+  await expect(page.locator("#connection-status")).toHaveText("Live");
+  await expect(page.locator("#endpoint-loading-state")).toBeHidden();
+  await expect(page.locator("#empty-state")).toBeVisible();
+  await expect(page.locator("#endpoint-table-region")).toHaveAttribute("aria-busy", "false");
+});
+
 test("keeps management commands pending through the authoritative refresh", async ({ page }) => {
   let releaseRefresh;
   const refreshGate = new Promise((resolve) => {

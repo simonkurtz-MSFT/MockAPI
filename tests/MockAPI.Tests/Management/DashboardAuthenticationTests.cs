@@ -168,6 +168,57 @@ public sealed class DashboardAuthenticationTests
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    [Fact]
+    public async Task ValidBasicCredentials_IssueSecureBrowserSessionCookie()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        using var request = CreateAuthenticatedRequest("/", Username, Password);
+        request.RequestUri = new Uri("https://localhost/");
+
+        using var response = await client.SendAsync(request);
+
+        var cookie = Assert.Single(response.Headers.GetValues("Set-Cookie"));
+        Assert.StartsWith("__Host-MockAPI-Session=", cookie, StringComparison.Ordinal);
+        Assert.Contains("; path=/", cookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("; secure", cookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("; samesite=strict", cookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("; httponly", cookie, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("expires=", cookie, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("max-age=", cookie, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task IssuedSessionCookie_AuthenticatesSubsequentAdministrativeRequests()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        using var loginRequest = CreateAuthenticatedRequest("/", Username, Password);
+        loginRequest.RequestUri = new Uri("https://localhost/");
+        using var loginResponse = await client.SendAsync(loginRequest);
+        var cookie = Assert.Single(loginResponse.Headers.GetValues("Set-Cookie")).Split(';', 2)[0];
+        using var sessionRequest = new HttpRequestMessage(HttpMethod.Get, "https://localhost/app.js");
+        sessionRequest.Headers.Add("Cookie", cookie);
+
+        using var response = await client.SendAsync(sessionRequest);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(response.Headers.Contains("Set-Cookie"));
+    }
+
+    [Fact]
+    public async Task InvalidSessionCookie_DoesNotBypassAuthentication()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/");
+        request.Headers.Add("Cookie", "__Host-MockAPI-Session=invalid");
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
     private static WebApplicationFactory<Program> CreateFactory()
     {
         var salt = Enumerable.Range(0, 16).Select(value => (byte)value).ToArray();

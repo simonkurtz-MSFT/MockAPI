@@ -21,7 +21,7 @@ Request-format exports describe the current security requirement using variables
 Native endpoint configuration exports never contain security settings. See
 [Mock API keys](OPERATIONS.md#mock-api-keys) for setup and storage details.
 
-The management API is rooted at `/__mockapi/api`. When `MockApi__DashboardUsername` and `MockApi__DashboardPasswordHash` are configured together, HTTP Basic authentication protects it with the other administrative surfaces. Without that pair, keep it on localhost or a protected network unless unauthenticated public access is an explicit deployment choice.
+The management API is rooted at `/__mockapi/api`. When `MockApi__DashboardUsername` and `MockApi__DashboardPasswordHash` are configured together, HTTP Basic authentication protects it with the other administrative surfaces. Valid Basic credentials establish an `HttpOnly`, `Secure`, `SameSite=Strict` browser session for subsequent administrative requests. The session ends when the browser session or application process ends. Without that credential pair, keep the API on localhost or a protected network unless unauthenticated public access is an explicit deployment choice.
 
 ## Concurrency
 

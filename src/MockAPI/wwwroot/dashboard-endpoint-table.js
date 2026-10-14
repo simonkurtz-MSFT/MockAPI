@@ -67,7 +67,9 @@ export function createDashboardEndpointTable({
     "endpoint-body": "div",
     "endpoint-controls": "div",
     "endpoint-count": "span",
+    "endpoint-loading-state": "div",
     "endpoint-rows": "tbody",
+    "endpoint-table-region": "div",
     "endpoint-toggle": "button",
     "filter-enabled": "select",
     "filter-method": "select",
@@ -88,7 +90,7 @@ export function createDashboardEndpointTable({
    * statistics: import("./dashboard-core.js").DashboardStatistics|null,
    * statisticsByEndpoint: Map<string, import("./dashboard-core.js").EndpointStatistics>,
    * selectedEndpointIds: Set<string>, collapsedEndpointGroups: Set<string>,
-   * endpointSort: import("./dashboard-core.js").EndpointSort,
+   * endpointSort: import("./dashboard-core.js").EndpointSort, endpointsLoaded: boolean,
    * endpointsCollapsed: boolean, managementPending: boolean, pendingToggleFocus: string|null
    * }} */
   const state = {
@@ -98,6 +100,7 @@ export function createDashboardEndpointTable({
     selectedEndpointIds: new Set(),
     collapsedEndpointGroups: new Set(),
     endpointSort: { key: "path", direction: "ascending" },
+    endpointsLoaded: false,
     endpointsCollapsed: preferences.endpointsCollapsed,
     managementPending: false,
     pendingToggleFocus: null,
@@ -158,6 +161,8 @@ export function createDashboardEndpointTable({
   }
 
   function renderEndpoints() {
+    elements["endpoint-loading-state"].hidden = state.endpointsLoaded;
+    elements["endpoint-table-region"].setAttribute("aria-busy", String(!state.endpointsLoaded));
     if (state.endpointsCollapsed) {
       elements["endpoint-count"].textContent = String(visibleEndpoints().length);
       return;
@@ -169,7 +174,7 @@ export function createDashboardEndpointTable({
     elements["endpoint-count"].textContent = String(filtered.length);
     rowEvents.clear();
     elements["endpoint-rows"].replaceChildren();
-    elements["empty-state"].hidden = filtered.length !== 0;
+    elements["empty-state"].hidden = !state.endpointsLoaded || filtered.length !== 0;
     const hasEndpoints = state.endpoints.length !== 0;
     elements["empty-state-title"].textContent = hasEndpoints ? "No endpoints match" : "No endpoints yet";
     elements["empty-state-description"].textContent = hasEndpoints
@@ -497,6 +502,7 @@ export function createDashboardEndpointTable({
     },
     updateEndpoints(endpoints) {
       state.endpoints = endpoints;
+      state.endpointsLoaded = true;
       updateBulkSelection(visibleEndpoints());
       renderEndpoints();
     },
