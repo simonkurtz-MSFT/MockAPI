@@ -62,7 +62,7 @@ function compareVersions(left, right) {
 
 function planTag({ version, previousVersion, head, existingCommit }) {
   validateVersion(version);
-  if (previousVersion === version) return "unchanged";
+  if (previousVersion === version) return existingCommit ? "unchanged" : "create";
   if (previousVersion && compareVersions(version, previousVersion) <= 0) {
     throw new Error(`Version ${version} must be newer than ${previousVersion}.`);
   }

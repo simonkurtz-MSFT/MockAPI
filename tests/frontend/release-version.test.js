@@ -64,6 +64,12 @@ describe("application release versions", () => {
     ).toBe("unchanged");
   });
 
+  it("recovers an unchanged version when its tag was never created", () => {
+    expect(
+      planTag({ version: "1.0.0-beta.3", previousVersion: "1.0.0-beta.3", head: "new", existingCommit: null })
+    ).toBe("create");
+  });
+
   it("creates a new version tag, allows an exact rerun, and refuses reuse", () => {
     const candidate = { version: "1.0.0-rc.1", previousVersion: "1.0.0-beta.3", head: "new" };
     expect(planTag(candidate)).toBe("create");
@@ -73,7 +79,12 @@ describe("application release versions", () => {
   });
 
   it.each([
-    { scenario: "skips an unchanged version", version: "1.0.0-beta.2", status: 0, message: "decision=unchanged" },
+    {
+      scenario: "recovers a missing tag for an unchanged version",
+      version: "1.0.0-beta.2",
+      status: 0,
+      message: "decision=create",
+    },
     { scenario: "tags a version bump", version: "1.0.0-beta.3", status: 0, message: "decision=create" },
     { scenario: "rejects a downgrade", version: "1.0.0-beta.1", status: 1, message: "must be newer" },
     {

@@ -12,6 +12,8 @@ The [1.6.1 changelog entry](../CHANGELOG.md#161---2026-10-14) supplies the GitHu
 - The runtime image includes the Alpine zlib security fix in .NET runtime-deps 10.0.13.
 - Container-only validation is manually dispatchable, and release recovery no longer repeats the
   full quality baseline after an immutable tag and matching GitHub release exist.
+- Quality retries recover a missing immutable tag when the version was already changed by an
+  earlier commit whose validation failed before tagging.
 
 ### Compatibility and upgrade behavior
 
@@ -145,7 +147,9 @@ in parser, ordering, and release-policy tests are independent fixtures and remai
    The workflow attaches evidence to the existing GitHub release without replacing its notes.
 
 Ordinary commits with an unchanged version do not create or move tags. A repeated tagging run
-is safe only at the same commit. Downgrades and reused tags fail. Existing historical tags,
+is safe only at the same commit. When no matching tag exists because an earlier validation failed
+before tagging, the next successful quality run creates the missing tag even if the version did not
+change in that retry commit. Downgrades and reused tags fail. Existing historical tags,
 including tags with a `v` prefix, remain untouched; new automation uses exact `<Version>` tags
 without a prefix. Changing the convention does not bump the application or retroactively retag
 an unchanged version.

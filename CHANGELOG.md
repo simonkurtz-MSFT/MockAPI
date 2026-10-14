@@ -14,6 +14,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 - Container validation can be dispatched directly for the current branch, and release recovery
   relies on the immutable tag and existing verified GitHub release instead of requiring another
   full quality run.
+- A successful quality retry creates missing release metadata when an earlier run failed after the
+  version changed but before its immutable tag was created.
 
 ### Fixed
 
