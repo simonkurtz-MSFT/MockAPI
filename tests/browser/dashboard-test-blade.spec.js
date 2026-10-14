@@ -116,6 +116,32 @@ test("tests body-bearing and empty-response endpoints", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Pretty print" })).toBeHidden();
 });
 
+test("prefers and persists pretty endpoint test responses when available", async ({ page }) => {
+  await page.getByRole("button", { name: "Load examples" }).first().click();
+  await page.getByRole("button", { name: "Settings" }).click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  const responseBodyDisplay = settings.getByLabel("Response body display");
+  await expect(responseBodyDisplay).toHaveValue("raw");
+  await responseBodyDisplay.selectOption("pretty");
+  await settings.getByRole("button", { name: "Done" }).click();
+
+  const row = page.getByRole("row", { name: /Reserve a ride/ });
+  await row.getByRole("button", { name: "Test" }).click();
+  await page.getByRole("button", { name: "Send request" }).click();
+  await expect(page.locator("#test-response-body-label")).toHaveText("Pretty response body");
+  await expect(page.locator("#test-response-body")).toContainText('\n  "id": 42,');
+  await expect(page.getByRole("button", { name: "Show raw" })).toBeVisible();
+  await page.getByRole("button", { name: "Close endpoint test" }).last().click();
+
+  await page.reload();
+  await row.getByRole("button", { name: "Test" }).click();
+  await page.getByRole("button", { name: "Send request" }).click();
+  await expect(page.locator("#test-response-body-label")).toHaveText("Pretty response body");
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("mockapi.preferences")).responseBodyPresentation))
+    .toBe("pretty");
+});
+
 test("keeps request and response sections compact and closes from the backdrop", async ({ page }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
   const trigger = page.getByRole("row", { name: /Discover the parks/ }).getByRole("button", { name: "Test" });

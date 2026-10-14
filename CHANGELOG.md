@@ -12,7 +12,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 ### Added
 
 - The dashboard shows an accessible loading state while endpoints are fetched and can pretty-print
-  valid JSON test responses while preserving access to their raw bodies.
+  valid JSON test responses while preserving access to their raw bodies. A browser-local workspace
+  setting chooses whether endpoint tests prefer raw or pretty-printed responses when both are available.
 
 ### Changed
 

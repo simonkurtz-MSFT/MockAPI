@@ -12,6 +12,7 @@ const defaults = {
   kjUiStyle: false,
   requestLogCollapsed: false,
   requestLogTimeZone: "utc",
+  responseBodyPresentation: "raw",
   statisticsView: "graph",
   statisticsCollapsed: false,
   tutorialDismissed: false,
@@ -46,6 +47,7 @@ describe("createDashboardPreferencesStore", () => {
         kjUiStyle: true,
         requestLogCollapsed: true,
         requestLogTimeZone: "local",
+        responseBodyPresentation: "pretty",
         statisticsView: "table",
         statisticsCollapsed: true,
         tutorialDismissed: true,
@@ -60,6 +62,7 @@ describe("createDashboardPreferencesStore", () => {
       kjUiStyle: true,
       requestLogCollapsed: true,
       requestLogTimeZone: "local",
+      responseBodyPresentation: "pretty",
       statisticsView: "table",
       statisticsCollapsed: true,
       tutorialDismissed: true,
@@ -105,6 +108,7 @@ describe("createDashboardPreferencesStore", () => {
         endpointsCollapsed: "true",
         kjUiStyle: "true",
         requestLogCollapsed: "true",
+        responseBodyPresentation: "formatted",
         statisticsView: "cards",
         statisticsCollapsed: "false",
         tutorialDismissed: "true",
@@ -136,6 +140,7 @@ describe("createDashboardPreferencesStore", () => {
       statisticsView: "table",
       tutorialDismissed: true,
       requestLogTimeZone: "local",
+      responseBodyPresentation: "pretty",
     });
 
     expect(preferences).toEqual({
@@ -147,6 +152,7 @@ describe("createDashboardPreferencesStore", () => {
       statisticsView: "table",
       tutorialDismissed: true,
       requestLogTimeZone: "local",
+      responseBodyPresentation: "pretty",
     });
     expect(store.get()).toBe(preferences);
     expect(JSON.parse(storage.entries.get(DASHBOARD_PREFERENCES_KEY))).toEqual({ version: 1, ...preferences });
@@ -159,6 +165,7 @@ describe("createDashboardPreferencesStore", () => {
         kjUiStyle: "true",
         statisticsView: "cards",
         requestLogTimeZone: "invalid",
+        responseBodyPresentation: "invalid",
       })
     ).toEqual({
       ...defaults,
@@ -196,6 +203,16 @@ describe("createDashboardPreferencesStore", () => {
         [DASHBOARD_PREFERENCES_KEY]: JSON.stringify({ version: 1, requestLogTimeZone }),
       });
       expect(createDashboardPreferencesStore(storage).get().requestLogTimeZone).toBe("utc");
+    }
+  );
+
+  it.each([undefined, null, "invalid", "PRETTY", true])(
+    "defaults an absent or invalid response presentation %s to raw",
+    (responseBodyPresentation) => {
+      const storage = createStorage({
+        [DASHBOARD_PREFERENCES_KEY]: JSON.stringify({ version: 1, responseBodyPresentation }),
+      });
+      expect(createDashboardPreferencesStore(storage).get().responseBodyPresentation).toBe("raw");
     }
   );
 });

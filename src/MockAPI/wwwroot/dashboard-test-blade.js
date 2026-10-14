@@ -13,6 +13,7 @@ import {
  * @property {(endpoint: import("./dashboard-core.js").MockEndpoint, trigger: HTMLElement) => void} open Starts a fresh per-opening request owner and focuses the method control.
  * @property {() => void} close Cancels the batch, clears request/response text, and restores focus to the current endpoint row.
  * @property {(alignment: import("./dashboard-preferences.js").TestBladeAlignment) => void} setAlignment Applies the saved blade placement.
+ * @property {(presentation: import("./dashboard-preferences.js").ResponseBodyPresentation) => void} setResponseBodyPresentation Applies the preferred raw or pretty response presentation immediately when available.
  * @property {() => void} dispose Closes and permanently detaches listeners; late completions and future opens are ignored.
  */
 /**
@@ -75,6 +76,8 @@ export function createDashboardTestBlade({
   let rawResponseBody = "";
   let prettyResponseBody = null;
   let showingPrettyResponse = false;
+  /** @type {import("./dashboard-preferences.js").ResponseBodyPresentation} */
+  let preferredResponseBodyPresentation = "raw";
 
   function renderSecurityWarning(warning) {
     const container = elements["test-security-warning"];
@@ -194,11 +197,22 @@ export function createDashboardTestBlade({
   function toggleJsonResponseFormatting() {
     if (prettyResponseBody === null) return;
     showingPrettyResponse = !showingPrettyResponse;
+    renderResponseBody();
+  }
+
+  function renderResponseBody() {
     elements["test-response-body"].textContent = showingPrettyResponse ? prettyResponseBody : rawResponseBody;
     elements["test-response-body-label"].textContent = showingPrettyResponse
       ? "Pretty response body"
       : "Raw response body";
     elements["test-toggle-json"].textContent = showingPrettyResponse ? "Show raw" : "Pretty print";
+  }
+
+  function applyResponseBodyPresentation(presentation) {
+    preferredResponseBodyPresentation = presentation;
+    if (prettyResponseBody === null) return;
+    showingPrettyResponse = presentation === "pretty";
+    renderResponseBody();
   }
 
   async function sendTestRequest() {
@@ -262,10 +276,8 @@ export function createDashboardTestBlade({
         elements["test-response-headers"].textContent = responseHeaders || "No response headers.";
         rawResponseBody = result.body || "Empty response body.";
         prettyResponseBody = formatPrettyJsonResponseBody(result.body, result.headers);
-        showingPrettyResponse = false;
-        elements["test-response-body"].textContent = rawResponseBody;
-        elements["test-response-body-label"].textContent = "Raw response body";
-        elements["test-toggle-json"].textContent = "Pretty print";
+        showingPrettyResponse = preferredResponseBodyPresentation === "pretty" && prettyResponseBody !== null;
+        renderResponseBody();
         elements["test-toggle-json"].hidden = prettyResponseBody === null;
         elements["test-status"].textContent =
           requestCount === 1
@@ -346,6 +358,7 @@ export function createDashboardTestBlade({
     open: openTestBlade,
     close: closeTestBlade,
     setAlignment: applyEndpointTestDialogAlignment,
+    setResponseBodyPresentation: applyResponseBodyPresentation,
     dispose() {
       disposed = true;
       events.clear();

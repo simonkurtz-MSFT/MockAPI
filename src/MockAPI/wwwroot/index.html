@@ -787,6 +787,20 @@
               </p>
             </div>
             <div class="settings-field">
+              <label for="settings-response-body-presentation">Response body display</label>
+              <select
+                id="settings-response-body-presentation"
+                aria-describedby="settings-response-body-presentation-description"
+              >
+                <option value="raw">Prefer raw</option>
+                <option value="pretty">Prefer pretty print</option>
+              </select>
+              <p id="settings-response-body-presentation-description">
+                Applies to endpoint test responses when valid JSON formatting is available. The response viewer can
+                still switch between raw and pretty text.
+              </p>
+            </div>
+            <div class="settings-field">
               <label class="settings-checkbox-control" for="settings-kj-ui-style">
                 <input id="settings-kj-ui-style" type="checkbox" aria-describedby="settings-kj-ui-style-description" />
                 <span>KJ UI Style</span>

@@ -271,6 +271,9 @@ Default Endpoints, Statistics, and Request log to expanded when no collapse pref
 Show one Time column in Request log. Default request times and minute bucket labels to UTC;
 Settings can switch both to the browser's local time zone, saved as a browser-only workspace preference.
 Keep timestamp values and minute bucket identities in UTC regardless of the display preference.
+Default endpoint test responses to raw text. Let Settings persist a browser-only preference for pretty-printed
+JSON when the response has a JSON media type and a valid JSON body; preserve the per-response raw/pretty toggle
+and always fall back to raw text when pretty printing is unavailable.
 Honor explicit saved collapse choices in both stacked and two-column layouts, including after reloads and resizing.
 Apply saved collapse choices before the dashboard modules load so panels do not flash expanded or change height
 when those modules initialize. Missing, invalid, or unsupported collapse preferences retain the expanded default.

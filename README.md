@@ -73,7 +73,8 @@ The browser dashboard is the operations console: load or import a configuration,
 
 Request log shows a single **Time** column in UTC by default. Switch to your browser's local time zone under
 **Settings > Workspace preferences > Request log time zone**. The choice is saved in this browser and also applies
-to minute bucket labels.
+to minute bucket labels. Endpoint test responses default to raw text; use
+**Settings > Workspace preferences > Response body display** to prefer pretty-printed JSON whenever it is available.
 
 The dashboard logo and browser favicon use a glassy blue tile with **Mock** above **API**.
 
