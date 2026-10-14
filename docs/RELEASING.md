@@ -221,7 +221,7 @@ credentials in the repository, development container, or Codespaces settings.
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | Actions permissions  | Permit the final quality job's `contents: write` for tags and GitHub releases; allow immutable tag creation under the repository's tag rules |
 | Release assets       | Permit post-publication evidence uploads; GitHub's immutable-release setting is incompatible with this two-step asset workflow               |
-| Registry credentials | Add `DOCKERHUB_USERNAME` and a least-privilege `DOCKERHUB_TOKEN` as repository secrets                                                       |
+| Registry credentials | Add `DOCKERHUB_USERNAME` and a `DOCKERHUB_TOKEN` with Read, Write, Delete permissions as repository secrets                                  |
 | Pages source         | Choose **GitHub Actions** under Settings > Pages, after reviewing what will become public                                                    |
 | Pages environment    | Protect `github-pages` and restrict deployments to `main`                                                                                    |
 | Pages opt-in         | Set repository variable `ENABLE_PAGES=true` only when publication is approved                                                                |
@@ -301,9 +301,11 @@ budget, or SBOM disclosure review: those remain human release gates.
   for all three quality prerequisite jobs to succeed in a completed run. Retry container
   publication from `main`. A failed earlier container job alone does not require repeating quality
   validation. Investigate expired evidence or legacy tags rather than bypassing the gate.
-- **Missing or invalid Docker Hub credentials:** configure `DOCKERHUB_USERNAME` and
-  `DOCKERHUB_TOKEN` repository secrets, then retry. Preflight authenticates before native builds;
-  repository write authorization is exercised only when pushing the validated candidate images.
+- **Missing, invalid, or insufficient Docker Hub credentials:** configure `DOCKERHUB_USERNAME`
+  and a `DOCKERHUB_TOKEN` with Read, Write, Delete permissions as repository secrets, then retry.
+  Read and Write permit image publication; Delete is required to remove the run-specific candidate
+  tags afterward. Preflight authenticates before native builds, but registry write and delete
+  authorization are exercised only when pushing and cleaning up the validated candidate images.
 - **Native build, persistence, or scan failure:** no container image reaches the release tag;
   the earlier GitHub changelog release remains. Fix the cause;
   approve any time-bounded vulnerability exception separately rather than ignoring unfixed CVEs.
