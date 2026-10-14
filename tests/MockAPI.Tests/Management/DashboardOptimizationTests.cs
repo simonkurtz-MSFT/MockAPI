@@ -138,14 +138,26 @@ public sealed class DashboardOptimizationTests
         using var initialStatistics = await ReadEventAsync(reader, "statistics", cancellation.Token);
         Assert.Equal(0, initialStatistics.RootElement.GetProperty("totalRequests").GetInt64());
 
-        var result = state.TryReplace(new MockApiConfigurationDocument { SchemaVersion = "1.0", Endpoints = [] }, 0);
+        var result = state.TryReplace(new MockApiConfigurationDocument
+        {
+            SchemaVersion = "1.0",
+            ApiDescriptions = new() { ["/z"] = " Z\r\n ", ["/a"] = "A", ["/A"] = "" },
+            Endpoints = []
+        }, 0);
         Assert.Equal(ConfigurationUpdateStatus.Applied, result.Status);
         using var edit = await ReadEventAsync(reader, "configuration", cancellation.Token);
         Assert.Equal(1, edit.RootElement.GetProperty("revision").GetInt64());
+        Assert.Equal("\"1\"", edit.RootElement.GetProperty("etag").GetString());
+        var descriptions = edit.RootElement.GetProperty("apiDescriptions");
+        Assert.Equal(new[] { "/A", "/a", "/z" }, descriptions.EnumerateObject().Select(property => property.Name));
+        Assert.Equal("", descriptions.GetProperty("/A").GetString());
+        Assert.Equal(" Z\r\n ", descriptions.GetProperty("/z").GetString());
         Assert.True(edit.RootElement.GetProperty("hasUnsavedChanges").GetBoolean());
         Assert.True(state.TryMarkPersisted(1));
         using var save = await ReadEventAsync(reader, "configuration", cancellation.Token);
         Assert.Equal(1, save.RootElement.GetProperty("revision").GetInt64());
+        Assert.Equal("\"1\"", save.RootElement.GetProperty("etag").GetString());
+        Assert.Equal(descriptions.GetRawText(), save.RootElement.GetProperty("apiDescriptions").GetRawText());
         Assert.False(save.RootElement.GetProperty("hasUnsavedChanges").GetBoolean());
 
         statistics.RecordUnmatched("GET", "/unmatched");

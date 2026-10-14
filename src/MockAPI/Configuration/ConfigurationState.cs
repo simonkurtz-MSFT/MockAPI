@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text.Json;
 using MockAPI.Runtime;
@@ -93,6 +94,7 @@ public sealed class ConfigurationState
             var revision = checked(current.Revision + 1);
             var replacement = ConfigurationStateSnapshot.CreateFromOwnedSerializedDocument(
                 serializedDocument,
+                canonicalDocument.ApiDescriptions,
                 endpoints,
                 revision,
                 hasUnsavedChanges);
@@ -134,11 +136,13 @@ public sealed class ConfigurationStateSnapshot
 
     private ConfigurationStateSnapshot(
         byte[] serializedDocument,
+        IReadOnlyDictionary<string, string>? apiDescriptions,
         EndpointRegistrySnapshot endpoints,
         long revision,
         bool hasUnsavedChanges)
     {
         _serializedDocument = serializedDocument;
+        ApiDescriptions = apiDescriptions;
         Endpoints = endpoints;
         Revision = revision;
         ETag = string.Create(CultureInfo.InvariantCulture, $"\"{revision}\"");
@@ -156,6 +160,10 @@ public sealed class ConfigurationStateSnapshot
 
     /// <summary>Gets a value indicating whether this revision has not been confirmed persisted.</summary>
     public bool HasUnsavedChanges { get; }
+
+    /// <summary>Gets immutable, ordinally ordered API descriptions from this revision, or <see langword="null"/> when absent.</summary>
+    /// <remarks>Preserves empty metadata and exact description text. Persistence-status-only replacements share this projection.</remarks>
+    public IReadOnlyDictionary<string, string>? ApiDescriptions { get; }
 
     /// <summary>Materializes a detached configuration document from the canonical serialized snapshot.</summary>
     /// <returns>A new document graph that callers may modify without affecting this snapshot.</returns>
@@ -187,7 +195,7 @@ public sealed class ConfigurationStateSnapshot
             hasUnsavedChanges: false);
     }
 
-    internal static ConfigurationStateSnapshot Create(
+    private static ConfigurationStateSnapshot Create(
         MockApiConfigurationDocument document,
         EndpointRegistrySnapshot endpoints,
         long revision,
@@ -198,6 +206,7 @@ public sealed class ConfigurationStateSnapshot
             MockApiJsonContext.Default.MockApiConfigurationDocument);
         return CreateFromOwnedSerializedDocument(
             serializedDocument,
+            document.ApiDescriptions,
             endpoints,
             revision,
             hasUnsavedChanges);
@@ -205,19 +214,26 @@ public sealed class ConfigurationStateSnapshot
 
     internal static ConfigurationStateSnapshot CreateFromOwnedSerializedDocument(
         byte[] serializedDocument,
+        Dictionary<string, string>? ownedApiDescriptions,
         EndpointRegistrySnapshot endpoints,
         long revision,
         bool hasUnsavedChanges)
     {
+        // Both inputs belong to the same canonical document. Its private metadata dictionary
+        // is never exposed mutably; strings are immutable, so a read-only wrapper is sufficient.
+        var apiDescriptions = ownedApiDescriptions is null
+            ? null
+            : new ReadOnlyDictionary<string, string>(ownedApiDescriptions);
         return new ConfigurationStateSnapshot(
             serializedDocument,
+            apiDescriptions,
             endpoints,
             revision,
             hasUnsavedChanges);
     }
 
     internal ConfigurationStateSnapshot WithUnsavedChanges(bool hasUnsavedChanges) =>
-        new(_serializedDocument, Endpoints, Revision, hasUnsavedChanges);
+        new(_serializedDocument, ApiDescriptions, Endpoints, Revision, hasUnsavedChanges);
 }
 
 /// <summary>Identifies the outcome of an optimistic complete-configuration replacement.</summary>

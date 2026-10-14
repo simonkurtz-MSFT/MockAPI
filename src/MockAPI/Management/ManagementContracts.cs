@@ -16,7 +16,7 @@ public sealed record ConfigurationStatusResponse(
     IReadOnlyDictionary<string, string>? ApiDescriptions = null)
 {
     internal static ConfigurationStatusResponse FromSnapshot(ConfigurationStateSnapshot snapshot) =>
-        new(snapshot.Revision, snapshot.ETag, snapshot.HasUnsavedChanges, snapshot.GetDocument().ApiDescriptions);
+        new(snapshot.Revision, snapshot.ETag, snapshot.HasUnsavedChanges, snapshot.ApiDescriptions);
 }
 
 /// <summary>Requests a revision-protected API description edit, independent of endpoint membership.</summary>

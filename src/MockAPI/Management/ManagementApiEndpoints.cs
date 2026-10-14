@@ -486,10 +486,10 @@ public static class ManagementApiEndpoints
         bool download = true)
     {
         var snapshot = service.Current;
-        var document = FilterExportDocument(snapshot.GetDocument(), endpointIds);
         SetETag(context, snapshot);
         if (format is not null)
         {
+            var document = FilterExportDocument(snapshot.GetDocument(), endpointIds);
             if (!ConfigurationExportService.TryExport(format, document, out var export,
                 context.RequestServices.GetRequiredService<ApiKeySecurity>().Status.Enabled))
             {
@@ -517,7 +517,9 @@ public static class ManagementApiEndpoints
         context.Response.Headers.ContentDisposition = "attachment; filename=mockapi.json";
         var content = endpointIds is null or { Length: 0 }
             ? snapshot.ExportUtf8()
-            : JsonSerializer.SerializeToUtf8Bytes(document, MockApiJsonContext.Default.MockApiConfigurationDocument);
+            : JsonSerializer.SerializeToUtf8Bytes(
+                FilterExportDocument(snapshot.GetDocument(), endpointIds),
+                MockApiJsonContext.Default.MockApiConfigurationDocument);
         await context.Response.Body.WriteAsync(content, context.RequestAborted);
     }
 

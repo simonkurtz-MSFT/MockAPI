@@ -134,6 +134,70 @@ current buckets are collapsed. New minute buckets start expanded; additional req
 existing bucket retain its state. Table columns use stable widths and reserved scrollbar space,
 with long values wrapping and horizontal scrolling available on narrow panels.
 
+## Configuration Read Efficiency
+
+Configuration status reads and SSE configuration-event projections use an owned, immutable
+API-description projection from the captured snapshot. They do not deserialize endpoint definitions
+or response bodies just to retrieve metadata. Persistence-status-only updates share this projection
+while keeping descriptions, revision, and ETag consistent.
+
+Unfiltered native exports, including requests with omitted or empty endpoint IDs, use the snapshot's
+canonical serialized bytes without first materializing a configuration document. This removes a
+redundant parse and object graph, not the allocation needed to return detached export bytes. Selected
+native exports and generated formats retain their filtering and transformation paths.
+
+These changes reduce temporary allocations and read-side processing for configurations with large
+response bodies. They preserve exact unfiltered native-export bytes, detached documents, null versus
+empty metadata maps, description whitespace, case-sensitive keys, and ordinal key ordering.
+
+### Measured Results
+
+On 2026-10-14, before/after diagnostics used a validated document with **25 endpoints and 4,163,270
+bytes**, or **99.26% of the document limit**. The local managed Release build ran on .NET 10.0.13
+with tiered compilation disabled. Each result is the median of five samples of 30 calls after
+10 warmup calls.
+
+| Controlling path                    | Allocated bytes/call before | Allocated bytes/call after | Milliseconds/call before | Milliseconds/call after |
+| ----------------------------------- | --------------------------- | -------------------------- | ------------------------ | ----------------------- |
+| Status projection, also used by SSE | 8,336,233                   | 48                         | 5.149143                 | 0.000067                |
+| Status handler                      | 8,340,895                   | 746                        | 4.620420                 | 0.003077                |
+| Native export, omitted endpoint IDs | 12,499,727                  | 4,163,869                  | 6.550490                 | 0.546547                |
+| Native export, empty endpoint IDs   | 12,499,403                  | 4,163,873                  | 6.303837                 | 0.479567                |
+
+The handler measurements invoke the actual status/export handlers with a `Stream.Null` response
+sink. The diagnostic measures thread-local allocations and elapsed time, and verifies synchronous
+completion. Fixture creation is outside the measured calls. These results demonstrate improvements
+in the controlling read paths, not end-to-end HTTP throughput, SSE delivery latency, container
+memory use, or guarantees for other environments. The SSE projection measurement does not include
+event serialization or network delivery.
+
+### Repeating the Diagnostic
+
+The opt-in [configuration-read diagnostic](../tests/MockAPI.Tests/Management/ConfigurationReadDiagnostics.cs)
+reports allocation and elapsed-time samples without imposing timing thresholds on normal tests.
+Run it from the repository root against the current implementation. To compare revisions, use the
+same diagnostic fixture, runtime, build configuration, and environment for both versions.
+
+PowerShell uses a child process so the diagnostic environment settings do not persist in your shell:
+
+```powershell
+pwsh -NoProfile -Command {
+    $env:MOCKAPI_CONFIGURATION_READ_DIAGNOSTICS = '1'
+    $env:DOTNET_TieredCompilation = '0'
+    dotnet test .\tests\MockAPI.Tests\MockAPI.Tests.csproj --no-restore `
+        --configuration Release --filter "FullyQualifiedName~ConfigurationReadDiagnostics" `
+        --logger "console;verbosity=detailed"
+    exit $LASTEXITCODE
+}
+```
+
+```bash
+MOCKAPI_CONFIGURATION_READ_DIAGNOSTICS=1 DOTNET_TieredCompilation=0 \
+  dotnet test ./tests/MockAPI.Tests/MockAPI.Tests.csproj --no-restore \
+    --configuration Release --filter "FullyQualifiedName~ConfigurationReadDiagnostics" \
+    --logger "console;verbosity=detailed"
+```
+
 ## Built-In Merge Results
 
 A successful merge reports `added`, `updated`, `skipped`, the resulting revision, and whether a change was applied. Repeating the same merge is an idempotent `200` response with no revision increment.

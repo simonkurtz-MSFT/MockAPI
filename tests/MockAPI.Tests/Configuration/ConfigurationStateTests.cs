@@ -25,6 +25,44 @@ public sealed class ConfigurationStateTests
     }
 
     [Fact]
+    public void ApiDescriptions_ProjectionIsOwnedImmutableAndSharedOnlyWithinRevision()
+    {
+        var descriptions = new Dictionary<string, string> { ["/z"] = " Z\r\n ", ["/a"] = "A", ["/A"] = "" };
+        var state = new ConfigurationState();
+        Assert.Null(state.Current.ApiDescriptions);
+        Assert.Equal(ConfigurationUpdateStatus.Applied,
+            state.TryReplace(CreateDocument(CreateEndpoint("GET", "/a/hello", "body")) with { ApiDescriptions = descriptions }, 0).Status);
+        var dirty = state.Current;
+        var projection = dirty.ApiDescriptions!;
+        descriptions.Clear();
+        dirty.GetDocument().ApiDescriptions!.Clear();
+
+        Assert.Equal(new[] { "/A", "/a", "/z" }, projection.Keys);
+        Assert.Equal("", projection["/A"]);
+        Assert.Equal("A", projection["/a"]);
+        Assert.Equal(" Z\r\n ", projection["/z"]);
+        Assert.False(projection.ContainsKey("/Z"));
+        var dictionary = Assert.IsAssignableFrom<IDictionary<string, string>>(projection);
+        Assert.True(dictionary.IsReadOnly);
+        Assert.Throws<NotSupportedException>(() => dictionary["/a"] = "changed");
+        Assert.Throws<NotSupportedException>(() => dictionary.Clear());
+
+        Assert.True(state.TryMarkPersisted(dirty.Revision));
+        Assert.Same(projection, state.Current.ApiDescriptions);
+        Assert.Equal(dirty.Revision, state.Current.Revision);
+        Assert.Equal(dirty.ETag, state.Current.ETag);
+        Assert.Equal(ConfigurationUpdateStatus.Applied,
+            state.TryReplace(CreateDocument() with { ApiDescriptions = [] }, dirty.Revision).Status);
+        Assert.NotNull(state.Current.ApiDescriptions);
+        Assert.Empty(state.Current.ApiDescriptions);
+        Assert.NotSame(projection, state.Current.ApiDescriptions);
+        Assert.Equal(3, projection.Count);
+
+        Assert.Equal(ConfigurationUpdateStatus.Applied, state.TryReplace(CreateDocument(), state.Current.Revision).Status);
+        Assert.Null(state.Current.ApiDescriptions);
+    }
+
+    [Fact]
     public async Task ChangeNotifications_ObserveAtomicEditsAndPersistenceWithoutLostWakeups()
     {
         var state = new ConfigurationState();
