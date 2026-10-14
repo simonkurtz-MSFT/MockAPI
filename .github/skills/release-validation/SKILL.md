@@ -37,14 +37,13 @@ Follow `docs/RELEASING.md` for the publication boundary. Validate the exact `<Ve
 commit and successful quality prerequisites before native builds. A newly validated version tag
 automatically calls container publication after the final quality job publishes reviewed Keep a
 Changelog GitHub notes. Manual dispatch remains available only to recover an existing validated tag.
-Standalone recovery uses `scripts/release-quality.cjs` to require successful `coverage`,
-`browser-smoke`, and `browser-chromium` jobs in one completed run for that exact commit; a later
-publication failure does not invalidate passed quality prerequisites. Keep these required job names
-aligned with `quality.yml`. Reusable calls from quality rely on the caller's job dependencies, including
-when quality was manually dispatched; do not require historical success from the still-running caller.
+Standalone recovery requires the immutable tag and matching existing GitHub release created by the
+quality workflow; do not require a second coverage and browser baseline after publication fails.
+Use the manually dispatchable container validation workflow to exercise both native architectures
+for a current branch before selecting a new release version.
 Verify GitHub release metadata and registry credentials in preflight before native builds. Run
-`tests/NativePublication.Tests.ps1` and the release-quality, release-notes, and release-version Vitest
-tests when changing this boundary; quality CI must execute these contracts before tagging.
+`tests/NativePublication.Tests.ps1` and the release-notes and release-version Vitest tests when
+changing this boundary; quality CI must execute these contracts before tagging.
 Keep release SBOMs, scan output, resource observations, and image/index metadata as durable
 assets on the existing GitHub release after the exact tested index is published, without replacing notes.
 

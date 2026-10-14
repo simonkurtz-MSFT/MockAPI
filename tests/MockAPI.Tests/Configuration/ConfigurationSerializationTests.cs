@@ -8,18 +8,22 @@ namespace MockAPI.Tests.Configuration;
 public sealed class ConfigurationSerializationTests
 {
     [Fact]
-    public void GeneratedMetadata_DescribesNullableExportQueryParameterWithoutReflection()
+    public void GeneratedMetadata_DescribesExportQueryParametersWithoutReflection()
     {
         var options = new JsonSerializerOptions
         {
             TypeInfoResolver = ManagementJsonContext.Default
         };
 
-        var schema = options.GetJsonSchemaAsNode(typeof(bool?));
+        var downloadSchema = options.GetJsonSchemaAsNode(typeof(bool?));
+        var endpointIdsSchema = options.GetJsonSchemaAsNode(typeof(Guid[]));
 
         Assert.NotNull(options.GetTypeInfo(typeof(bool?)));
-        Assert.Contains("boolean", schema.ToJsonString(), StringComparison.Ordinal);
-        Assert.Contains("null", schema.ToJsonString(), StringComparison.Ordinal);
+        Assert.NotNull(options.GetTypeInfo(typeof(Guid[])));
+        Assert.Contains("boolean", downloadSchema.ToJsonString(), StringComparison.Ordinal);
+        Assert.Contains("null", downloadSchema.ToJsonString(), StringComparison.Ordinal);
+        Assert.Contains("array", endpointIdsSchema.ToJsonString(), StringComparison.Ordinal);
+        Assert.Contains("uuid", endpointIdsSchema.ToJsonString(), StringComparison.Ordinal);
     }
 
     [Fact]

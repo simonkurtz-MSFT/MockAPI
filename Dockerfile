@@ -2,7 +2,7 @@
 
 # Compile on the target architecture. The AOT SDK includes the native compiler and linker,
 # which stay in this stage; CI uses native AMD64 and ARM64 runners, not cross-compilation.
-FROM mcr.microsoft.com/dotnet/sdk:10.0.400-alpine3.24-aot@sha256:cd255a72d14d70260bb9b8dc493c3c37ce0877ef534f85ac1c931628364d7059 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.402-alpine3.24-aot@sha256:574e01812ecd2f33a79cb61b0398320abbd0589125b1e0a6fea00806ba630cb4 AS build
 
 # The developer CLI passes the host's enabled HTTPS NuGet feed for approved proxy support.
 # ARG keeps this restore-only setting in the build stage; nuget.org is the portable default.
@@ -22,7 +22,7 @@ RUN dotnet publish src/MockAPI/MockAPI.csproj --configuration Release --no-resto
 # 2) Create the final runtime image with the published .NET MockAPI project
 
 # Native AOT removes the managed runtime and JIT; the executable still needs native OS libraries.
-FROM mcr.microsoft.com/dotnet/runtime-deps:10.0.12-alpine3.24@sha256:f23f2bc63f69aca51ae93beccf344123d9a0d79c114a5c4f24835bdbc43b9101 AS final
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0.13-alpine3.24@sha256:1a5dbee0a1d2bb1d038e212e8ccdbc12783b5cfbed866fe75d126ee80178a52a AS final
 EXPOSE 8080
 
 WORKDIR /app

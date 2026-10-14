@@ -6,7 +6,7 @@ applyTo: "**/{Dockerfile,Dockerfile.*,*.Dockerfile,.dockerignore,compose*.yml,co
 
 # Container Instructions
 
-- Build with the approved `mcr.microsoft.com/dotnet/sdk:10.0.400-alpine3.24-aot@sha256:cd255a72d14d70260bb9b8dc493c3c37ce0877ef534f85ac1c931628364d7059` image and run with `mcr.microsoft.com/dotnet/runtime-deps:10.0.12-alpine3.24@sha256:f23f2bc63f69aca51ae93beccf344123d9a0d79c114a5c4f24835bdbc43b9101` after verifying that replacements have completed the dependency cooldown.
+- Build with the approved `mcr.microsoft.com/dotnet/sdk:10.0.402-alpine3.24-aot@sha256:574e01812ecd2f33a79cb61b0398320abbd0589125b1e0a6fea00806ba630cb4` image and run with `mcr.microsoft.com/dotnet/runtime-deps:10.0.13-alpine3.24@sha256:1a5dbee0a1d2bb1d038e212e8ccdbc12783b5cfbed866fe75d126ee80178a52a`. These images were accepted before the normal dependency cooldown as an explicit security exception because they upgrade Alpine zlib to `1.3.2-r1`, which fixes CVE-2026-85091.
 - Publish Native AOT for both `linux-musl-x64` and `linux-musl-arm64` on matching native runners. Pass `PublishAot=true` to both restore and publish; exclude native debug symbols and managed runtime artifacts.
 - Produce one multi-platform OCI image index for `linux/amd64` and `linux/arm64`, with identical tags and application behavior across architectures.
 - Transfer and publish the exact native images that passed validation; verify configuration digests and index membership rather than rebuilding in the index or publication job. Use the OCI-capable image store only on disposable CI runners.

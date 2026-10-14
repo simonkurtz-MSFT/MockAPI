@@ -1,7 +1,23 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.6.0. This version decision publishes only after
+MockAPI's next stable application version is 1.6.1. This version decision publishes only after
 the quality, public-release audit, and native image validation gates below succeed.
+
+## 1.6.1 release summary
+
+The planned release date is **2026-10-14**, with the immutable tag **`1.6.1`**.
+The [1.6.1 changelog entry](../CHANGELOG.md#161---2026-10-14) supplies the GitHub release notes.
+
+- Native AOT OpenAPI generation includes endpoint-selection query parameter metadata.
+- The runtime image includes the Alpine zlib security fix in .NET runtime-deps 10.0.13.
+- Container-only validation is manually dispatchable, and release recovery no longer repeats the
+  full quality baseline after an immutable tag and matching GitHub release exist.
+
+### Compatibility and upgrade behavior
+
+These fixes do not change mock routing, management API contracts, authentication behavior, or the
+configuration schema (`schemaVersion: "1.0"`), so 1.6.1 is a patch release. Existing endpoint IDs
+and configuration documents remain compatible; no migration is required.
 
 ## 1.6.0 release summary
 
@@ -137,17 +153,14 @@ an unchanged version.
 The `GITHUB_TOKEN` tag push does not trigger another workflow, so the final quality job explicitly
 calls the reusable container workflow after creating the tag and GitHub release. There is no
 container `latest` alias. For recovery, manually run **Publish release container** with the existing
-validated tag. Recovery requires a completed quality run for the exact tagged commit with
-successful `coverage`, `browser-smoke`, and `browser-chromium` jobs in that same run. A failure
-in later tagging, release, or container-publication jobs does not invalidate those passed checks.
-Checks from separate runs are never combined. If that tag's commit has no qualifying run, first run
-`gh workflow run quality.yml --ref <Version>` and wait for it to succeed, then retry
-**Publish release container**. A quality run dispatched at the immutable release tag validates the
-exact tagged source without creating or moving a tag. For first-time tagging, manually run the
-complete **Quality engineering** workflow on `main`; it validates, tags, releases, and publishes
-that commit. Its reusable container call relies on the caller's successful prerequisite jobs,
-not historical evidence from the still-running caller. Do not use either workflow to replace
-an already published tag.
+validated tag. The immutable tag and matching GitHub release are durable proof that the quality
+workflow validated that commit before release creation; recovery does not repeat the coverage and
+browser baseline. Do not use either workflow to replace an already published tag.
+
+To exercise a container fix before selecting a new release version, manually run **Container pull
+request validation** from the branch containing the fix. That workflow builds and validates both
+native architectures without running the separate coverage and browser jobs. A source fix made
+after a release tag still requires a new patch version because published tags are immutable.
 
 Dispatch **Publish release container** from `main`, supplying the immutable release tag as its
 input so recovery uses the current workflow fixes while building the exact tagged source.
@@ -165,7 +178,7 @@ Both native runners check Docker, PowerShell 7, curl, and jq availability before
 the AMD64 and ARM64 hosted runner images supply those tools. Missing tools fail explicitly.
 Native validation and scan evidence is uploaded even on failure; publication still requires
 both native jobs to succeed. Quality validation runs the native publication contract tests
-before tagging, as well as the release-quality evidence tests in the frontend suite.
+before tagging.
 
 Use the [versioning skill](../.github/skills/versioning/SKILL.md) and
 [versioning agent](../.github/agents/versioning.agent.md) for compatibility decisions.

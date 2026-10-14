@@ -380,8 +380,8 @@ The UI must be keyboard usable and responsive, with WCAG 2.2 AA as the design an
 - Compile Native AOT for `linux-musl-x64` and `linux-musl-arm64` on matching native Linux runners. Prioritize low idle memory over a small image-size increase; do not ship a managed runtime or native debug symbols.
 - Keep local development, tests, coverage, and diagnostic cross-publication on CoreCLR. The developer CLI `publish` action is a managed-code check, not a release artifact; `container-build` produces the native AOT image.
 - Publish one multi-platform OCI image index containing `linux/amd64` and `linux/arm64` images. Keep tags and application behavior identical across architectures.
-- Build in `mcr.microsoft.com/dotnet/sdk:10.0.400-alpine3.24-aot@sha256:cd255a72d14d70260bb9b8dc493c3c37ce0877ef534f85ac1c931628364d7059`; keep its native compiler and linker out of the final image.
-- Run in `mcr.microsoft.com/dotnet/runtime-deps:10.0.12-alpine3.24@sha256:f23f2bc63f69aca51ae93beccf344123d9a0d79c114a5c4f24835bdbc43b9101`.
+- Build in `mcr.microsoft.com/dotnet/sdk:10.0.402-alpine3.24-aot@sha256:574e01812ecd2f33a79cb61b0398320abbd0589125b1e0a6fea00806ba630cb4`; keep its native compiler and linker out of the final image. This pin was accepted before the normal eight-day cooldown as part of the explicit CVE-2026-85091 security exception.
+- Run in `mcr.microsoft.com/dotnet/runtime-deps:10.0.13-alpine3.24@sha256:1a5dbee0a1d2bb1d038e212e8ccdbc12783b5cfbed866fe75d126ee80178a52a`. This pin was accepted before the normal eight-day cooldown as an explicit security exception for the zlib `1.3.2-r1` fix to CVE-2026-85091.
 - Run as the built-in non-root `app` user.
 - Listen on HTTP port `8080`; terminate TLS at the container host or ingress.
 - Disable the Kestrel `Server` response header.
@@ -563,7 +563,9 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
 - Automatically call the reusable container release workflow for each new validated tag. Require
   successful quality prerequisites for the exact tagged commit, build both native images from that
   commit, publish the tested index, then attach durable evidence to the existing GitHub changelog release.
-  Retain manual dispatch only for recovery of an existing validated tag.
+  Retain manual dispatch for container-only validation of a current branch and for publication
+  recovery of an existing validated tag. Recovery verifies the immutable tag and its existing
+  GitHub release without requiring a second full quality run.
 
 ### Public onboarding surfaces
 

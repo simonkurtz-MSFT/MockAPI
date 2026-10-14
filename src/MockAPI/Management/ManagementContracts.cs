@@ -149,4 +149,5 @@ public sealed record ManagementProblemDetails(
 [JsonSerializable(typeof(MockEndpointDefinition[]))]
 // OpenAPI also needs metadata for query parameters, not just JSON request and response bodies.
 [JsonSerializable(typeof(bool?))]
+[JsonSerializable(typeof(Guid[]))]
 public sealed partial class ManagementJsonContext : JsonSerializerContext;

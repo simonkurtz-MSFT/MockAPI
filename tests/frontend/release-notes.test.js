@@ -188,7 +188,8 @@ describe("release workflow wiring", () => {
     );
     expect(workflow).toContain("workflow_call:");
     expect(workflow).toContain("workflow_dispatch:");
-    expect(workflow).toContain("if: github.event_name == 'workflow_dispatch'");
+    expect(workflow).not.toContain("release-quality.cjs");
+    expect(workflow).toContain('node scripts/release-notes.cjs verify "$IMAGE_TAG"');
     expect(workflow).not.toContain("ENABLE_RELEASE_PUBLISHING");
     expect(workflow).not.toContain("approve_publication");
     expect(workflow).not.toContain("environment: release");

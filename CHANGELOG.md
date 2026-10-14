@@ -7,6 +7,21 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-10-14
+
+### Changed
+
+- Container validation can be dispatched directly for the current branch, and release recovery
+  relies on the immutable tag and existing verified GitHub release instead of requiring another
+  full quality run.
+
+### Fixed
+
+- Update the Alpine Native AOT SDK and runtime dependency images to .NET SDK 10.0.402 and runtime
+  10.0.13 so zlib `1.3.2-r1` fixes CVE-2026-85091.
+- Native AOT images include JSON metadata for endpoint-selection query parameters so the management
+  OpenAPI document no longer fails with an internal server error.
+
 ## [1.6.0] - 2026-10-14
 
 ### Added
@@ -210,7 +225,9 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.5.2...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.6.1...HEAD
+[1.6.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.6.0...1.6.1
+[1.6.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.5.2...1.6.0
 [1.5.2]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.5.1...1.5.2
 [1.5.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.5.0...1.5.1
 [1.5.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.4.4...1.5.0

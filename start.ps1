@@ -1465,8 +1465,8 @@ function Get-WslcBuildFailureMessage {
           'Windows also cannot reach mcr.microsoft.com:443, so check host networking before WSLC-specific recovery.'
         })
       'Verify the engine path directly with:'
-      '  wslc pull mcr.microsoft.com/dotnet/sdk:10.0.400-alpine3.24@sha256:620e765fe18186c08399f7aa978f79f04b6bbf0ee1b3b8a91e2d5c9619e59da1'
-      '  wslc pull mcr.microsoft.com/dotnet/runtime-deps:10.0.12-alpine3.24@sha256:f23f2bc63f69aca51ae93beccf344123d9a0d79c114a5c4f24835bdbc43b9101'
+      '  wslc pull mcr.microsoft.com/dotnet/sdk:10.0.402-alpine3.24-aot@sha256:574e01812ecd2f33a79cb61b0398320abbd0589125b1e0a6fea00806ba630cb4'
+      '  wslc pull mcr.microsoft.com/dotnet/runtime-deps:10.0.13-alpine3.24@sha256:1a5dbee0a1d2bb1d038e212e8ccdbc12783b5cfbed866fe75d126ee80178a52a'
       "If those fail, run 'wslc system session terminate' to recreate WSLC's independent network session, then retry the pulls."
       "A stale WSLC session survives 'wsl --shutdown', so shutting down ordinary WSL alone may not repair this failure."
       'If a fresh WSLC session still fails, check VPN, proxy, firewall, and WSL networking policy.'

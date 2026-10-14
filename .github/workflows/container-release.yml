@@ -37,7 +37,6 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      actions: read
     outputs:
       commit: ${{ steps.version.outputs.commit }}
       tag: ${{ steps.version.outputs.tag }}
@@ -64,15 +63,6 @@ jobs:
         env:
           REQUESTED_TAG: ${{ inputs.tagname }}
         run: node scripts/release-version.cjs resolve "$REQUESTED_TAG"
-      - name: Require successful quality evidence for this exact commit
-        # Reusable workflows inherit the caller's event, including manual quality runs.
-        if: github.event_name == 'workflow_dispatch' && github.workflow == 'Publish release container'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_COMMIT: ${{ steps.version.outputs.commit }}
-          RELEASE_TAG: ${{ steps.version.outputs.tag }}
-        run: |
-          node scripts/release-quality.cjs
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ steps.version.outputs.commit }}
