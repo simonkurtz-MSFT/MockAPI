@@ -95,6 +95,38 @@ test("API description stale drafts never overwrite live updates", async ({ page,
   await expect(page.locator("#api-description-text")).toHaveValue("Winning description");
 });
 
+test("information previews stay closed when API and endpoint editors restore focus", async ({ page, request }) => {
+  const example = await loadExample(request);
+  const endpoint = example.endpoints.find((item) => item.path === "/ctp/parks");
+
+  const groupInfo = page.getByRole("button", { name: "Edit API description for /ctp", exact: true });
+  const groupTooltip = page.locator(".endpoint-group-row .api-description-tooltip");
+  await groupInfo.focus();
+  await expect(groupTooltip).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#api-description-dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(groupInfo).toBeFocused();
+  await expect(groupTooltip).toBeHidden();
+
+  const endpointRow = page.locator(`[data-endpoint-id="${endpoint.id}"]`);
+  const endpointInfo = endpointRow.getByRole("button", {
+    name: `Endpoint information for ${endpoint.name}`,
+    exact: true,
+  });
+  const endpointTooltip = endpointRow.getByRole("tooltip", { includeHidden: true });
+  await endpointInfo.focus();
+  await expect(endpointTooltip).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#endpoint-dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(endpointInfo).toBeFocused();
+  await expect(endpointTooltip).toBeHidden();
+
+  await groupInfo.focus();
+  await expect(groupTooltip).toBeVisible();
+});
+
 test("empty descriptions stay cleared on example merges and retained metadata returns with its group", async ({
   page,
   request,

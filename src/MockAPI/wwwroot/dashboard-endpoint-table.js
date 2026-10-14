@@ -252,6 +252,7 @@ export function createDashboardEndpointTable({
     const info = makeElement("button", "api-description-button", "i");
     info.type = "button";
     info.setAttribute("aria-label", label);
+    let suppressNextFocusPreview = false;
     const tooltip = makeElement("div", "api-description-tooltip");
     tooltip.id = id;
     tooltip.setAttribute("role", "tooltip");
@@ -276,7 +277,14 @@ export function createDashboardEndpointTable({
       tooltip.style.left = `${Math.max(8, Math.min(bounds.right - size.width, window.innerWidth - size.width - 8))}px`;
     }
     rowEvents.listen(info, "mouseenter", showDescription);
-    rowEvents.listen(info, "focus", showDescription);
+    rowEvents.listen(info, "focus", () => {
+      if (suppressNextFocusPreview) {
+        suppressNextFocusPreview = false;
+        tooltip.hidePopover();
+        return;
+      }
+      showDescription();
+    });
     rowEvents.listen(info, "mouseleave", () => tooltip.hidePopover());
     rowEvents.listen(info, "blur", () => {
       if (!info.matches(":hover")) tooltip.hidePopover();
@@ -286,6 +294,7 @@ export function createDashboardEndpointTable({
     });
     rowEvents.listen(info, "click", () => {
       tooltip.hidePopover();
+      suppressNextFocusPreview = true;
       onActivate();
     });
     return { info, tooltip };
