@@ -139,8 +139,11 @@ It also checks Docker daemon availability and rejects an existing container rele
 failed registry lookup before compilation. Publication rechecks tag absence after native
 validation so another publisher cannot silently replace an immutable release.
 Each architecture is uploaded with a run-scoped candidate tag while its manifest and configuration
-digests are verified. The workflow removes those temporary tags after both successful and failed
-publication attempts; only the exact application-version tag is a supported release tag.
+digests are verified. The workflow attempts to remove those temporary tags after both successful
+and failed publication attempts. Cleanup is best-effort: failures remain visible in the workflow
+logs but do not fail publication or prevent release evidence attachment. Failed deletions emit
+workflow warnings; leftover candidate tags may require manual removal. Only the exact
+application-version tag is a supported release tag.
 Both native runners check Docker, PowerShell 7, curl, and jq availability before compilation;
 the AMD64 and ARM64 hosted runner images supply those tools. Missing tools fail explicitly.
 Native validation and scan evidence is uploaded even on failure; publication still requires

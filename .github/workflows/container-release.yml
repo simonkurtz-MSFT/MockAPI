@@ -329,6 +329,7 @@ jobs:
           diff <(jq --sort-keys . index.json) <(jq --sort-keys . published-index.json)
       - name: Remove temporary candidate tags
         if: always()
+        continue-on-error: true
         shell: bash
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -367,7 +368,7 @@ jobs:
               echo "Temporary Docker Hub tag $IMAGE_NAME:$candidate was not present."
             else
               cat "$response_file" >&2
-              echo "Docker Hub returned HTTP $status while removing $IMAGE_NAME:$candidate." >&2
+              echo "::warning::Docker Hub returned HTTP $status while removing $IMAGE_NAME:$candidate. Temporary tag cleanup failed; publication evidence will still be attached." >&2
               exit 1
             fi
           done
