@@ -1,11 +1,28 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.5.2. This version decision publishes only after
+MockAPI's next stable application version is 1.6.0. This version decision publishes only after
 the quality, public-release audit, and native image validation gates below succeed.
 
-## 1.5.2 release summary
+## 1.6.0 release summary
 
-The planned release date is **2026-10-14**, with the immutable tag **`1.5.2`**.
+The planned release date is **2026-10-14**, with the immutable tag **`1.6.0`**.
+The [1.6.0 changelog entry](../CHANGELOG.md#160---2026-10-14) supplies the GitHub release notes.
+
+- Dashboard and management API exports can select enabled endpoints by stable endpoint ID in
+  native configuration and portable request/test formats.
+- Request statistics consistently record every mock-dispatch attempt, including failures.
+- Metadata-only configuration reads avoid parsing endpoint definitions.
+
+### Compatibility and upgrade behavior
+
+Selective export is additive: omitting `endpointId` retains full-export behavior. Existing endpoint
+IDs, configuration documents, management routes, and configuration schema (`schemaVersion: "1.0"`)
+remain compatible; no migration is required. Statistics continue to use the same response fields,
+but counts include failed transport attempts as well as completed responses.
+
+## 1.5.2 historical release summary
+
+The release date was **2026-10-14**, with the immutable tag **`1.5.2`**.
 The [1.5.2 changelog entry](../CHANGELOG.md#152---2026-10-14) supplies the GitHub release notes.
 
 - Dashboard endpoint table presentation and editing guidance are refined.

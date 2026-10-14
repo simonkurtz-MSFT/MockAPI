@@ -7,6 +7,20 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-14
+
+### Added
+
+- Export selected enabled endpoints by stable ID from the dashboard and management API in native
+  configuration and portable request/test formats. An empty selection continues to export all
+  endpoints.
+
+### Changed
+
+- Statistics consistently count every mock-dispatch attempt, including failures, and retain a
+  selected response status when a write fails.
+- Metadata-only configuration reads avoid parsing endpoint definitions.
+
 ## [1.5.2] - 2026-10-14
 
 ### Changed
