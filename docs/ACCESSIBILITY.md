@@ -9,7 +9,7 @@ Automated semantic, keyboard, responsive, and axe-core checks are part of the Pl
 ## Automated Evidence
 
 - Frontend unit coverage: `pnpm run test:frontend:coverage`
-- Backend coverage: `./start.ps1 -Action coverage` enforces 100% line and branch coverage for the source-only production scope
+- Backend coverage: `./start.ps1 -Action coverage` enforces 90% line and 85% branch floors for the source-only production scope and warns below the 100% target
 - Chromium smoke checks: `pnpm run test:browser:smoke`
 - Complete Chromium matrix: `pnpm run test:browser`
 - CI policy: `pnpm run validate:ci-policy` verifies that every GitHub Actions workflow reference is pinned to an immutable commit SHA

@@ -532,8 +532,11 @@ After the initial deployment:
 # Build and push without changing the running Container App.
 .\start.ps1 -Action azure-push
 
-# Import the public versioned Docker Hub image into ACR, deploy it, and verify readiness.
+# Import latest from Docker Hub into ACR, deploy without building, and verify readiness.
 .\start.ps1 -Action azure-import
+
+# Or select a published version tag.
+.\start.ps1 -Action azure-import -AzureImageTag <version>
 
 # Confirm resource-group deletion, submit it, and return without waiting.
 .\start.ps1 -Action azure-down
@@ -554,8 +557,11 @@ After the initial deployment:
 # Build and push without changing the running Container App.
 ./start.sh --action azure-push
 
-# Import the public versioned Docker Hub image into ACR, deploy it, and verify readiness.
+# Import latest from Docker Hub into ACR, deploy without building, and verify readiness.
 ./start.sh --action azure-import
+
+# Or select a published version tag.
+./start.sh --action azure-import --azure-image-tag <version>
 
 # Confirm resource-group deletion, submit it, and return without waiting.
 ./start.sh --action azure-down
@@ -565,7 +571,7 @@ After the initial deployment:
 
 Choices `1` and `2` in the Azure submenu run these same pathways; `p1` and `p2` remain global aliases. The initial pathway runs the test suite and managed build before `azure-up`, which validates configuration, builds the native container, previews infrastructure changes, and requests confirmation before provisioning. The update pathway runs the test suite and managed build before `azure-deploy`, which updates existing resources and verifies readiness. Use the individual `azure-*` actions when only one stage is needed.
 
-`azure-import` reads `<Version>` from the application project, imports `docker.io/simonkurtzmsft/mockapi:<Version>` as `mockapi:<Version>` in the provisioned ACR without Docker Hub credentials, and updates the existing Container App to use that ACR image. It is an explicit per-version import, not a persistent upstream cache, and requires the Azure environment to be provisioned first.
+Azure submenu choice `8` (global shortcut `a6`) runs `azure-import` and prompts for a Docker Hub tag; press Enter to use `latest`. Command-line actions do not prompt for a tag: use `-AzureImageTag <version>` in PowerShell or `--azure-image-tag <version>` in Bash to override `latest`. The action imports `docker.io/simonkurtzmsft/mockapi:<tag>` as `mockapi:<tag>` in the provisioned ACR without Docker Hub credentials and updates the existing Container App without building. Each deployment creates a new revision; importing `latest` refreshes that mutable ACR tag, while version tags are not overwritten. This is an explicit import, not a persistent upstream cache, and requires the Azure environment to be provisioned first.
 
 Set both dashboard credential values to protect administration, including key generation in Settings. Leaving
 them empty leaves administration and security setup unauthenticated but does not unlock mock calls.
@@ -689,7 +695,7 @@ Set up a contributor checkout and run the common checks:
 
 </details>
 
-`validate` runs the broader build, test, coverage, and trimmed-publication checks. The backend and extracted frontend production scopes enforce 100% line and branch coverage. Browser tests start an isolated MockAPI process with temporary data and do not modify the development container or its persisted configuration.
+`validate` runs the broader build, test, coverage, and trimmed-publication checks. Backend coverage enforces floors of 90% for lines and 85% for branches and warns when either result is below the 100% target. The extracted frontend production scope continues to enforce 100% line and branch coverage. Browser tests start an isolated MockAPI process with temporary data and do not modify the development container or its persisted configuration.
 
 Browser scenarios in [tests/browser](tests/browser) are grouped into `dashboard-shell`, `dashboard-layout`,
 `dashboard-endpoints`, `dashboard-management`, `dashboard-statistics`, `dashboard-test-blade`, and

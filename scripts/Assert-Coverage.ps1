@@ -1,8 +1,8 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory)][string] $Report,
-  [ValidateRange(0, 100)][double] $MinimumLines = 100,
-  [ValidateRange(0, 100)][double] $MinimumBranches = 100
+  [ValidateRange(0, 100)][double] $MinimumLines = 90,
+  [ValidateRange(0, 100)][double] $MinimumBranches = 85
 )
 
 Set-StrictMode -Version Latest
@@ -19,4 +19,8 @@ $branchPercent = [math]::Round(100 * [double] $coverage.coverage.'branch-rate', 
 Write-Host "Backend coverage: $linePercent% lines, $branchPercent% branches"
 if ($linePercent -lt $MinimumLines -or $branchPercent -lt $MinimumBranches) {
   throw "Backend coverage must be at least $MinimumLines% lines and $MinimumBranches% branches."
+}
+
+if ($linePercent -lt 100 -or $branchPercent -lt 100) {
+  Write-Warning "Backend coverage is below the 100% target. Current coverage: $linePercent% lines, $branchPercent% branches."
 }

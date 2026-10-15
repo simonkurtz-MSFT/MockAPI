@@ -113,6 +113,7 @@ jobs:
       - name: Backend coverage
         shell: pwsh
         run: |
+          ./tests/Assert-Coverage.Tests.ps1
           dotnet test MockAPI.slnx --configuration Release --no-restore `
             --settings tests/coverage.runsettings `
             --collect:"XPlat Code Coverage" `
