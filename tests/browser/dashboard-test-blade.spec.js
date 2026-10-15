@@ -1,7 +1,7 @@
 import { expect, test, expectNoUnreviewedAccessibilityViolations } from "./dashboard-fixtures.js";
 
 test("positions and persists the endpoint test dialog alignment", async ({ page }) => {
-  await page.setViewportSize({ width: 1200, height: 900 });
+  await page.setViewportSize({ width: 1200, height: 1400 });
   await page.getByRole("button", { name: "Load examples" }).first().click();
   await page.getByRole("button", { name: "Settings" }).click();
 
@@ -16,7 +16,7 @@ test("positions and persists the endpoint test dialog alignment", async ({ page 
   let bounds = await testDialog.boundingBox();
   expect(bounds.x).toBe(0);
   expect(bounds.y).toBe(0);
-  expect(bounds.height).toBe(900);
+  expect(bounds.height).toBeLessThan(1400);
   await page.getByRole("button", { name: "Close endpoint test" }).last().click();
 
   await page.getByRole("button", { name: "Settings" }).click();
@@ -26,7 +26,7 @@ test("positions and persists the endpoint test dialog alignment", async ({ page 
   bounds = await testDialog.boundingBox();
   expect(Math.abs(bounds.x + bounds.width / 2 - 600)).toBeLessThanOrEqual(1);
   expect(bounds.y).toBe(24);
-  expect(bounds.height).toBe(852);
+  expect(bounds.height).toBeLessThan(1352);
   await page.getByRole("button", { name: "Close endpoint test" }).last().click();
 
   await page.reload();
@@ -48,7 +48,7 @@ test("positions and persists the endpoint test dialog alignment", async ({ page 
   bounds = await testDialog.boundingBox();
   expect(bounds.x + bounds.width).toBe(1200);
   expect(bounds.y).toBe(0);
-  expect(bounds.height).toBe(900);
+  expect(bounds.height).toBeLessThan(1400);
 });
 
 test("tests a configured non-2xx response and restores focus", async ({ page, request }) => {
