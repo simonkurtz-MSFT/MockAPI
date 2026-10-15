@@ -21,6 +21,7 @@ Thumbs.db
 !.env.example
 .azure/
 .playwright-mcp
+.developer-cli*/
 .developer-cli-bash*.sh
 *.security.json
 *.security.json.*.tmp
