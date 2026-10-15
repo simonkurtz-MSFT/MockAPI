@@ -7,13 +7,17 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
-## [1.6.2] - 2026-10-14
+## [1.6.2] - 2026-10-15
 
 ### Added
 
 - The dashboard shows an accessible loading state while endpoints are fetched and can pretty-print
   valid JSON test responses while preserving access to their raw bodies. A browser-local workspace
   setting chooses whether endpoint tests prefer raw or pretty-printed responses when both are available.
+- Matched mock `POST`, `PUT`, and `PATCH` requests allow empty bodies, enforce a 1 MiB size limit, and
+  validate the syntax and UTF-8 encoding of non-empty JSON bodies before applying configured responses.
+  Malformed JSON and invalid content types return `400`, oversized bodies return `413`, and unsupported
+  JSON charsets return `415`.
 
 ### Changed
 

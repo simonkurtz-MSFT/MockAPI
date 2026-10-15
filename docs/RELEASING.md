@@ -5,8 +5,8 @@ the quality, public-release audit, and native image validation gates below succe
 
 ## 1.6.2 release summary
 
-The planned release date is **2026-10-14**, with the immutable tag **`1.6.2`**.
-The [1.6.2 changelog entry](../CHANGELOG.md#162---2026-10-14) supplies the GitHub release notes.
+The planned release date is **2026-10-15**, with the immutable tag **`1.6.2`**.
+The [1.6.2 changelog entry](../CHANGELOG.md#162---2026-10-15) supplies the GitHub release notes.
 
 - Valid Basic credentials establish a one-time, process-scoped secure dashboard session cookie
   instead of repeating PBKDF2 verification for every administrative request in the same browser
@@ -15,13 +15,17 @@ The [1.6.2 changelog entry](../CHANGELOG.md#162---2026-10-14) supplies the GitHu
   responses with continued access to raw response bodies.
 - Deployment documentation consistently sets Azure Container Apps minimum and maximum replica
   counts to 1, and container release guidance documents the required Docker Hub token permissions.
+- Matched mock `POST`, `PUT`, and `PATCH` requests accept optional bodies, enforce a 1 MiB limit,
+  and validate non-empty JSON syntax and UTF-8 encoding before the configured response is applied.
 
 ### Compatibility and upgrade behavior
 
-These changes do not alter mock routing, management API contracts, credential configuration, or
-the configuration schema (`schemaVersion: "1.0"`), so 1.6.2 is a patch release. Existing endpoint
-IDs and configuration documents remain compatible; no migration is required. Dashboard sessions
-are process-scoped, consistent with the documented single-replica deployment model.
+Valid mock requests, endpoint IDs, management API contracts, credential configuration, and the
+configuration schema (`schemaVersion: "1.0"`) remain compatible, so 1.6.2 is a patch release with
+no configuration migration. Matched mock `POST`, `PUT`, and `PATCH` requests with malformed JSON,
+invalid content types, unsupported JSON charsets, or bodies over 1 MiB now receive `400`, `400`,
+`415`, or `413` respectively instead of the configured response. Dashboard sessions remain
+process-scoped, consistent with the documented single-replica deployment model.
 
 ## 1.6.1 historical release summary
 
