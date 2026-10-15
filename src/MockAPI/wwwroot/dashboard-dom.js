@@ -70,6 +70,61 @@ export function createDashboardEventScope() {
 }
 
 /**
+ * Wires a plain-text information popover to the dashboard's shared hover and keyboard-focus behavior.
+ * The caller owns Escape handling, hiding on close, and clearing the supplied listener scope.
+ * @param {object} options Tooltip ownership.
+ * @param {HTMLButtonElement} options.trigger Information button with an aria-describedby association.
+ * @param {HTMLDivElement} options.tooltip Manual popover styled with api-description-tooltip.
+ * @param {DashboardEventScope} options.events Listener owner.
+ * @param {() => void} [options.onActivate] Optional editor action; otherwise clicking opens help for touch users.
+ * @returns {{hide: () => void}} Explicit close operation for Escape and owner teardown.
+ */
+export function bindDashboardTooltip({ trigger, tooltip, events, onActivate }) {
+  const window = trigger.ownerDocument.defaultView;
+  let suppressNextFocusPreview = false;
+  function hide() {
+    tooltip.hidePopover();
+  }
+  function show() {
+    const bounds = trigger.getBoundingClientRect();
+    tooltip.style.top = `${bounds.bottom}px`;
+    tooltip.style.maxHeight = "";
+    tooltip.showPopover();
+    const size = tooltip.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - bounds.bottom - 8;
+    const spaceAbove = bounds.top - 8;
+    const below = size.height <= spaceBelow || spaceBelow >= spaceAbove;
+    // Keep the preview on-screen without covering its own activation button.
+    tooltip.style.maxHeight = `${Math.max(0, Math.min(320, window.innerHeight / 2, below ? spaceBelow : spaceAbove))}px`;
+    tooltip.style.top = `${below ? bounds.bottom : bounds.top - tooltip.getBoundingClientRect().height}px`;
+    tooltip.style.left = `${Math.max(8, Math.min(bounds.right - size.width, window.innerWidth - size.width - 8))}px`;
+  }
+  events.listen(trigger, "mouseenter", show);
+  events.listen(trigger, "focus", () => {
+    if (suppressNextFocusPreview) {
+      suppressNextFocusPreview = false;
+      hide();
+      return;
+    }
+    show();
+  });
+  events.listen(trigger, "mouseleave", hide);
+  events.listen(trigger, "blur", () => {
+    if (!trigger.matches(":hover")) hide();
+  });
+  events.listen(trigger, "click", () => {
+    if (onActivate) {
+      hide();
+      suppressNextFocusPreview = true;
+      onActivate();
+    } else {
+      show();
+    }
+  });
+  return { hide };
+}
+
+/**
  * Creates small DOM helpers without accessing a global document.
  * @param {Document} document Dashboard document.
  * @param {DashboardEventScope} events Owner of action-button listeners.

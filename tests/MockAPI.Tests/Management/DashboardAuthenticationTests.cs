@@ -211,12 +211,16 @@ public sealed class DashboardAuthenticationTests
     {
         await using var factory = CreateFactory();
         using var client = factory.CreateClient();
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/");
-        request.Headers.Add("Cookie", "__Host-MockAPI-Session=invalid");
 
-        using var response = await client.SendAsync(request);
+        foreach (var cookieValue in new[] { "invalid", "Z" + new string('0', 127) })
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/");
+            request.Headers.Add("Cookie", $"__Host-MockAPI-Session={cookieValue}");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+            using var response = await client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
     }
 
     private static WebApplicationFactory<Program> CreateFactory()

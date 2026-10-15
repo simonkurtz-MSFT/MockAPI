@@ -29,6 +29,7 @@ const elements = getDashboardElements(document, {
   "confirm-accept": "button",
   "confirm-cancel": "button",
   "confirm-dialog": "dialog",
+  "confirm-conflict-list": "ul",
   "confirm-message": "p",
   "confirm-title": "h2",
   "connection-status": "span",
@@ -263,6 +264,9 @@ function requestDelete(endpoint) {
 function confirmAction(title, message, action, acceptLabel = "Confirm", etag = state.etag) {
   elements["confirm-title"].textContent = title;
   elements["confirm-message"].textContent = message;
+  elements["confirm-conflict-list"].replaceChildren();
+  elements["confirm-conflict-list"].hidden = true;
+  elements["confirm-dialog"].setAttribute("aria-describedby", "confirm-message");
   // Bind confirmation to the reviewed revision, not a newer revision received while the dialog is open.
   state.pendingConfirm = () => action(etag);
   elements["confirm-accept"].textContent = acceptLabel;
@@ -309,26 +313,71 @@ async function loadBuiltInConfiguration(name) {
         showToast(formatProblem(error), true);
         return;
       }
-      const details = error.problem.conflicts
-        .map((conflict) => `${conflict.builtInName} conflicts with ${conflict.existingName}`)
-        .join("; ");
-      confirmAction(
-        "Built-in configuration conflicts",
-        `${details}. No changes were made. Force update applies the built-in versions and preserves unrelated endpoints.`,
-        async (reviewedEtag) => {
-          /** @type {import("./dashboard-core.js").BuiltInMergeResult} */
-          const result = await api(`/configuration/${name}/merge?force=true`, {
-            method: "POST",
-            mutatesConfiguration: true,
-            etag: reviewedEtag,
-          });
-          showToast(formatMergeResult(result));
-        },
-        "Force update",
-        etag
-      );
+      const conflicts = error.problem.conflicts;
+      const conflictCount = conflicts.length;
+      const conflictNoun = conflictCount === 1 ? "conflict" : "conflicts";
+      elements["confirm-message"].textContent =
+        `${conflictCount} ${conflictNoun} found. No changes were made. Force update replaces conflicting endpoints with the built-in versions and preserves unrelated endpoints.`;
+      const conflictList = elements["confirm-conflict-list"];
+      conflictList.replaceChildren(...conflicts.map(createBuiltInConflictItem));
+      conflictList.hidden = false;
+      elements["confirm-dialog"].setAttribute("aria-describedby", "confirm-message confirm-conflict-list");
+      state.pendingConfirm = async () => {
+        /** @type {import("./dashboard-core.js").BuiltInMergeResult} */
+        const result = await api(`/configuration/${name}/merge?force=true`, {
+          method: "POST",
+          mutatesConfiguration: true,
+          etag,
+        });
+        showToast(formatMergeResult(result));
+      };
+      elements["confirm-title"].textContent = "Built-in configuration conflicts";
+      elements["confirm-accept"].textContent = "Force update";
+      elements["confirm-dialog"].showModal();
+      elements["confirm-accept"].focus();
     }
   );
+}
+
+/**
+ * @param {import("./dashboard-core.js").BuiltInMergeConflict} conflict
+ * @returns {HTMLLIElement} A safe, accessible summary of the built-in and active endpoint.
+ */
+function createBuiltInConflictItem(conflict) {
+  const item = makeElement("li", "built-in-conflict");
+  const kind =
+    conflict.kind === "different"
+      ? "Different definition (same endpoint ID)"
+      : "Route collision (different endpoint IDs)";
+  item.append(makeElement("strong", "conflict-kind", kind));
+  item.append(
+    createConflictEndpointRow("Built-in", conflict.builtInName, conflict.builtInMethods, conflict.builtInPath),
+    createConflictEndpointRow(
+      "Current configuration",
+      conflict.existingName,
+      conflict.existingMethods,
+      conflict.existingPath
+    )
+  );
+  return item;
+}
+
+/**
+ * @param {string} label
+ * @param {string} name
+ * @param {readonly string[]} methods
+ * @param {string} path
+ * @returns {HTMLDivElement} A text-only endpoint summary row.
+ */
+function createConflictEndpointRow(label, name, methods, path) {
+  const row = makeElement("div", "conflict-endpoint-row");
+  const details = makeElement("div", "conflict-endpoint-details");
+  row.append(makeElement("span", "conflict-endpoint-label", label), details);
+  details.append(
+    makeElement("span", "conflict-endpoint-name", name),
+    makeElement("code", "conflict-endpoint-route", `${methods.join(", ")} ${path}`)
+  );
+  return row;
 }
 
 async function loadConfiguration(document, title, successMessage, etag) {

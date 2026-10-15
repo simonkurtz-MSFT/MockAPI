@@ -401,6 +401,19 @@ public sealed class ConfigurationValidatorTests
     }
 
     [Fact]
+    public void Validate_RejectsNullApiDescriptionValues()
+    {
+        var document = CreateDocument() with
+        {
+            ApiDescriptions = new Dictionary<string, string> { ["/api"] = null! }
+        };
+
+        var result = ConfigurationValidator.Validate(document);
+
+        Assert.True(HasError(result, "apiDescriptions[/api]", "maxLength"));
+    }
+
+    [Fact]
     public void Validate_RejectsUnsupportedResponseBehavior()
     {
         var response = CreateResponse() with { Behavior = (MockResponseBehavior)int.MaxValue };

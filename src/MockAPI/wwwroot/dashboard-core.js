@@ -79,9 +79,13 @@
  * @typedef {object} BuiltInMergeConflict
  * @property {string} builtInEndpointId Stable built-in endpoint ID.
  * @property {string} builtInName Built-in endpoint display name.
+ * @property {string} builtInPath Exact built-in endpoint path.
+ * @property {readonly string[]} builtInMethods HTTP methods configured by the built-in endpoint.
  * @property {"different"|"routeCollision"} kind Conflict category.
  * @property {string} existingEndpointId Stable conflicting endpoint ID.
  * @property {string} existingName Conflicting endpoint display name.
+ * @property {string} existingPath Exact conflicting endpoint path.
+ * @property {readonly string[]} existingMethods HTTP methods configured by the conflicting endpoint.
  */
 
 /**

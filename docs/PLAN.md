@@ -77,9 +77,10 @@ Use one ASP.NET Core application and one deployable container.
    Require the instance API key before mock dispatch unless an administrator explicitly disables protection.
    Missing security settings default to enforcement with no valid key, so mock calls fail closed.
 4. Look up an enabled endpoint in an immutable in-memory snapshot keyed by method and normalized path.
-5. Wait for the optional bounded, cancellation-aware endpoint delay, then abort the connection when configured; otherwise write the configured status, permitted custom headers, content type, and raw response bytes.
-6. Record statistics in a bounded, concurrency-safe collector.
-7. Return `404` when no enabled endpoint matches.
+5. For matched mock `POST`, `PUT`, and `PATCH` requests, allow an absent or empty payload. Limit supplied payloads to 1 MiB and check non-empty JSON payload syntax for `application/json` and `+json` request media types without inspecting business fields or values. Return `400` for malformed payloads, `413` for oversized payloads, or `415` for unsupported JSON charsets, before selecting the configured response.
+6. Wait for the optional bounded, cancellation-aware endpoint delay, then abort the connection when configured; otherwise write the configured status, permitted custom headers, content type, and raw response bytes.
+7. Record statistics in a bounded, concurrency-safe collector.
+8. Return `404` when no enabled endpoint matches.
 
 A catch-all dispatcher is preferred over adding conventional ASP.NET endpoints after startup. Configuration mutations build and validate a replacement snapshot, then swap it atomically so in-flight requests continue against a consistent prior snapshot.
 
@@ -102,6 +103,7 @@ Avoid a separate Node.js runtime or frontend server. A small static dashboard ke
 - Match literal normalized paths exactly in the initial release. Do not interpret route parameters, wildcards, or regular expressions.
 - Match the HTTP method case-insensitively and the normalized path case-sensitively by default, consistent with URL path semantics.
 - Use only the normalized HTTP method and exact normalized path as the v1 matching key. Request headers, query strings, and bodies do not affect matching.
+- After matching, apply the global `POST`/`PUT`/`PATCH` payload size and non-empty JSON-syntax checks before configured delays, aborts, rate-limit selection, headers, or responses. Request bodies remain optional; other media types receive size checks only. Authentication precedes validation; unmatched routes stay `404`. Do not retain payload content.
 - Require paths to start with `/`.
 - Exclude query values from statistics unless a future privacy-reviewed feature explicitly adds them.
 - Reject duplicate active method/path pairs across endpoint definitions.
@@ -333,6 +335,7 @@ at 220px and align the collapse control with the first filter row when filters w
 
 - Add a **Test** action for every endpoint that opens a right-side blade without navigating away from the endpoint table or changing the active configuration.
 - Initialize the request from the selected endpoint: choose among its configured methods, use its exact path, and target the current MockAPI origin. Allow query parameters, request headers, and an optional raw request body to be edited before sending.
+- Prefill an editable illustrative JSON payload and JSON request content type for `POST`, `PUT`, and `PATCH`, including a reservation-specific sample for the built-in reservation routes and matching portable request exports. Do not overwrite deliberate edits or cleared fields when changing methods. Samples are not schemas and must not imply business-field validation. Allow missing and malformed payloads to be sent; show the backend's real validation status and problem response rather than blocking or fabricating HTTP responses in the blade. Provide accessible information controls explaining backend validation and automatically added headers.
 - Keep test-request state local to the blade. Never persist request headers or bodies, and never copy authorization, cookie, or other sensitive values into configuration, statistics, logs, or browser storage.
 - Send requests through the browser to the selected mock endpoint and show the effective method and URL, elapsed time, HTTP status, response headers including repeated values, content type, and raw response body. Treat configured non-2xx responses as completed requests rather than blade failures.
 - Provide clear sending, completed, empty-body, network-error, and cancellation states. Prevent duplicate submissions while a request is active and allow the active request to be cancelled when supported.

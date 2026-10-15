@@ -100,8 +100,8 @@ test("shows only configured endpoint requests without retaining query values", a
   const rows = log.locator("tbody .request-log-entry");
   await expect(rows).toHaveCount(1);
   await expect(log.getByRole("columnheader", { name: "Time", exact: true })).toBeVisible();
-  await expect(log.getByRole("columnheader")).toHaveCount(7);
-  await expect(rows.nth(0).locator("td")).toHaveCount(7);
+  await expect(log.getByRole("columnheader")).toHaveCount(6);
+  await expect(rows.nth(0).locator("td")).toHaveCount(6);
   await page.setViewportSize({ width: 1200, height: 1000 });
   expect(
     await log
@@ -118,7 +118,6 @@ test("shows only configured endpoint requests without retaining query values", a
   await expect(rows.nth(0)).toBeHidden();
   await bucketToggle.click();
   await expect(rows.nth(0)).toBeVisible();
-  await expect(rows.nth(0)).toContainText("Discover the parks");
   await expect(rows.nth(0)).toContainText("/ctp/parks");
   await expect(rows.nth(0).locator(".request-log-result")).toHaveClass(/status-2xx/);
   await expect(rows.nth(0).locator(".request-log-result")).toHaveCSS("text-align", "center");
@@ -136,7 +135,7 @@ test.describe("request log time zone", () => {
       page,
       request,
     }) => {
-      await expect(page.locator(".request-log-empty")).toHaveAttribute("colspan", "7");
+      await expect(page.locator(".request-log-empty")).toHaveAttribute("colspan", "6");
       await page.getByRole("button", { name: "Load examples" }).first().click();
       await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(16);
       expect((await request.get("/ctp/parks")).status()).toBe(200);
@@ -162,7 +161,7 @@ test.describe("request log time zone", () => {
       expect(expected.localEntry).not.toBe(expected.utcEntry);
       await expect(entryTime).toHaveText(expected.utcEntry);
       await expect(bucketTime).toHaveText(expected.utcBucket);
-      await expect(page.locator(".request-log-bucket > td")).toHaveAttribute("colspan", "7");
+      await expect(page.locator(".request-log-bucket > td")).toHaveAttribute("colspan", "6");
       const bucket = page.locator(".request-log-bucket-toggle").first();
       await bucket.click();
       if (collapsed) await page.locator("#request-log-toggle").click();
@@ -193,7 +192,6 @@ test.describe("request log time zone", () => {
       await expect(page.locator(".request-log-table thead th")).toHaveText([
         "Time",
         "Method",
-        "Endpoint",
         "Path",
         "Result",
         "Attempts",

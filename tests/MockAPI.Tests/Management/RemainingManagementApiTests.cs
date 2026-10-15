@@ -170,7 +170,8 @@ public sealed class RemainingManagementApiTests : IDisposable
 
         var curl = await client.GetStringAsync($"{BasePath}/configuration/export/curl");
         Assert.Contains("--request GET --url \"$BASE_URL/portable\"", curl, StringComparison.Ordinal);
-        Assert.Contains("--request POST --url \"$BASE_URL/portable\"", curl, StringComparison.Ordinal);
+        Assert.Contains("--request POST --header 'Content-Type: application/json' --data-raw", curl, StringComparison.Ordinal);
+        Assert.Contains("--url \"$BASE_URL/portable\"", curl, StringComparison.Ordinal);
         Assert.DoesNotContain("/disabled", curl, StringComparison.Ordinal);
 
         var http = await client.GetStringAsync($"{BasePath}/configuration/export/http");
@@ -354,7 +355,7 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Empty(await head.Content.ReadAsByteArrayAsync());
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         Assert.Equal("/ctp/reservations/42", created.Headers.Location!.OriginalString);
-        const string reservationBody = "{\"id\":42,\"parkId\":\"starlight-gardens\",\"attractionId\":\"cloud-cruiser\",\"partySize\":2,\"status\":\"reserved\"}";
+        const string reservationBody = "{\"id\":42,\"parkId\":\"starlight-gardens\",\"attractionId\":\"cloud-cruiser\",\"partySize\":2,\"status\":\"reserved\",\"confirmationCode\":\"CTP-0042\",\"message\":\"Your Cloud Cruiser reservation is confirmed.\"}";
         Assert.Equal(reservationBody, await created.Content.ReadAsStringAsync());
         Assert.Equal("application/json; charset=utf-8", created.Content.Headers.ContentType!.ToString());
         foreach (var lookup in new[] { reservationBeforeCreation, reservation, reservationAfterCancellation })
@@ -524,6 +525,12 @@ public sealed class RemainingManagementApiTests : IDisposable
         var parksConflict = Assert.Single(preview.RootElement.GetProperty("conflicts").EnumerateArray());
         Assert.Equal("different", parksConflict.GetProperty("kind").GetString());
         Assert.Equal(Guid.Parse("4cb6e141-5f4f-4a30-9715-ec2c68554ad0"), parksConflict.GetProperty("builtInEndpointId").GetGuid());
+        Assert.Equal("/ctp/parks", parksConflict.GetProperty("builtInPath").GetString());
+        Assert.Equal("GET", Assert.Single(parksConflict.GetProperty("builtInMethods").EnumerateArray()).GetString());
+        Assert.Equal("/ctp/parks", parksConflict.GetProperty("existingPath").GetString());
+        Assert.Equal(
+            ["GET", "HEAD"],
+            parksConflict.GetProperty("existingMethods").EnumerateArray().Select(method => method.GetString()));
         var unchanged = await ReadDocumentAsync(client, $"{BasePath}/configuration/export");
         Assert.Equal(previousCount + 1, unchanged.Endpoints.Count);
         using var oldHead = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "/ctp/parks"));

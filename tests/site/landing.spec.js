@@ -478,6 +478,7 @@ test.describe("search engine discovery", () => {
 
 test("dashboard gallery supports named views, wrapping controls, keyboard navigation, and full-size images", async ({
   page,
+  request,
 }) => {
   await page.goto("./");
   const gallery = page.getByRole("region", { name: "Dashboard screenshots" });
@@ -510,9 +511,18 @@ test("dashboard gallery supports named views, wrapping controls, keyboard naviga
   await page.getByRole("button", { name: "Toggle color theme" }).click();
   await expect(slides.nth(2)).toBeVisible();
   const image = gallery.getByRole("link", { name: "Open request log at full size (opens in a new tab)" });
-  await expect(image).toHaveAttribute("href", "./dashboard-request-log.png");
+  await expect(image).toHaveAttribute("href", "./dashboard-request-log.webp");
   await expect(image).toHaveAttribute("target", "_blank");
   await expect(image).toHaveAttribute("rel", "noopener");
+  const imageSources = await gallery
+    .locator("img")
+    .evaluateAll((images) => images.map((image) => image.getAttribute("src")));
+  expect(imageSources).toEqual(["./dashboard.webp", "./dashboard-endpoints.webp", "./dashboard-request-log.webp"]);
+  for (const source of imageSources) {
+    const response = await request.get(source);
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toBe("image/webp");
+  }
   expect(
     await gallery
       .locator("img")

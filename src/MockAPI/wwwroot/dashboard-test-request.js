@@ -3,6 +3,41 @@
 import { methodSupportsBody, parseHeaderLines } from "./dashboard-core.js?v={{ASSET_VERSION}}";
 
 /**
+ * Creates editable, transient request samples for methods with illustrative payload examples.
+ *
+ * @param {string} method Selected HTTP method.
+ * @param {string} [path] Endpoint path used to select a relevant illustrative sample.
+ * @returns {{headerLines: string, body: string}} Sample JSON headers/body, or empty values for other methods.
+ */
+export function createDefaultTestRequest(method, path = "") {
+  if (["POST", "PUT", "PATCH"].includes(method.toUpperCase())) {
+    const requestPath = path.split(/[?#]/, 1)[0];
+    const sample = ["/ctp/reservations", "/ctp/reservations/42"].includes(requestPath)
+      ? {
+          parkId: "starlight-gardens",
+          attractionId: "cloud-cruiser",
+          reservationDate: "2030-06-15",
+          reservationTime: "10:30",
+          partySize: 2,
+          guest: { name: "Alex Morgan", email: "alex@example.com" },
+        }
+      : {
+          id: "sample-item-001",
+          name: "Example item",
+          status: "active",
+          quantity: 2,
+          tags: ["sample", "dashboard"],
+          metadata: { source: "MockAPI dashboard" },
+        };
+    return {
+      headerLines: "Content-Type: application/json; charset=utf-8",
+      body: JSON.stringify(sample, null, 2),
+    };
+  }
+  return { headerLines: "", body: "" };
+}
+
+/**
  * Explains missing credentials without interpreting configured mock 401/403 responses as authentication failures.
  * Explicit headers take precedence over the memory-only Settings key, including an explicitly empty header.
  * @param {import("./dashboard-core.js").ApiSecurityStatus} security Current server protection status.

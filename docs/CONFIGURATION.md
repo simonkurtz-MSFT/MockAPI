@@ -86,6 +86,26 @@ binaries that do not know this field reject it.
 
 Matching uses only the case-insensitive HTTP method and exact case-sensitive normalized path. Query strings, request headers, and request bodies do not participate. Disabled endpoints and unmatched requests return `404`.
 
+After matching, all mock `POST`, `PUT`, and `PATCH` request bodies are optional. Supplied payloads are limited to
+1 MiB. Non-empty JSON request payloads (`application/json` and types ending in `+json`, with optional UTF-8
+charset) must contain one syntactically valid JSON value, with maximum nesting depth 64. No field names, types,
+or business values are checked: objects, arrays, strings, numbers, booleans, and `null` are all accepted. Malformed
+JSON returns `400 application/problem+json` before the configured response, delay, rate limit, or connection abort.
+Oversized payloads return `413`; unsupported charsets on non-empty JSON payloads return `415`. Invalid
+`Content-Type` syntax returns `400`. Non-JSON media types, including requests without a content type, receive size
+checks only.
+Authentication runs first, reserved management and health routes retain their own contracts, and other mock
+methods remain unchanged. These are global runtime rules, not new endpoint configuration fields; `schemaVersion`
+remains independent and unchanged. Validation responses are counted against the matched endpoint without retaining
+the request content.
+
+The test blade and all portable request exports provide optional illustrative JSON samples for `POST`, `PUT`, and
+`PATCH`. The built-in `/ctp/reservations` and `/ctp/reservations/42` routes use a sample reservation for two
+visitors to Starlight Gardens' Cloud Cruiser ride. Other routes use a general sample item with a name, status,
+quantity, and metadata. These are request examples, not schemas: the backend checks only supplied payload size
+and non-empty JSON syntax, not field names or business values. You can edit or clear the sample in the blade to test
+actual server errors; the blade does not block malformed payloads.
+
 The dashboard shows `ID` followed by the first eight characters of the endpoint UUID beneath each endpoint name. This is a shortened stable identifier, not a hash. Hover over it to see the complete UUID. The ID remains unchanged across edits so statistics and built-in merge comparisons continue to refer to the same endpoint.
 
 Set `requestCount` to preselect how many requests the dashboard sends from the endpoint test blade. Omit it to preselect one request.
@@ -202,9 +222,9 @@ dependencies. GET `/ctp/health` and HEAD `/ctp/parks` return `404`. This mock ro
 instance API key when protection is enabled; it is separate from MockAPI's public `/health/live`
 and `/health/ready` probes.
 
-All park information and wait times are static. Reservation creation ignores the request body and
+All park information and wait times are static. After the global format checks for any supplied payload, reservation creation ignores the request body's values and
 stores nothing; cancellation changes nothing, and the sample reservation remains retrievable before
-creation and after cancellation. PATCH ignores the request body and returns a fixed four-visitor
+creation and after cancellation. PATCH ignores the request body's values and returns a fixed four-visitor
 reservation; subsequent GET requests still return the original two-visitor fixture.
 Query strings do not select different responses. All paths are exact
 literals, not route templates. The featured-attraction redirect and reservation `Location` resolve to
@@ -218,8 +238,9 @@ The parade-schedule fault waits three seconds before returning its configured `5
 for client timeout experiments. Fault routes are deliberately separated under `/ctp/demo-faults/`; no real park operations or safety
 systems are involved. Each endpoint's dashboard information button explains its behavior.
 
-The validation and conflict demos always fail, regardless of the request body. They do not perform
-validation, check ride capacity, or create reservations. Both return `application/problem+json`:
+For well-formed payloads or no payload, the validation and conflict demos always return their configured failures.
+They do not perform business validation, check ride capacity, or create reservations. Malformed JSON payloads
+instead receive the global `400` response. Both configured failures return `application/problem+json`:
 the validation response includes an `errors.partySize` array, and the conflict response describes a
 full Cloud Cruiser slot. The ticket-service demo uses the same problem media type and always returns
 `503`; its `Retry-After: 30` header is a client retry hint, not a timer that restores the service.
@@ -252,7 +273,7 @@ is preserved.
 
 ## Azure OpenAI Sample
 
-[`config/aoai.json`](../config/aoai.json) provides controlled Azure OpenAI backend outcomes for the APIM inference-failover response-handling matrix. Every route accepts `POST`; request headers and bodies are intentionally ignored because MockAPI v1 matches only the HTTP method and exact path.
+[`config/aoai.json`](../config/aoai.json) provides controlled Azure OpenAI backend outcomes for the APIM inference-failover response-handling matrix. Every route accepts `POST` with an optional request body. Supplied non-empty JSON requests must pass the global syntax checks above; request field values and ordinary headers do not select responses because matching uses only the HTTP method and exact path.
 
 | Route                                      | Backend outcome                          |
 | ------------------------------------------ | ---------------------------------------- |

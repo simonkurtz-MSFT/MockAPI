@@ -76,7 +76,7 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
   const { makeElement } = createDashboardDom(document, events);
   /** @type {readonly import("./dashboard-core.js").MockEndpoint[]|null} */
   let statisticsPickerEndpoints = null;
-  /** @type {{endpoints: readonly import("./dashboard-core.js").MockEndpoint[], content: string}|null} */
+  /** @type {string|null} */
   let requestLogCache = null;
   /** @type {{
    * endpoints: readonly import("./dashboard-core.js").MockEndpoint[],
@@ -126,9 +126,9 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
     updateRequestLogBucketControl();
     if (state.requestLogCollapsed) return;
     const cache = JSON.stringify([recentRequests, [...state.collapsedRequestLogBuckets], state.requestLogTimeZone]);
-    if (requestLogCache?.endpoints === state.endpoints && requestLogCache.content === cache) return;
+    if (requestLogCache === cache) return;
     logEvents.clear();
-    requestLogCache = { endpoints: state.endpoints, content: cache };
+    requestLogCache = cache;
     const focusedBucket = document.activeElement?.getAttribute("data-request-log-minute");
     const transportAttemptInsight = formatTransportAttemptInsight(recentRequests);
     elements["request-log-insight"].textContent = transportAttemptInsight;
@@ -137,13 +137,12 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
     if (recentRequests.length === 0) {
       const row = document.createElement("tr");
       const cell = makeElement("td", "request-log-empty", "No requests recorded");
-      cell.colSpan = 7;
+      cell.colSpan = 6;
       row.append(cell);
       elements["request-log-rows"].replaceChildren(row);
       return;
     }
 
-    const endpointsById = new Map(state.endpoints.map((endpoint) => [endpoint.id, endpoint]));
     const rows = [];
     for (const group of groups) {
       const bucketKey = group.minuteUtc;
@@ -154,7 +153,7 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
       bucketRow.className = "request-log-bucket";
       bucketRow.dataset.requestLogMinute = bucketKey;
       const bucketHeading = document.createElement("td");
-      bucketHeading.colSpan = 7;
+      bucketHeading.colSpan = 6;
       const bucketTime = makeElement("time", "tabular-numeric", formatRequestTime(group.minuteUtc));
       bucketTime.dateTime = group.minuteUtc;
       const toggle = makeElement("button", "request-log-bucket-toggle");
@@ -179,9 +178,7 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
       bucketHeading.append(toggle);
       bucketRow.append(bucketHeading);
       rows.push(bucketRow);
-
       for (const [requestIndex, request] of group.requests.entries()) {
-        const endpoint = request.endpointId ? endpointsById.get(request.endpointId) : null;
         const row = document.createElement("tr");
         row.className = "request-log-entry";
         row.id = controlledRowIds[requestIndex];
@@ -195,7 +192,6 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
         row.append(
           makeElement("td", null),
           methodCell,
-          makeElement("td", null, endpoint?.name || (request.endpointId ? "Deleted endpoint" : "No match")),
           makeElement("td", "request-log-path", request.path || "—"),
           makeElement("td", `request-log-result ${result.className}`, result.label),
           makeElement("td", "numeric request-log-attempts", formatNumber(request.transportAttempts || 1)),
@@ -622,7 +618,6 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
     updateEndpoints(endpoints) {
       state.endpoints = endpoints;
       renderDetailedStatistics();
-      renderRequestLog();
     },
     updateStatistics(statistics) {
       state.statistics = statistics;

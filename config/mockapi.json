@@ -2,7 +2,7 @@
   "$schema": "../schemas/mockapi.schema.json",
   "schemaVersion": "1.0",
   "apiDescriptions": {
-    "/ctp": "CTP stands for Contoso Theme Parks, a fictional theme park company where a little wonder awaits every visitor. Discover Starlight Gardens and its Cloud Cruiser ride, check sample wait times, and explore a ride reservation from creation to cancellation. These static MockAPI examples do not store reservations or provide live availability; request bodies and query strings are ignored. Clearly labeled demo-faults routes demonstrate HTTP and connection failures."
+    "/ctp": "CTP stands for Contoso Theme Parks, a fictional theme park company where a little wonder awaits every visitor. Discover Starlight Gardens and its Cloud Cruiser ride, check sample wait times, and explore a ride reservation from creation to cancellation. These static MockAPI examples do not store reservations or provide live availability. POST, PUT, and PATCH request bodies are optional; supplied non-empty JSON payloads are syntax-checked, but body fields and query strings do not select responses. Clearly labeled demo-faults routes demonstrate HTTP and connection failures."
   },
   "endpoints": [
     {
@@ -59,7 +59,7 @@
     {
       "id": "17a50c14-e67f-4770-9bf6-afb4a80e4609",
       "name": "Reserve a ride",
-      "description": "Make room for a little adventure! Simulates a Cloud Cruiser reservation for two visitors with 201 Created and Location: /ctp/reservations/42. The request body is ignored and every call returns the same sample reservation; nothing is stored or changed.",
+      "description": "Make room for a little adventure! After syntax-checking any supplied non-empty JSON payload, simulates a Cloud Cruiser reservation for two visitors with 201 Created, a confirmation payload, and Location: /ctp/reservations/42. Body field values are ignored; nothing is stored or changed.",
       "enabled": true,
       "methods": ["POST"],
       "path": "/ctp/reservations",
@@ -71,7 +71,7 @@
           "X-Mock-Source": ["MockAPI"]
         },
         "contentType": "application/json; charset=utf-8",
-        "body": "{\"id\":42,\"parkId\":\"starlight-gardens\",\"attractionId\":\"cloud-cruiser\",\"partySize\":2,\"status\":\"reserved\"}"
+        "body": "{\"id\":42,\"parkId\":\"starlight-gardens\",\"attractionId\":\"cloud-cruiser\",\"partySize\":2,\"status\":\"reserved\",\"confirmationCode\":\"CTP-0042\",\"message\":\"Your Cloud Cruiser reservation is confirmed.\"}"
       }
     },
     {
@@ -88,7 +88,7 @@
           "X-Mock-Source": ["MockAPI"]
         },
         "contentType": "application/json; charset=utf-8",
-        "body": "{\"id\":42,\"parkId\":\"starlight-gardens\",\"attractionId\":\"cloud-cruiser\",\"partySize\":2,\"status\":\"reserved\"}"
+        "body": "{\"id\":42,\"parkId\":\"starlight-gardens\",\"attractionId\":\"cloud-cruiser\",\"partySize\":2,\"status\":\"reserved\",\"confirmationCode\":\"CTP-0042\",\"message\":\"Your Cloud Cruiser reservation is confirmed.\"}"
       }
     },
     {
@@ -193,7 +193,7 @@
     {
       "id": "b7629894-c849-4a62-91cb-85271b6bd988",
       "name": "Reservation validation fault demo",
-      "description": "Intentional validation failure demo: always returns 422 Unprocessable Entity with application/problem+json and a sample partySize field error. Use it to test structured validation feedback. Request bodies are ignored, even when valid; no reservation is created and no actual validation is performed.",
+      "description": "Intentional business-validation failure demo: after syntax-checking any supplied non-empty JSON payload, returns 422 Unprocessable Entity with application/problem+json and a sample partySize field error. Body field values are ignored; no reservation is created and no business validation is performed. Malformed JSON payloads instead return 400.",
       "enabled": true,
       "methods": ["POST"],
       "path": "/ctp/demo-faults/reservation-validation",
@@ -210,7 +210,7 @@
     {
       "id": "9f3144f7-9775-4e08-a38e-2d3c982d8912",
       "name": "Reservation conflict fault demo",
-      "description": "Intentional business conflict demo: always returns 409 Conflict because the sample Cloud Cruiser ride slot is full. Use it to distinguish unavailable capacity from invalid input or a server failure. Request bodies are ignored; no live availability is checked and no reservation is stored.",
+      "description": "Intentional business conflict demo: after syntax-checking any supplied non-empty JSON payload, returns 409 Conflict because the sample Cloud Cruiser ride slot is full. Body field values are ignored; no live availability is checked and no reservation is stored. Malformed JSON payloads instead return 400.",
       "enabled": true,
       "methods": ["POST"],
       "path": "/ctp/demo-faults/reservation-conflict",
@@ -263,7 +263,7 @@
     {
       "id": "daf10ac8-5a0c-46ab-bfa0-8556d65eac18",
       "name": "Update your ride reservation",
-      "description": "Bring more friends along! Simulates updating reservation 42 with 200 OK and a fixed party size of four. Request bodies are ignored and nothing is stored; GET /ctp/reservations/42 still returns the original two-visitor fixture. Includes fixed CORS headers for a non-credentialed cross-origin PATCH demo with the companion OPTIONS endpoint. Browser preflight requires instance API-key protection to be disabled.",
+      "description": "Bring more friends along! After syntax-checking any supplied non-empty JSON payload, simulates updating reservation 42 with 200 OK and a fixed party size of four. Body field values are ignored and nothing is stored; GET /ctp/reservations/42 still returns the original two-visitor fixture. Includes fixed CORS headers for a non-credentialed cross-origin PATCH demo with the companion OPTIONS endpoint. Browser preflight requires instance API-key protection to be disabled.",
       "enabled": true,
       "methods": ["PATCH"],
       "path": "/ctp/reservations/42",

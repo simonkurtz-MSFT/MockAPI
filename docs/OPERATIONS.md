@@ -57,6 +57,20 @@ in **Request headers**, enter the existing key in **Settings > Dashboard test ke
 key, including an explicitly empty key. The warning does not block deliberate unauthorized tests;
 responses remain inspectable. A supplied key is not validated locally, and configured mock `401`/`403`
 responses are not treated as evidence of a missing key. Failed protection checks are displayed explicitly.
+The endpoint test blade prefills editable JSON request samples for `POST`, `PUT`, and `PATCH`, but allows you to
+clear or break the sample and send it. Request bodies are optional. For matched mock routes, supplied payloads
+are limited to 1 MiB; non-empty JSON payloads are syntax-checked when `Content-Type` identifies `application/json`
+or a `+json` media type. It does not validate business fields or values. Malformed payloads return real `400`
+problem responses, oversized payloads return `413`, and non-UTF-8 charsets on non-empty JSON payloads return `415`,
+overriding the configured mock response. These checks precede configured delays, rate limits, and connection aborts.
+Other media types receive only a size check. Administrative and health routes keep their own contracts; authentication still runs first and
+unmatched routes remain `404`. Payloads are never retained in statistics or logs.
+
+The browser still requires syntactically valid request headers and may add transport headers.
+Settings may add `X-MockAPI-Key`, and the dashboard adds `X-MockAPI-Dashboard-Request-Id` to group automatic browser
+retries. Information icons beside Request headers and Request body explain these behaviors on hover or keyboard
+focus, using the same popovers as endpoint descriptions. Move away or press Escape to dismiss help; Escape leaves
+the test blade open when it dismisses a visible popover. Tapping an icon also opens its help.
 
 The hash and enforcement setting are saved in `<ConfigurationPath>.security.json`, or in a sibling
 `<configuration-blob-name>.security.json` when Blob persistence is configured. Retain this document with the

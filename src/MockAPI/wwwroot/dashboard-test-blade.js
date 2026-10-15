@@ -1,8 +1,13 @@
 "use strict";
 
 import { formatTestResponseDetails } from "./dashboard-core.js?v={{ASSET_VERSION}}";
-import { formatPrettyJsonResponseBody, formatResponseHeaders } from "./dashboard-test-request.js?v={{ASSET_VERSION}}";
 import {
+  formatPrettyJsonResponseBody,
+  formatResponseHeaders,
+  createDefaultTestRequest,
+} from "./dashboard-test-request.js?v={{ASSET_VERSION}}";
+import {
+  bindDashboardTooltip,
   createDashboardDom,
   createDashboardEventScope,
   getDashboardElements,
@@ -48,6 +53,10 @@ export function createDashboardTestBlade({
     "test-copy-response": "button",
     "test-copy-url": "button",
     "test-method": "select",
+    "test-header-info": "button",
+    "test-body-info": "button",
+    "test-request-headers-hint": "div",
+    "test-request-body-hint": "div",
     "test-path": "input",
     "test-request-body": "textarea",
     "test-request-count": "input",
@@ -64,6 +73,10 @@ export function createDashboardTestBlade({
     "test-toggle-json": "button",
   });
   const events = createDashboardEventScope();
+  const helpPanels = [
+    { trigger: elements["test-header-info"], tooltip: elements["test-request-headers-hint"] },
+    { trigger: elements["test-body-info"], tooltip: elements["test-request-body-hint"] },
+  ].map((panel) => ({ ...panel, ...bindDashboardTooltip({ ...panel, events }) }));
   /** @type {{testTrigger: HTMLElement|null, testEndpointId: string|null}} */
   const state = { testTrigger: null, testEndpointId: null };
   /** @type {import("./dashboard-test-request.js").EndpointTestRequestController|null} */
@@ -73,6 +86,8 @@ export function createDashboardTestBlade({
   let disposed = false;
   let securityCheckGeneration = 0;
   let batchCancelled = false;
+  let requestHeadersEdited = false;
+  let requestBodyEdited = false;
   let rawResponseBody = "";
   let prettyResponseBody = null;
   let showingPrettyResponse = false;
@@ -123,6 +138,13 @@ export function createDashboardTestBlade({
       elements["test-security-warning"].hidden = false;
     }
   }
+
+  function applyRequestDefaults() {
+    const defaults = createDefaultTestRequest(elements["test-method"].value, elements["test-path"].value);
+    if (!requestHeadersEdited) elements["test-request-headers"].value = defaults.headerLines;
+    if (!requestBodyEdited) elements["test-request-body"].value = defaults.body;
+  }
+
   /** @type {DashboardTestBlade["open"]} */
   function openTestBlade(endpoint, trigger) {
     if (disposed) return;
@@ -146,8 +168,9 @@ export function createDashboardTestBlade({
     );
     elements["test-path"].value = endpoint.path;
     elements["test-request-count"].value = String(endpoint.requestCount ?? 1);
-    elements["test-request-headers"].value = "";
-    elements["test-request-body"].value = "";
+    requestHeadersEdited = false;
+    requestBodyEdited = false;
+    applyRequestDefaults();
     resetTestResponse();
     elements["test-blade-shell"].hidden = false;
     document.body.classList.add("blade-open");
@@ -157,6 +180,7 @@ export function createDashboardTestBlade({
   }
 
   function closeTestBlade() {
+    for (const panel of helpPanels) panel.hide();
     generation++;
     securityCheckGeneration++;
     testRequestController?.cancel();
@@ -222,18 +246,18 @@ export function createDashboardTestBlade({
       return;
     }
     if (!elements["test-request-count"].reportValidity()) return;
+    const request = {
+      method: elements["test-method"].value,
+      path: elements["test-path"].value,
+      headerLines: elements["test-request-headers"].value,
+      body: elements["test-request-body"].value,
+    };
     const requestGeneration = generation;
     const controller = testRequestController;
     sending = true;
     batchCancelled = false;
     try {
       const requestCount = Number(elements["test-request-count"].value);
-      const request = {
-        method: elements["test-method"].value,
-        path: elements["test-path"].value,
-        headerLines: elements["test-request-headers"].value,
-        body: elements["test-request-body"].value,
-      };
       elements["test-send"].disabled = true;
       elements["test-cancel"].disabled = false;
       elements["test-status"].textContent = "Checking API-key protection...";
@@ -310,6 +334,16 @@ export function createDashboardTestBlade({
   }
 
   function trapBladeFocus(event) {
+    if (event.key === "Escape") {
+      const openHelp = helpPanels.find((panel) => panel.tooltip.matches(":popover-open"));
+      if (openHelp) {
+        openHelp.trigger.focus();
+        openHelp.hide();
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+    }
     if (event.key !== "Tab") return;
     /** @type {NodeListOf<HTMLElement>} */
     const controls = elements["test-blade"].querySelectorAll(
@@ -336,6 +370,16 @@ export function createDashboardTestBlade({
   events.listen(elements["test-blade"], "keydown", trapBladeFocus);
   events.listen(elements["test-send"], "click", sendTestRequest);
   events.listen(elements["test-request-headers"], "change", () => {
+    void updateSecurityWarning();
+  });
+  events.listen(elements["test-request-headers"], "input", () => {
+    requestHeadersEdited = true;
+  });
+  events.listen(elements["test-request-body"], "input", () => {
+    requestBodyEdited = true;
+  });
+  events.listen(elements["test-method"], "change", () => {
+    applyRequestDefaults();
     void updateSecurityWarning();
   });
   events.listen(elements["test-cancel"], "click", () => {

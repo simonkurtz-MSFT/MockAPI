@@ -1,4 +1,4 @@
-import { expect, test, expectNoUnreviewedAccessibilityViolations } from "./dashboard-fixtures.js";
+import { expect, test, expectNoUnreviewedAccessibilityViolations, importDocument } from "./dashboard-fixtures.js";
 
 test("positions and persists the endpoint test dialog alignment", async ({ page }) => {
   await page.setViewportSize({ width: 1200, height: 1400 });
@@ -84,27 +84,230 @@ test("tests a configured non-2xx response and restores focus", async ({ page, re
   await expect(trigger).toBeFocused();
 });
 
+test("aligns request information icons and shares hover and focus tooltip behavior", async ({ page }) => {
+  await page.getByRole("button", { name: "Load examples" }).first().click();
+  await page
+    .getByRole("row", { name: /Reserve a ride/ })
+    .getByRole("button", { name: "Test" })
+    .click();
+
+  const layout = await page.evaluate(() => {
+    const headings = [...document.querySelectorAll(".test-request-field-heading")];
+    const appearance = (element) => {
+      const style = getComputedStyle(element);
+      return [style.backgroundColor, style.color, style.width, style.height, style.borderRadius, style.fontSize];
+    };
+    return {
+      reference: appearance(document.querySelector(".api-description-button")),
+      payloadTypography: [
+        "#test-request-headers",
+        "#test-request-body",
+        "#test-response-headers",
+        "#test-response-body",
+      ].map((selector) => {
+        const style = getComputedStyle(document.querySelector(selector));
+        return { fontSize: style.fontSize, fontFamily: style.fontFamily, lineHeight: style.lineHeight };
+      }),
+      tooltipStyles: [...document.querySelectorAll(".api-description-tooltip")].map((element) => {
+        const style = getComputedStyle(element);
+        return [style.backgroundColor, style.color, style.padding, style.fontSize, style.borderRadius, style.boxShadow];
+      }),
+      tooltipHelpTextWhitespace: [...document.querySelectorAll(".api-description-tooltip .test-field-help-text")].map(
+        (element) => getComputedStyle(element).whiteSpace
+      ),
+      fields: headings.map((heading) => {
+        const icon = heading.querySelector("button");
+        const iconBounds = icon.getBoundingClientRect();
+        const labelBounds = heading.querySelector("label").getBoundingClientRect();
+        return {
+          appearance: appearance(icon),
+          x: iconBounds.x,
+          centerDifference: Math.abs(iconBounds.y + iconBounds.height / 2 - labelBounds.y - labelBounds.height / 2),
+        };
+      }),
+      headerGap:
+        headings[0].getBoundingClientRect().top -
+        document.querySelector(".request-target").getBoundingClientRect().bottom,
+      bodyGap:
+        headings[1].getBoundingClientRect().top -
+        document.querySelector("#test-request-headers").getBoundingClientRect().bottom,
+    };
+  });
+  for (const field of layout.fields) {
+    expect(field.appearance).toEqual(layout.reference);
+    expect(field.centerDifference).toBeLessThanOrEqual(1);
+  }
+  expect(layout.fields[0].x).toBe(layout.fields[1].x);
+  expect(layout.headerGap).toBeGreaterThanOrEqual(18);
+  expect(layout.bodyGap).toBeGreaterThanOrEqual(18);
+  for (const style of layout.tooltipStyles) expect(style).toEqual(layout.tooltipStyles[0]);
+  expect(layout.tooltipHelpTextWhitespace).toEqual(["normal", "normal"]);
+  for (const typography of layout.payloadTypography) {
+    expect(typography.fontSize).toBe("13px");
+    expect(typography).toEqual(layout.payloadTypography[0]);
+  }
+
+  const guidance = page.locator("#test-request-headers-hint");
+  await expect(guidance).toBeHidden();
+  await page.getByRole("button", { name: "Request header information" }).hover();
+  await expect(guidance).toContainText("One name: value pair per line.");
+  await expect(guidance).toBeVisible();
+  const bounds = await guidance.boundingBox();
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(page.viewportSize().width);
+  await page.keyboard.press("Escape");
+  await expect(guidance).toBeHidden();
+
+  const headerInfo = page.getByRole("button", { name: "Request header information" });
+  await page.locator("#test-request-headers").hover();
+  await headerInfo.hover();
+  await expect(guidance).toBeVisible();
+  await page.locator("#test-request-headers").hover();
+  await expect(guidance).toBeHidden();
+  await page.locator("#test-method").focus();
+  await headerInfo.focus();
+  await expect(guidance).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(guidance).toBeHidden();
+  await expect(page.locator("#test-blade")).toBeVisible();
+  await page.getByRole("button", { name: "Request body information" }).focus();
+  await expect(page.locator("#test-request-body-hint")).toBeVisible();
+  await page.locator("#test-blade-close").click();
+  await expect(page.locator("#test-request-body-hint")).toBeHidden();
+  await page
+    .getByRole("row", { name: /Reserve a ride/ })
+    .getByRole("button", { name: "Test" })
+    .click();
+  await expect(guidance).toBeHidden();
+  await expect(page.locator("#test-request-body-hint")).toBeHidden();
+
+  const headers = page.locator("#test-request-headers");
+  await expect(headers).toHaveAttribute("wrap", "off");
+  const headerLines = "Content-Type: application/json; charset=utf-8\nX-Correlation-Id: sample-request";
+  await headers.fill(headerLines);
+  await expect(headers).toHaveValue(headerLines);
+});
+
+test("prefills an editable sample and displays real backend payload errors", async ({ page, request }) => {
+  await request.post("/__mockapi/api/statistics/reset");
+  await page.getByRole("button", { name: "Load examples" }).first().click();
+  const createRow = page.getByRole("row", { name: /Reserve a ride/ });
+  await createRow.getByRole("button", { name: "Test" }).click();
+
+  const headers = page.locator("#test-request-headers");
+  const body = page.locator("#test-request-body");
+  await expect(headers).toHaveValue("Content-Type: application/json; charset=utf-8");
+  expect(JSON.parse(await body.inputValue())).toEqual({
+    parkId: "starlight-gardens",
+    attractionId: "cloud-cruiser",
+    reservationDate: "2030-06-15",
+    reservationTime: "10:30",
+    partySize: 2,
+    guest: { name: "Alex Morgan", email: "alex@example.com" },
+  });
+  await page.getByRole("button", { name: "Request header information" }).click();
+  await expect(page.getByText("The browser requires valid header syntax", { exact: false })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("The browser requires valid header syntax", { exact: false })).toBeHidden();
+  await expect(page.getByRole("button", { name: "Request header information" })).toBeFocused();
+  await page.getByRole("button", { name: "Request body information" }).click();
+  await expect(page.getByText("Empty payloads use the configured response", { exact: false })).toBeVisible();
+  await expectNoUnreviewedAccessibilityViolations(page, "#test-blade");
+
+  for (const [payload, expectedStatus] of [
+    ["", 201],
+    ["{invalid", 400],
+  ]) {
+    await body.fill(payload);
+    const responsePromise = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === "/ctp/reservations" && response.request().method() === "POST"
+    );
+    await page.getByRole("button", { name: "Send request" }).click();
+    const response = await responsePromise;
+    expect(response.request().postData() ?? "").toBe(payload);
+    expect(response.status()).toBe(expectedStatus);
+    if (expectedStatus === 400) {
+      expect((await response.json()).status).toBe(400);
+      await expect(page.locator("#test-status")).toHaveText("Request completed with HTTP 400.");
+      await expect(page.locator("#test-response-body")).toContainText('"status":400');
+    } else {
+      await expect(page.locator("#test-status")).toHaveText("Request completed with HTTP 201.");
+      await expect(page.locator("#test-response-body")).toContainText('"confirmationCode":"CTP-0042"');
+    }
+  }
+
+  await body.fill('{"unexpectedField":"business content is not validated"}');
+  await page.getByRole("button", { name: "Send request" }).click();
+  await expect(page.locator("#test-status")).toHaveText("Request completed with HTTP 201.");
+  const statistics = await (await request.get("/__mockapi/api/statistics")).json();
+  expect(statistics.totalRequests).toBe(3);
+});
+
+test("prefills POST PUT and PATCH without replacing deliberate request edits", async ({ page, request }) => {
+  await importDocument(request, {
+    schemaVersion: "1.0",
+    endpoints: [
+      {
+        id: "a0a75250-c57b-48c3-a809-95300372c07e",
+        name: "Payload methods",
+        enabled: true,
+        methods: ["GET", "POST", "PUT", "PATCH"],
+        path: "/payload-methods",
+        response: { statusCode: 200, headers: {}, contentType: "text/plain", body: "configured" },
+      },
+    ],
+  });
+  await page.getByRole("button", { name: "Test", exact: true }).click();
+  const method = page.locator("#test-method");
+  const body = page.locator("#test-request-body");
+  const headers = page.locator("#test-request-headers");
+  await expect(body).toHaveValue("");
+  for (const selection of ["POST", "PUT", "PATCH"]) {
+    await method.selectOption(selection);
+    expect(JSON.parse(await body.inputValue())).toEqual({
+      id: "sample-item-001",
+      name: "Example item",
+      status: "active",
+      quantity: 2,
+      tags: ["sample", "dashboard"],
+      metadata: { source: "MockAPI dashboard" },
+    });
+    await expect(headers).toHaveValue("Content-Type: application/json; charset=utf-8");
+  }
+  await body.fill("");
+  await headers.fill("Content-Type: application/problem+json");
+  await method.selectOption("PUT");
+  await expect(body).toHaveValue("");
+  await expect(headers).toHaveValue("Content-Type: application/problem+json");
+  await page.getByRole("button", { name: "Send request" }).click();
+  await expect(page.locator("#test-status")).toHaveText("Request completed with HTTP 200.");
+  await body.fill("{deliberately-malformed");
+  await method.selectOption("PATCH");
+  await expect(body).toHaveValue("{deliberately-malformed");
+});
+
 test("tests body-bearing and empty-response endpoints", async ({ page }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
   const createRow = page.getByRole("row", { name: /Reserve a ride/ });
   await createRow.getByRole("button", { name: "Test" }).click();
+  await page.getByLabel("Request headers", { exact: true }).fill("Content-Type: application/json; charset=utf-8");
   await page.getByLabel("Request body", { exact: true }).fill('{"attractionId":"cloud-cruiser","partySize":2}');
   await page.getByRole("button", { name: "Send request" }).click();
   await expect(page.locator("#test-status")).toHaveText("Request completed with HTTP 201.");
   await expect(page.locator("#test-response-body")).toHaveText(
-    '{"id":42,"parkId":"starlight-gardens","attractionId":"cloud-cruiser","partySize":2,"status":"reserved"}'
+    '{"id":42,"parkId":"starlight-gardens","attractionId":"cloud-cruiser","partySize":2,"status":"reserved","confirmationCode":"CTP-0042","message":"Your Cloud Cruiser reservation is confirmed."}'
   );
   const prettyPrint = page.getByRole("button", { name: "Pretty print" });
   await expect(prettyPrint).toBeVisible();
   await prettyPrint.click();
   await expect(page.locator("#test-response-body-label")).toHaveText("Pretty response body");
   await expect(page.locator("#test-response-body")).toHaveText(
-    '{\n  "id": 42,\n  "parkId": "starlight-gardens",\n  "attractionId": "cloud-cruiser",\n  "partySize": 2,\n  "status": "reserved"\n}'
+    '{\n  "id": 42,\n  "parkId": "starlight-gardens",\n  "attractionId": "cloud-cruiser",\n  "partySize": 2,\n  "status": "reserved",\n  "confirmationCode": "CTP-0042",\n  "message": "Your Cloud Cruiser reservation is confirmed."\n}'
   );
   await page.getByRole("button", { name: "Show raw" }).click();
   await expect(page.locator("#test-response-body-label")).toHaveText("Raw response body");
   await expect(page.locator("#test-response-body")).toHaveText(
-    '{"id":42,"parkId":"starlight-gardens","attractionId":"cloud-cruiser","partySize":2,"status":"reserved"}'
+    '{"id":42,"parkId":"starlight-gardens","attractionId":"cloud-cruiser","partySize":2,"status":"reserved","confirmationCode":"CTP-0042","message":"Your Cloud Cruiser reservation is confirmed."}'
   );
   await page.keyboard.press("Escape");
 
@@ -300,7 +503,7 @@ test("reports endpoint-test network errors", async ({ page, request }) => {
   await page.getByRole("button", { name: "Send request" }).click();
   await expect(page.locator("#test-status")).toContainText("Network error:");
   const requestLog = page.getByRole("region", { name: "Recent request log" });
-  const loggedRow = requestLog.getByRole("row", { name: /Ride sensor connection fault demo/ });
+  const loggedRow = requestLog.locator(".request-log-entry").filter({ hasText: "/ctp/demo-faults/ride-sensor" });
   await expect(loggedRow).toHaveCount(1);
   await expect
     .poll(async () => Number(await loggedRow.locator(".request-log-attempts").textContent()))

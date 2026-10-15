@@ -4,6 +4,7 @@ import {
   formatPrettyJsonResponseBody,
   formatResponseHeaders,
   getEndpointTestSecurityWarning,
+  createDefaultTestRequest,
 } from "../../src/MockAPI/wwwroot/dashboard-test-request.js";
 
 const origin = "https://mockapi.test";
@@ -50,6 +51,39 @@ describe("getEndpointTestSecurityWarning", () => {
     expect(() => getEndpointTestSecurityWarning(protectedStatus, "malformed", "memory-key")).toThrow(
       "Request header line 1"
     );
+  });
+});
+
+describe("createDefaultTestRequest", () => {
+  it.each(["POST", "PUT", "PATCH", "post"])("provides an editable JSON sample for %s", (method) => {
+    const defaults = createDefaultTestRequest(method);
+    expect(defaults.headerLines).toBe("Content-Type: application/json; charset=utf-8");
+    expect(JSON.parse(defaults.body)).toEqual({
+      id: "sample-item-001",
+      name: "Example item",
+      status: "active",
+      quantity: 2,
+      tags: ["sample", "dashboard"],
+      metadata: { source: "MockAPI dashboard" },
+    });
+  });
+
+  it("provides a reservation-specific sample for the built-in reservation routes", () => {
+    for (const path of ["/ctp/reservations", "/ctp/reservations/42?include=guest"]) {
+      const defaults = createDefaultTestRequest("POST", path);
+      expect(JSON.parse(defaults.body)).toEqual({
+        parkId: "starlight-gardens",
+        attractionId: "cloud-cruiser",
+        reservationDate: "2030-06-15",
+        reservationTime: "10:30",
+        partySize: 2,
+        guest: { name: "Alex Morgan", email: "alex@example.com" },
+      });
+    }
+  });
+
+  it.each(["GET", "HEAD", "DELETE", "OPTIONS"])("does not invent a payload for %s", (method) => {
+    expect(createDefaultTestRequest(method)).toEqual({ headerLines: "", body: "" });
   });
 });
 
@@ -178,6 +212,20 @@ describe("createEndpointTestRequestController", () => {
       message: "Request header line 1 must use Name: value.",
     });
     expect(request).not.toHaveBeenCalled();
+  });
+
+  it.each(["", "{invalid", "{} {}"])("sends invalid payloads to the backend unchanged (%s)", async (body) => {
+    const request = vi.fn().mockResolvedValue(createResponse({ status: 400, body: '{"status":400}' }));
+    const controller = createController(request);
+    const result = await controller.send({
+      method: "POST",
+      path: "/test",
+      headerLines: "Content-Type: application/json",
+      body,
+    });
+
+    expect(request.mock.calls[0][1].body).toBe(body);
+    expect(result).toMatchObject({ kind: "completed", status: 400, body: '{"status":400}' });
   });
 
   it("returns network errors for Error and non-Error failures", async () => {

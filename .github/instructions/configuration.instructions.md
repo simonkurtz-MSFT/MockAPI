@@ -17,6 +17,7 @@ applyTo: "{config,schemas}/**/*.json"
 - Require normalized absolute paths and reject `/__mockapi`, `/health`, and their descendants.
 - Treat v1 `path` values as exact literals. Introduce route templates or alternate matchers only through an explicit versioned contract that preserves existing exact-path semantics.
 - Build the v1 matching key only from normalized HTTP method and exact path. Query strings, request headers, and request bodies must not affect matching; prove this with an integration test when implementing dispatch.
+- Route matching remains independent of payload contents. Matched mock POST, PUT, and PATCH request bodies are optional; supplied payloads are limited to 1 MiB and non-empty JSON payloads require valid UTF-8 JSON syntax. These runtime checks override configured responses without inspecting business fields. Keep dashboard and portable request exports supplied with valid optional JSON samples (tailor them to built-in examples where useful), never imply those samples are schemas, and describe actual 400/413/415 errors in exported OpenAPI.
 - Model response headers as arrays of strings so repeated values round-trip without loss.
 - Keep rolling-window rate limits optional, restricted to terminal `429` responses, and configured with a `2xx` pre-limit response.
 - Reject control characters and server-controlled or hop-by-hop headers.

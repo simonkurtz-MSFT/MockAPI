@@ -14,9 +14,10 @@ describe("public onboarding boundaries", () => {
     buildSite({ buildDate });
     expect(fs.readdirSync(output).sort()).toEqual([
       "brand-mark.svg",
-      "dashboard-endpoints.png",
-      "dashboard-request-log.png",
+      "dashboard-endpoints.webp",
+      "dashboard-request-log.webp",
       "dashboard.png",
+      "dashboard.webp",
       "index.html",
       "robots.txt",
       "site.css",
@@ -41,6 +42,19 @@ describe("public onboarding boundaries", () => {
     }
   });
 
+  it("keeps lossless gallery screenshots within a 160 KiB combined transfer budget", () => {
+    const screenshots = ["dashboard.webp", "dashboard-endpoints.webp", "dashboard-request-log.webp"];
+    let totalBytes = 0;
+    for (const name of screenshots) {
+      const image = fs.readFileSync(path.join(root, assets[name]));
+      expect(image.toString("ascii", 0, 4)).toBe("RIFF");
+      expect(image.toString("ascii", 8, 12)).toBe("WEBP");
+      expect(image.includes(Buffer.from("VP8L"))).toBe(true);
+      totalBytes += image.length;
+    }
+    expect(totalBytes).toBeLessThanOrEqual(160 * 1024);
+  });
+
   it("keeps the development workspace non-root without privileged features or automatic public exposure", () => {
     const config = JSON.parse(read(".devcontainer/devcontainer.json"));
     expect(config.image).toMatch(/^mcr\.microsoft\.com\/devcontainers\/dotnet:[^@]+@sha256:[a-f0-9]{64}$/);
@@ -57,6 +71,7 @@ describe("public onboarding boundaries", () => {
     expect(read(".devcontainer/setup.sh")).not.toContain("\r");
     expect(read(".dockerignore")).toMatch(/^\.devcontainer$/m);
     expect(read(".dockerignore")).toMatch(/^site$/m);
+    expect(read(".dockerignore")).toMatch(/^docs$/m);
   });
 
   it("keeps publication disabled by default and uploads only the site output", () => {

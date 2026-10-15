@@ -57,6 +57,10 @@ public sealed class ConfigurationSchemaTests
         using var reservationBody = JsonDocument.Parse(reservation.Response.Body);
         Assert.Equal(attractionId, reservationBody.RootElement.GetProperty("attractionId").GetString());
         Assert.Equal(park.GetProperty("id").GetString(), reservationBody.RootElement.GetProperty("parkId").GetString());
+        Assert.Equal("CTP-0042", reservationBody.RootElement.GetProperty("confirmationCode").GetString());
+        Assert.Equal(
+            "Your Cloud Cruiser reservation is confirmed.",
+            reservationBody.RootElement.GetProperty("message").GetString());
 
         var waitTimesPath = attractionBody.RootElement.GetProperty("waitTimesUrl").GetString();
         var rateLimited = Assert.Single(document.Endpoints, endpoint => endpoint.Path == waitTimesPath);

@@ -560,26 +560,23 @@ html[data-request-log-collapsed="true"] #request-log-body {
   scrollbar-gutter: stable;
 }
 .request-log-table table {
-  min-width: 800px;
+  min-width: 680px;
   table-layout: fixed;
 }
 .request-log-time-column {
-  width: 20%;
+  width: 22%;
 }
 .request-log-method-column {
-  width: 8%;
-}
-.request-log-endpoint-column {
-  width: 20%;
+  width: 10%;
 }
 .request-log-result-column {
-  width: 12%;
+  width: 14%;
 }
 .request-log-path-column {
-  width: 26%;
+  width: 36%;
 }
 .request-log-number-column {
-  width: 7%;
+  width: 9%;
 }
 .request-log-table th,
 .request-log-entry td {
@@ -1199,7 +1196,6 @@ tbody tr:hover {
   flex: 0 0 26px;
   width: 26px;
   height: 26px;
-  margin: 4px 14px 4px 8px;
   padding: 0;
   border: 1px solid currentColor;
   border-radius: 50%;
@@ -1212,6 +1208,9 @@ tbody tr:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+.api-description-button {
+  margin: 4px 14px 4px 8px;
 }
 .api-description-button:hover {
   background: #004578;
@@ -1238,6 +1237,9 @@ tbody tr:hover {
   margin-top: 8px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+.api-description-tooltip .test-field-help-text {
+  white-space: normal;
 }
 .api-description-tooltip small {
   color: var(--cp-text-muted);
@@ -2071,9 +2073,57 @@ fieldset {
 .confirm-content p {
   color: var(--cp-text-muted);
 }
+.conflict-list {
+  display: grid;
+  gap: 8px;
+  max-height: min(45vh, 400px);
+  margin: 14px 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.built-in-conflict {
+  padding: 12px;
+  border: 1px solid var(--cp-border);
+  border-radius: 8px;
+  background: var(--cp-surface-soft);
+}
+.conflict-kind {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.conflict-endpoint-row {
+  display: grid;
+  grid-template-columns: minmax(105px, 145px) minmax(0, 1fr);
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 13px;
+}
+.conflict-endpoint-label {
+  color: var(--cp-text-muted);
+  font-weight: 600;
+}
+.conflict-endpoint-details {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  overflow-wrap: anywhere;
+}
+.conflict-endpoint-route {
+  color: var(--cp-text-muted);
+}
 .confirm-actions {
   justify-content: end;
   margin-top: 24px;
+}
+
+@media (max-width: 480px) {
+  .conflict-endpoint-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
 }
 
 /* Endpoint test blade */
@@ -2177,6 +2227,35 @@ fieldset {
 .request-target input {
   width: 100%;
   min-width: 0;
+}
+.test-request-field {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+.test-request-field-heading {
+  position: relative;
+  display: grid;
+  grid-template-columns: 100px max-content;
+  align-items: center;
+  gap: 8px;
+}
+.blade-body .test-request-field-heading label {
+  display: block;
+  margin: 0;
+  line-height: 1.4;
+}
+.test-request-field-heading .api-description-button {
+  margin: 0;
+}
+.test-request-field textarea {
+  width: 100%;
+}
+.test-request-field textarea,
+.test-response pre {
+  font-family: var(--cp-font-mono);
+  font-size: 13px;
+  line-height: 1.45;
 }
 .test-actions {
   display: flex;

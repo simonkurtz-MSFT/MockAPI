@@ -166,6 +166,7 @@ MockAPI is intentionally narrower than a general-purpose API virtualization plat
 #### 1.5.1) Control HTTP Behavior
 
 - **Deterministic routing:** Match enabled endpoints by HTTP method and exact normalized path; unmatched requests return `404`.
+- **Backend payload validation:** Request bodies are optional. Supplied payloads on matched mock `POST`, `PUT`, and `PATCH` routes are limited to 1 MiB; non-empty JSON payloads must have valid UTF-8 JSON syntax. Malformed JSON returns `400` before the configured mock response, but no business fields or values are validated. The test blade and portable exports prefill editable, optional JSON samples, and the blade lets invalid payloads reach the server for realistic error testing.
 - **Precise responses:** Return a configured status code, reason phrase, repeated headers, content type, and exact response body.
 - **Resilience scenarios:** Exercise bounded response delays, conditional rolling-window `429` responses, and intentional connection aborts.
 
@@ -756,6 +757,8 @@ To review the GitHub Pages documentation locally, run `.\start.ps1 -Action site-
 The documentation site's **Toggle color theme** sun-icon button matches the dashboard. On first load, the theme follows the operating system unless a Light or Dark choice was saved. Clicking toggles between Light and Dark and saves the choice independently of dashboard preferences.
 
 The documentation gallery shows a populated dashboard overview, all 16 Contoso Theme Parks (`/ctp`) example endpoints, and an expanded log of 16 sample requests. Use the left/right arrow buttons, the named view buttons, or the left/right arrow keys within the gallery to switch screenshots. Images open at full size in a new tab. The carousel does not advance automatically; without JavaScript, all three screenshots remain visible. Captures use only the checked-in example configuration and generated local requests, not a running deployment's data.
+
+Gallery screenshots use lossless WebP at their original dimensions, with a combined 160 KiB transfer budget checked by tests. A PNG overview is retained for social previews. Documentation images are published only with the static site, not with the application container.
 
 Site browser checks target WCAG 2.2 AA in light and dark themes, including text and control contrast, visible keyboard focus, control sizes, 320-pixel reflow, 200% text resizing with system and wider fallback fonts, reduced motion, and forced colors. Automated accessibility checks supplement manual review; they are not a conformance certification.
 

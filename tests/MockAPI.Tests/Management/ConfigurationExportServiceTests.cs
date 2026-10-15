@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using System.Text;
 using System.Xml.Linq;
 using MockAPI.Configuration;
 using MockAPI.Management;
@@ -7,6 +8,126 @@ namespace MockAPI.Tests.Management;
 
 public sealed class ConfigurationExportServiceTests
 {
+    [Theory]
+    [InlineData("POST")]
+    [InlineData("PUT")]
+    [InlineData("PATCH")]
+    public void Exports_ProvideOptionalSamplePayloadsWithoutChangingConfiguredResponses(string method)
+    {
+        const string sample =
+            "{\"id\":\"sample-item-001\",\"name\":\"Example item\",\"status\":\"active\",\"quantity\":2,\"tags\":[\"sample\",\"dashboard\"],\"metadata\":{\"source\":\"MockAPI dashboard\"}}";
+        var endpoint = new MockEndpointDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = "Payload",
+            Enabled = true,
+            Methods = ["GET", method],
+            Path = "/payload",
+            Response = new() { StatusCode = 400, ContentType = "application/problem+json", Headers = [], Body = "{\"configured\":true}" }
+        };
+        var document = new MockApiConfigurationDocument { SchemaVersion = "1.0", Endpoints = [endpoint] };
+        JsonNode ExportJson(string format)
+        {
+            Assert.True(ConfigurationExportService.TryExport(format, document, out var export));
+            return JsonNode.Parse(export!.Content)!;
+        }
+        string ExportText(string format)
+        {
+            Assert.True(ConfigurationExportService.TryExport(format, document, out var export));
+            return Encoding.UTF8.GetString(export!.Content);
+        }
+
+        var postman = ExportJson("postman")["item"]!;
+        Assert.Null(postman[0]!["request"]!["body"]);
+        Assert.Equal(sample, postman[1]!["request"]!["body"]!["raw"]!.GetValue<string>());
+        Assert.Contains(postman[1]!["request"]!["header"]!.AsArray(),
+            header => header!["key"]!.GetValue<string>() == "Content-Type" && header["value"]!.GetValue<string>() == "application/json");
+
+        var insomnia = ExportJson("insomnia")["resources"]!.AsArray().Where(resource =>
+            resource!["_type"]!.GetValue<string>() == "request").ToArray();
+        Assert.Null(insomnia[0]!["body"]);
+        Assert.Equal(sample, insomnia[1]!["body"]!["text"]!.GetValue<string>());
+        Assert.Equal("application/json", insomnia[1]!["body"]!["mimeType"]!.GetValue<string>());
+
+        var openApi = ExportJson("openapi")["paths"]!["/payload"]!;
+        Assert.Null(openApi["get"]!["requestBody"]);
+        var operation = openApi[method.ToLowerInvariant()]!;
+        Assert.False(operation["requestBody"]!["required"]!.GetValue<bool>());
+        Assert.Contains("optional", operation["requestBody"]!["description"]!.GetValue<string>(),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Example item", operation["requestBody"]!["content"]!["application/json"]!["example"]!["name"]!.GetValue<string>());
+        Assert.NotNull(operation["responses"]!["413"]);
+        Assert.NotNull(operation["responses"]!["415"]);
+        Assert.Equal(endpoint.Response.Body,
+            operation["responses"]!["400"]!["content"]!["application/problem+json"]!["example"]!.GetValue<string>());
+
+        var curl = ExportText("curl");
+        Assert.Contains($"--request {method} --header 'Content-Type: application/json' --data-raw '{sample}'", curl);
+        var http = ExportText("http");
+        Assert.Contains($"{method} {{{{baseUrl}}}}/payload\nContent-Type: application/json\n\n{sample}", http);
+        var jmeter = XDocument.Parse(ExportText("jmeter"));
+        Assert.Single(jmeter.Descendants("boolProp"), property =>
+            property.Attribute("name")?.Value == "HTTPSampler.postBodyRaw" && property.Value == "true");
+        Assert.Contains(jmeter.Descendants("stringProp"), property =>
+            property.Attribute("name")?.Value == "Argument.value" && property.Value == sample);
+        Assert.Contains(jmeter.Descendants("stringProp"), property =>
+            property.Attribute("name")?.Value == "Header.value" && property.Value == "application/json");
+        var k6 = ExportText("k6");
+        var requestsJson = k6.Split("const requests = ", StringSplitOptions.None)[1].Split(";\n", StringSplitOptions.None)[0];
+        var requests = JsonNode.Parse(requestsJson)!;
+        Assert.Null(requests[0]!["body"]);
+        Assert.Equal(sample, requests[1]!["body"]!.GetValue<string>());
+        Assert.Equal("application/json", requests[1]!["headers"]!["Content-Type"]!.GetValue<string>());
+        Assert.Contains("request.body, requestOptions", k6);
+    }
+
+    [Fact]
+    public void Exports_UseReservationSampleForReservationEndpointsAcrossAllFormats()
+    {
+        const string sample =
+            "{\"parkId\":\"starlight-gardens\",\"attractionId\":\"cloud-cruiser\",\"reservationDate\":\"2030-06-15\",\"reservationTime\":\"10:30\",\"partySize\":2,\"guest\":{\"name\":\"Alex Morgan\",\"email\":\"alex@example.com\"}}";
+        var document = new MockApiConfigurationDocument
+        {
+            SchemaVersion = "1.0",
+            Endpoints =
+            [
+                new MockEndpointDefinition
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Reserve a ride",
+                    Enabled = true,
+                    Methods = ["POST"],
+                    Path = "/ctp/reservations",
+                    Response = new() { StatusCode = 201, Headers = [], Body = "{}" }
+                }
+            ]
+        };
+        string ExportText(string format)
+        {
+            Assert.True(ConfigurationExportService.TryExport(format, document, out var export));
+            return Encoding.UTF8.GetString(export!.Content);
+        }
+
+        var postman = JsonNode.Parse(ExportText("postman"))!;
+        Assert.Equal(sample, postman["item"]![0]!["request"]!["body"]!["raw"]!.GetValue<string>());
+        var insomnia = JsonNode.Parse(ExportText("insomnia"))!;
+        Assert.Equal(sample, insomnia["resources"]!.AsArray()
+            .Single(resource => resource!["_type"]!.GetValue<string>() == "request")!["body"]!["text"]!.GetValue<string>());
+        var openApi = JsonNode.Parse(ExportText("openapi"))!;
+        Assert.True(JsonNode.DeepEquals(
+            JsonNode.Parse(sample),
+            openApi["paths"]!["/ctp/reservations"]!["post"]!["requestBody"]!
+                ["content"]!["application/json"]!["example"]));
+        Assert.Contains($"--data-raw '{sample}'", ExportText("curl"));
+        Assert.Contains(sample, ExportText("http"));
+        var jmeter = XDocument.Parse(ExportText("jmeter"));
+        Assert.Contains(jmeter.Descendants("stringProp"),
+            property => property.Attribute("name")?.Value == "Argument.value" && property.Value == sample);
+        var k6 = JsonNode.Parse(ExportText("k6").Split("const requests = ", StringSplitOptions.None)[1]
+            .Split(";\n", StringSplitOptions.None)[0])!;
+        Assert.Equal(sample, k6[0]!["body"]!.GetValue<string>());
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

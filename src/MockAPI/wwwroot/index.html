@@ -321,7 +321,6 @@
                   <colgroup>
                     <col class="request-log-time-column" />
                     <col class="request-log-method-column" />
-                    <col class="request-log-endpoint-column" />
                     <col class="request-log-path-column" />
                     <col class="request-log-result-column" />
                     <col class="request-log-number-column" />
@@ -331,7 +330,6 @@
                     <tr>
                       <th id="request-log-time-heading" scope="col" title="Times shown in UTC">Time</th>
                       <th scope="col">Method</th>
-                      <th scope="col">Endpoint</th>
                       <th scope="col">Path</th>
                       <th scope="col" class="request-log-result">Result</th>
                       <th scope="col" class="numeric">Attempts</th>
@@ -340,7 +338,7 @@
                   </thead>
                   <tbody id="request-log-rows">
                     <tr>
-                      <td class="request-log-empty" colspan="7">No requests recorded</td>
+                      <td class="request-log-empty" colspan="6">No requests recorded</td>
                     </tr>
                   </tbody>
                 </table>
@@ -611,7 +609,7 @@
               <span aria-hidden="true">2</span>
               <div>
                 <h3>Match</h3>
-                <p>
+                <p class="test-field-help-text">
                   Each request is matched to an enabled endpoint by method and normalized path. Query strings do not
                   affect matching; unmatched requests return
                   <code>404</code>
@@ -623,7 +621,7 @@
               <span aria-hidden="true">3</span>
               <div>
                 <h3>Respond and observe</h3>
-                <p>
+                <p class="test-field-help-text">
                   MockAPI returns the configured response and updates process-local statistics without storing request
                   or response content.
                 </p>
@@ -1036,6 +1034,7 @@
       <div class="confirm-content">
         <h2 id="confirm-title">Confirm action</h2>
         <p id="confirm-message"></p>
+        <ul id="confirm-conflict-list" class="conflict-list" aria-label="Conflicting endpoints" hidden></ul>
         <div class="confirm-actions">
           <button id="confirm-cancel" class="button secondary" type="button">Cancel</button>
           <button id="confirm-accept" class="button danger" type="button">Confirm</button>
@@ -1088,15 +1087,59 @@
                 <input id="test-request-count" type="number" min="1" max="5" step="1" value="1" required />
               </label>
             </div>
-            <label>
-              Request headers
-              <span class="hint">One Name: value pair per line</span>
-              <textarea id="test-request-headers" rows="5" spellcheck="false"></textarea>
-            </label>
-            <label>
-              Request body
+            <div class="test-request-field">
+              <div class="test-request-field-heading">
+                <label for="test-request-headers">Request headers</label>
+                <button
+                  id="test-header-info"
+                  class="api-description-button"
+                  type="button"
+                  aria-label="Request header information"
+                  aria-describedby="test-request-headers-hint"
+                >
+                  i
+                </button>
+                <div id="test-request-headers-hint" class="api-description-tooltip" role="tooltip" popover="manual">
+                  <strong>Request headers</strong>
+                  <p class="test-field-help-text">
+                    One name: value pair per line. The browser requires valid header syntax and may add transport
+                    headers. Settings may add X-MockAPI-Key, and the dashboard adds X-MockAPI-Dashboard-Request-Id to
+                    group automatic browser retries. Request headers do not affect endpoint matching.
+                  </p>
+                </div>
+              </div>
+              <textarea
+                id="test-request-headers"
+                rows="5"
+                wrap="off"
+                spellcheck="false"
+                aria-describedby="test-request-headers-hint"
+              ></textarea>
+            </div>
+            <div class="test-request-field">
+              <div class="test-request-field-heading">
+                <label for="test-request-body">Request body</label>
+                <button
+                  id="test-body-info"
+                  class="api-description-button"
+                  type="button"
+                  aria-label="Request body information"
+                  aria-describedby="test-request-body-hint"
+                >
+                  i
+                </button>
+                <div id="test-request-body-hint" class="api-description-tooltip" role="tooltip" popover="manual">
+                  <strong>Request body</strong>
+                  <p class="test-field-help-text">
+                    Request bodies are optional. Supplied payloads are limited to 1 MiB; JSON syntax is checked when
+                    Content-Type is application/json or ends in +json, without checking fields or business values. Empty
+                    payloads use the configured response, while malformed JSON returns HTTP 400. Other formats receive a
+                    size check only. GET and HEAD requests do not send a body from this test blade.
+                  </p>
+                </div>
+              </div>
               <textarea id="test-request-body" rows="7" spellcheck="false"></textarea>
-            </label>
+            </div>
             <div id="test-security-warning" class="error-summary" role="status" aria-live="polite" hidden></div>
             <div class="test-actions">
               <button id="test-cancel" class="button secondary" type="button" disabled>Cancel</button>

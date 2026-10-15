@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Xml.Linq;
 using MockAPI.Configuration;
+using MockAPI.Runtime;
 
 namespace MockAPI.Management;
 
@@ -98,6 +99,18 @@ internal static class ConfigurationExportService
             item["description"] = endpoint.Description;
         }
 
+        if (MockRequestBodyValidator.HasSampleRequestBody(method))
+        {
+            var request = item["request"]!;
+            request["header"]!.AsArray().Add((JsonNode)new JsonObject { ["key"] = "Content-Type", ["value"] = "application/json" });
+            request["body"] = new JsonObject
+            {
+                ["mode"] = "raw",
+                ["raw"] = MockRequestBodyValidator.GetSampleJsonBody(endpoint.Path),
+                ["options"] = new JsonObject { ["raw"] = new JsonObject { ["language"] = "json" } }
+            };
+        }
+
         if (endpoint.Response.Behavior == MockResponseBehavior.Response)
         {
             var expectedResponses = new JsonObject(GetResponses(endpoint).Select(response =>
@@ -148,6 +161,16 @@ internal static class ConfigurationExportService
                 if (endpoint.Description is not null)
                 {
                     request["description"] = endpoint.Description;
+                }
+
+                if (MockRequestBodyValidator.HasSampleRequestBody(method))
+                {
+                    request["headers"]!.AsArray().Add((JsonNode)new JsonObject { ["name"] = "Content-Type", ["value"] = "application/json" });
+                    request["body"] = new JsonObject
+                    {
+                        ["mimeType"] = "application/json",
+                        ["text"] = MockRequestBodyValidator.GetSampleJsonBody(endpoint.Path)
+                    };
                 }
 
                 resources.Add((JsonNode)request);
@@ -207,6 +230,39 @@ internal static class ConfigurationExportService
                     operation["description"] = endpoint.Description;
                 }
 
+                if (MockRequestBodyValidator.HasSampleRequestBody(method))
+                {
+                    operation["requestBody"] = new JsonObject
+                    {
+                        ["required"] = false,
+                        ["description"] = "An optional illustrative payload is shown. If supplied, payloads are limited to 1 MiB and JSON syntax is checked without validating application fields or values.",
+                        ["content"] = new JsonObject
+                        {
+                            ["application/json"] = new JsonObject
+                            {
+                                ["schema"] = new JsonObject(),
+                                ["example"] = JsonNode.Parse(MockRequestBodyValidator.GetSampleJsonBody(endpoint.Path))
+                            },
+                            ["*/*"] = new JsonObject { ["schema"] = new JsonObject { ["type"] = "string" } }
+                        }
+                    };
+                    foreach (var status in new[] { "400", "413", "415" })
+                    {
+                        var errorResponse = response[status] as JsonObject;
+                        if (errorResponse is null)
+                        {
+                            errorResponse = new JsonObject { ["description"] = "Request payload validation failed before the configured response." };
+                            response[status] = errorResponse;
+                        }
+                        var content = errorResponse["content"] as JsonObject ?? new JsonObject();
+                        errorResponse["content"] = content;
+                        if (!content.ContainsKey("application/problem+json"))
+                        {
+                            content["application/problem+json"] = new JsonObject { ["schema"] = new JsonObject { ["type"] = "object" } };
+                        }
+                    }
+                }
+
                 var groupPath = "/" + endpoint.Path.Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
                 if (document.ApiDescriptions?.ContainsKey(groupPath) is true)
                 {
@@ -262,7 +318,10 @@ internal static class ConfigurationExportService
             foreach (var method in endpoint.Methods)
             {
                 var authentication = requireApiKey ? " --header \"X-MockAPI-Key: $MOCKAPI_KEY\"" : string.Empty;
-                lines.Add($"curl --fail-with-body --request {method}{authentication} --url \"$BASE_URL{endpoint.Path}\"");
+                var payload = MockRequestBodyValidator.HasSampleRequestBody(method)
+                    ? $" --header 'Content-Type: application/json' --data-raw '{MockRequestBodyValidator.GetSampleJsonBody(endpoint.Path)}'"
+                    : string.Empty;
+                lines.Add($"curl --fail-with-body --request {method}{authentication}{payload} --url \"$BASE_URL{endpoint.Path}\"");
             }
         }
 
@@ -287,6 +346,7 @@ internal static class ConfigurationExportService
         {
             foreach (var method in endpoint.Methods)
             {
+                var includesPayloadSample = MockRequestBodyValidator.HasSampleRequestBody(method);
                 var responses = GetResponses(endpoint);
                 var expectedStatuses = string.Join('|', responses.Select(response => response.StatusCode));
                 plan.Add(
@@ -300,8 +360,23 @@ internal static class ConfigurationExportService
                         JMeterString("HTTPSampler.protocol", "${SCHEME}"),
                         JMeterString("HTTPSampler.path", endpoint.Path),
                         JMeterString("HTTPSampler.method", method),
-                        JMeterString("HTTPSampler.postBodyRaw", "false")),
+                        new XElement("boolProp", new XAttribute("name", "HTTPSampler.postBodyRaw"), includesPayloadSample ? "true" : "false"),
+                        includesPayloadSample ? new XElement("elementProp",
+                            new XAttribute("name", "HTTPsampler.Arguments"), new XAttribute("elementType", "Arguments"),
+                            new XElement("collectionProp", new XAttribute("name", "Arguments.arguments"),
+                                new XElement("elementProp", new XAttribute("name", ""), new XAttribute("elementType", "HTTPArgument"),
+                                    new XElement("boolProp", new XAttribute("name", "HTTPArgument.always_encode"), "false"),
+                                    JMeterString("Argument.value", MockRequestBodyValidator.GetSampleJsonBody(endpoint.Path)),
+                                    JMeterString("Argument.metadata", "=")))) : null),
                     new XElement("hashTree",
+                        includesPayloadSample ? new XElement("HeaderManager",
+                            new XAttribute("guiclass", "HeaderPanel"), new XAttribute("testclass", "HeaderManager"),
+                            new XAttribute("testname", "JSON payload"), new XAttribute("enabled", "true"),
+                            new XElement("collectionProp", new XAttribute("name", "HeaderManager.headers"),
+                                new XElement("elementProp", new XAttribute("name", ""), new XAttribute("elementType", "Header"),
+                                    JMeterString("Header.name", "Content-Type"),
+                                    JMeterString("Header.value", "application/json")))) : null,
+                        includesPayloadSample ? new XElement("hashTree") : null,
                         endpoint.Response.Behavior == MockResponseBehavior.AbortConnection ? null : new XElement("ResponseAssertion",
                             new XAttribute("guiclass", "AssertionGui"),
                             new XAttribute("testclass", "ResponseAssertion"),
@@ -334,6 +409,12 @@ internal static class ConfigurationExportService
             {
                 ["method"] = method,
                 ["path"] = endpoint.Path,
+                ["body"] = MockRequestBodyValidator.HasSampleRequestBody(method)
+                    ? MockRequestBodyValidator.GetSampleJsonBody(endpoint.Path)
+                    : null,
+                ["headers"] = MockRequestBodyValidator.HasSampleRequestBody(method)
+                    ? new JsonObject { ["Content-Type"] = "application/json" }
+                    : new JsonObject(),
                 ["behavior"] = endpoint.Response.Behavior == MockResponseBehavior.AbortConnection ? "abortConnection" : "response",
                 ["responses"] = endpoint.Response.Behavior == MockResponseBehavior.AbortConnection
                     ? null
@@ -347,7 +428,7 @@ internal static class ConfigurationExportService
         var authentication = requireApiKey
             ? "\nif (!__ENV.MOCKAPI_KEY) throw new Error('Set MOCKAPI_KEY before sending requests');\nconst options = { headers: { 'X-MockAPI-Key': __ENV.MOCKAPI_KEY } };\n"
             : "\nconst options = {};\n";
-        return $"import http from 'k6/http';\nimport {{ check }} from 'k6';\n\nconst baseUrl = __ENV.BASE_URL || 'http://localhost:8080';\nconst requests = {json};\n{authentication}\nexport default function () {{\n  for (const request of requests) {{\n    const response = http.request(request.method, `${{baseUrl}}${{request.path}}`, null, options);\n    check(response, request.behavior === 'abortConnection' ? {{\n      'connection is aborted': (result) => result.status === 0,\n    }} : {{\n      'status and body match': (result) => request.responses.some((expected) => expected.status === result.status && expected.body === result.body),\n    }});\n  }}\n}}\n";
+        return $"import http from 'k6/http';\nimport {{ check }} from 'k6';\n\nconst baseUrl = __ENV.BASE_URL || 'http://localhost:8080';\nconst requests = {json};\n{authentication}\nexport default function () {{\n  for (const request of requests) {{\n    const requestOptions = {{ ...options, headers: {{ ...options.headers, ...request.headers }} }};\n    const response = http.request(request.method, `${{baseUrl}}${{request.path}}`, request.body, requestOptions);\n    check(response, request.behavior === 'abortConnection' ? {{\n      'connection is aborted': (result) => result.status === 0,\n    }} : {{\n      'status and body match': (result) => request.responses.some((expected) => expected.status === result.status && expected.body === result.body),\n    }});\n  }}\n}}\n";
     }
 
     private static string CreateHttp(MockApiConfigurationDocument document, bool requireApiKey)
@@ -366,6 +447,11 @@ internal static class ConfigurationExportService
                 if (requireApiKey)
                 {
                     builder.Append("X-MockAPI-Key: {{mockApiKey}}\n");
+                }
+                if (MockRequestBodyValidator.HasSampleRequestBody(method))
+                {
+                    builder.Append("Content-Type: application/json\n\n")
+                        .Append(MockRequestBodyValidator.GetSampleJsonBody(endpoint.Path)).Append('\n');
                 }
             }
         }

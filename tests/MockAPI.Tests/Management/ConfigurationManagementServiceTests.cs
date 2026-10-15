@@ -101,8 +101,18 @@ public sealed class ConfigurationManagementServiceTests
         var forced = service.MergeBuiltIn(builtIn, expectedRevision: 1, force: true);
 
         Assert.Equal(BuiltInMergeStatus.Conflict, conflict.Status);
-        Assert.Contains(conflict.Conflicts, item => item.Kind == "different");
-        Assert.Contains(conflict.Conflicts, item => item.Kind == "routeCollision");
+        var different = Assert.Single(conflict.Conflicts, item => item.Kind == "different");
+        Assert.Equal("built-in", different.BuiltInName);
+        Assert.Equal("/built-in", different.BuiltInPath);
+        Assert.Equal(["GET"], different.BuiltInMethods);
+        Assert.Equal("local", different.ExistingName);
+        Assert.Equal("/local", different.ExistingPath);
+        Assert.Equal(["GET"], different.ExistingMethods);
+        var routeCollision = Assert.Single(conflict.Conflicts, item => item.Kind == "routeCollision");
+        Assert.Equal("/collision", routeCollision.BuiltInPath);
+        Assert.Equal("/collision", routeCollision.ExistingPath);
+        Assert.Equal(["GET"], routeCollision.BuiltInMethods);
+        Assert.Equal(["GET"], routeCollision.ExistingMethods);
         Assert.Equal(BuiltInMergeStatus.Applied, forced.Status);
         Assert.Equal(2, forced.Updated);
         Assert.Equal(1, forced.Added);
@@ -252,7 +262,16 @@ public sealed class ConfigurationManagementServiceTests
         var state = new ConfigurationState();
         var validation = new ConfigurationValidationResult(
             [new ConfigurationValidationError("path", "code", "message")]);
-        var conflict = new BuiltInMergeConflict(Guid.NewGuid(), "built-in", "different", Guid.NewGuid(), "active");
+        var conflict = new BuiltInMergeConflict(
+            Guid.NewGuid(),
+            "built-in",
+            "/built-in",
+            ["GET"],
+            "different",
+            Guid.NewGuid(),
+            "active",
+            "/active",
+            ["POST"]);
 
         var applied = BuiltInMergeResult.Applied(state.Current, 1, 2, 3, [conflict]);
         var unchanged = BuiltInMergeResult.NoChanges(state.Current, 4);

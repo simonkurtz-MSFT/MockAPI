@@ -1,6 +1,7 @@
 using System.Net;
 using System.Diagnostics;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,6 +12,320 @@ namespace MockAPI.Tests.Runtime;
 
 public sealed class MockDispatcherTests
 {
+    [Theory]
+    [InlineData("POST")]
+    [InlineData("PUT")]
+    [InlineData("PATCH")]
+    public async Task MalformedPayloads_ReturnRealBadRequestInsteadOfConfiguredResponse(string method)
+    {
+        await using var factory = new UnsecuredApplicationFactory();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
+        var endpoint = CreateEndpoint([method], "/payload", "configured") with
+        {
+            Response = new MockResponseDefinition
+            {
+                StatusCode = 503,
+                DelaySeconds = 300,
+                Headers = new() { ["X-Configured"] = ["not-on-validation-errors"] },
+                ContentType = "text/plain",
+                Body = "configured"
+            }
+        };
+        Apply(configuration, CreateDocument(endpoint));
+        using var client = factory.CreateClient();
+        foreach (var body in new[] { "{broken", " ", "{} {}", "{\"x\":}" })
+        {
+            using var request = new HttpRequestMessage(new HttpMethod(method), endpoint.Path)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json")
+            };
+
+            using var response = await client.SendAsync(request).WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Equal("application/problem+json", response.Content.Headers.ContentType!.MediaType);
+            Assert.False(response.Headers.Contains("X-Configured"));
+            using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal(400, problem.RootElement.GetProperty("status").GetInt32());
+        }
+
+        var snapshot = statistics.GetSnapshot();
+        Assert.Equal(4, snapshot.MatchedRequests);
+        Assert.Equal(4, snapshot.ClientErrorResponses);
+        Assert.Equal(0, snapshot.FailedWrites);
+        Assert.Equal(4, snapshot.RecentRequests.Length);
+        Assert.All(snapshot.RecentRequests, entry => Assert.Equal(400, entry.StatusCode));
+        Assert.True(snapshot.ResponseBytes > 0);
+    }
+
+    [Theory]
+    [InlineData("POST")]
+    [InlineData("PUT")]
+    [InlineData("PATCH")]
+    public async Task EmptyPayloads_PreserveTheConfiguredResponse(string method)
+    {
+        await using var factory = new UnsecuredApplicationFactory();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        var endpoint = CreateEndpoint([method], "/payload", "configured") with
+        {
+            Response = new MockResponseDefinition
+            {
+                StatusCode = 202,
+                Headers = new() { ["X-Configured"] = ["preserved"] },
+                ContentType = "text/plain",
+                Body = "accepted without a request body"
+            }
+        };
+        Apply(configuration, CreateDocument(endpoint));
+        using var client = factory.CreateClient();
+        foreach (var content in new HttpContent?[]
+                 {
+                     null,
+                     new ByteArrayContent([]),
+                     new StringContent(string.Empty, Encoding.Unicode, "application/json")
+                 })
+        {
+            using var request = new HttpRequestMessage(new HttpMethod(method), endpoint.Path) { Content = content };
+            using var response = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+            Assert.Equal("preserved", Assert.Single(response.Headers.GetValues("X-Configured")));
+            Assert.Equal("accepted without a request body", await response.Content.ReadAsStringAsync());
+        }
+    }
+
+    [Theory]
+    [InlineData("POST", "application/json", "{\"unexpected\":\"business fields are ignored\"}")]
+    [InlineData("PUT", "application/problem+json", "null")]
+    [InlineData("PATCH", "Application/JSON", "[1,true,\"text\"]")]
+    [InlineData("POST", "application/json", "\"\"")]
+    [InlineData("POST", "text/plain", "{not-json")]
+    [InlineData("PUT", null, "raw bytes")]
+    public async Task ValidPayloads_PreserveExactConfiguredStatusHeadersAndBody(
+        string method, string? contentType, string body)
+    {
+        await using var factory = new UnsecuredApplicationFactory();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        var endpoint = CreateEndpoint([method], "/payload", "unchanged") with
+        {
+            Response = new MockResponseDefinition
+            {
+                StatusCode = 422,
+                Headers = new() { ["X-Configured"] = ["one", "two"] },
+                ContentType = "text/plain",
+                Body = "unchanged"
+            }
+        };
+        Apply(configuration, CreateDocument(endpoint));
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(new HttpMethod(method), endpoint.Path)
+        {
+            Content = new ByteArrayContent(Encoding.UTF8.GetBytes(body))
+        };
+        if (contentType is not null)
+        {
+            request.Content.Headers.TryAddWithoutValidation("Content-Type", contentType);
+        }
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal(["one", "two"], response.Headers.GetValues("X-Configured"));
+        Assert.Equal("unchanged", await response.Content.ReadAsStringAsync());
+    }
+
+    [Theory]
+    [InlineData(false, 0, 200)]
+    [InlineData(true, 0, 200)]
+    [InlineData(false, 1048576, 200)]
+    [InlineData(true, 1048576, 200)]
+    [InlineData(false, 1048577, 413)]
+    [InlineData(true, 1048577, 413)]
+    public async Task PayloadSizeLimit_IsInclusiveAndEnforcedWithoutContentLength(
+        bool unknownLength, int length, int expectedStatus)
+    {
+        await using var factory = new UnsecuredApplicationFactory();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        Apply(configuration, CreateDocument(CreateEndpoint(["POST"], "/payload", "accepted")));
+        using var client = factory.CreateClient();
+        using var content = unknownLength
+            ? (HttpContent)new StreamContent(new NonSeekableReadStream(new byte[length]))
+            : new ByteArrayContent(new byte[length]);
+
+        using var response = await client.PostAsync("/payload", content);
+
+        Assert.Equal(expectedStatus, (int)response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UnknownLengthPayloadOverLimit_ReturnsPayloadTooLargeAndRecordsActualStatus()
+    {
+        var configuration = new ConfigurationState();
+        var statistics = new RequestStatisticsCollector();
+        Apply(configuration, CreateDocument(CreateEndpoint(["POST"], "/payload", "configured")));
+        var context = new DefaultHttpContext();
+        context.Request.Method = "POST";
+        context.Request.Path = "/payload";
+        using var requestBody = new NonSeekableReadStream(new byte[1048577]);
+        using var responseBody = new MemoryStream();
+        context.Request.Body = requestBody;
+        context.Response.Body = responseBody;
+        Assert.Null(context.Request.ContentLength);
+
+        await MockRequestDispatcher.DispatchAsync(context, configuration, statistics);
+
+        Assert.Equal(413, context.Response.StatusCode);
+        Assert.Equal("application/problem+json", context.Response.ContentType);
+        var snapshot = statistics.GetSnapshot();
+        Assert.Equal(1, snapshot.ClientErrorResponses);
+        Assert.Equal(0, snapshot.FailedWrites);
+        Assert.Equal(413, Assert.Single(snapshot.RecentRequests).StatusCode);
+        Assert.Equal(responseBody.Length, snapshot.ResponseBytes);
+    }
+
+    [Fact]
+    public async Task MalformedPayload_DoesNotAbortOrConsumeRateLimit()
+    {
+        await using var factory = new UnsecuredApplicationFactory();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        var endpoint = CreateEndpoint(["POST"], "/payload", "") with
+        {
+            Response = new MockResponseDefinition
+            {
+                StatusCode = 429,
+                Headers = [],
+                ContentType = "text/plain",
+                Body = "limited",
+                RateLimit = new MockRateLimitDefinition
+                {
+                    RequestLimit = 1,
+                    WindowSeconds = 60,
+                    SuccessResponse = new MockSuccessResponseDefinition { StatusCode = 200, Headers = [], ContentType = "text/plain", Body = "accepted" }
+                }
+            }
+        };
+        var aborted = CreateEndpoint(["PATCH"], "/abort-payload", "") with
+        {
+            Response = new MockResponseDefinition { Behavior = MockResponseBehavior.AbortConnection, Headers = [], Body = "" }
+        };
+        Apply(configuration, CreateDocument(endpoint, aborted));
+        using var client = factory.CreateClient();
+
+        using var malformed = await client.PostAsync(endpoint.Path,
+            new StringContent("{", Encoding.UTF8, "application/json"));
+        using var malformedAbort = await client.PatchAsync(aborted.Path,
+            new StringContent("{", Encoding.UTF8, "application/json"));
+        using var valid = await client.PostAsync(endpoint.Path, new StringContent("{}"));
+        using var limited = await client.PostAsync(endpoint.Path, new StringContent("{}"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, malformed.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, malformedAbort.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, valid.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.Equal(0, factory.Services.GetRequiredService<RequestStatisticsCollector>().GetSnapshot().AbortedConnections);
+    }
+
+    [Theory]
+    [InlineData("application/json; charset=utf-16", "{}", 415)]
+    [InlineData("application/json, text/plain", "{}", 400)]
+    [InlineData("invalid media type", "{}", 400)]
+    [InlineData("application/json", "{\"value\":1,}", 400)]
+    [InlineData("application/json", "/*comment*/{}", 400)]
+    [InlineData("application/json", "NaN", 400)]
+    [InlineData("application/json; charset=\"UTF-8\"", "false", 200)]
+    [InlineData("application/xml", "<not-validated", 200)]
+    public async Task PayloadValidation_UsesDeclaredFormatWithoutBusinessValidation(
+        string contentType, string body, int expectedStatus)
+    {
+        await using var factory = new UnsecuredApplicationFactory();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        Apply(configuration, CreateDocument(CreateEndpoint(["POST"], "/payload", "configured")));
+        using var client = factory.CreateClient();
+        using var content = new ByteArrayContent(Encoding.UTF8.GetBytes(body));
+        content.Headers.TryAddWithoutValidation("Content-Type", contentType);
+
+        using var response = await client.PostAsync("/payload", content);
+
+        Assert.Equal(expectedStatus, (int)response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PayloadValidation_RejectsInvalidUtf8AndExcessiveJsonNesting()
+    {
+        await using var factory = new UnsecuredApplicationFactory();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        Apply(configuration, CreateDocument(CreateEndpoint(["POST"], "/payload", "configured")));
+        using var client = factory.CreateClient();
+        foreach (var body in new[] { new byte[] { 0x22, 0xff, 0x22 }, Encoding.UTF8.GetBytes(new string('[', 65) + "0" + new string(']', 65)) })
+        {
+            using var content = new ByteArrayContent(body);
+            content.Headers.TryAddWithoutValidation("Content-Type", "application/json");
+            using var response = await client.PostAsync("/payload", content);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+    }
+
+    [Theory]
+    [InlineData("GET")]
+    [InlineData("HEAD")]
+    [InlineData("DELETE")]
+    [InlineData("OPTIONS")]
+    public async Task OtherMethods_DoNotRequirePayloads(string method)
+    {
+        await using var factory = new UnsecuredApplicationFactory();
+        var configuration = factory.Services.GetRequiredService<ConfigurationState>();
+        Apply(configuration, CreateDocument(CreateEndpoint([method], "/payload", "configured")));
+        using var client = factory.CreateClient();
+
+        using var response = await client.SendAsync(new HttpRequestMessage(new HttpMethod(method), "/payload"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CancelledPayloadRead_IsRecordedOnceWithoutRetainingBodyContent()
+    {
+        var configuration = new ConfigurationState();
+        var statistics = new RequestStatisticsCollector();
+        Apply(configuration, CreateDocument(CreateEndpoint(["POST"], "/payload", "configured")));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var context = new DefaultHttpContext();
+        context.Request.Method = "POST";
+        context.Request.Path = "/payload";
+        context.RequestAborted = cancellation.Token;
+        context.Request.Body = new ThrowingReadStream(new OperationCanceledException(cancellation.Token));
+        context.Response.Body = new MemoryStream();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            MockRequestDispatcher.DispatchAsync(context, configuration, statistics));
+
+        var snapshot = statistics.GetSnapshot();
+        Assert.Equal(1, snapshot.MatchedRequests);
+        Assert.Equal(1, snapshot.FailedWrites);
+        Assert.Null(Assert.Single(snapshot.RecentRequests).StatusCode);
+        Assert.Equal(0, snapshot.ResponseBytes);
+    }
+
+    [Fact]
+    public async Task IncompleteHttpPayload_ReturnsSafeBadRequestProblem()
+    {
+        var configuration = new ConfigurationState();
+        var statistics = new RequestStatisticsCollector();
+        Apply(configuration, CreateDocument(CreateEndpoint(["POST"], "/payload", "configured")));
+        var context = new DefaultHttpContext();
+        context.Request.Method = "POST";
+        context.Request.Path = "/payload";
+        context.Request.Body = new ThrowingReadStream(new BadHttpRequestException("Do not expose protocol internals."));
+        context.Response.Body = new MemoryStream();
+
+        await MockRequestDispatcher.DispatchAsync(context, configuration, statistics);
+
+        Assert.Equal(400, context.Response.StatusCode);
+        Assert.DoesNotContain("protocol internals", Encoding.UTF8.GetString(((MemoryStream)context.Response.Body).ToArray()));
+        Assert.Equal(1, statistics.GetSnapshot().ClientErrorResponses);
+    }
+
     [Fact]
     public async Task Root_ReturnsDashboardInsteadOfDispatcherResponse()
     {
@@ -553,5 +868,16 @@ public sealed class MockDispatcherTests
             ReadOnlyMemory<byte> buffer,
             CancellationToken cancellationToken = default) =>
             ValueTask.FromException(exception ?? new IOException("Simulated response write failure."));
+    }
+
+    private sealed class NonSeekableReadStream(byte[] body) : MemoryStream(body)
+    {
+        public override bool CanSeek => false;
+    }
+
+    private sealed class ThrowingReadStream(Exception exception) : MemoryStream
+    {
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            ValueTask.FromException<int>(exception);
     }
 }

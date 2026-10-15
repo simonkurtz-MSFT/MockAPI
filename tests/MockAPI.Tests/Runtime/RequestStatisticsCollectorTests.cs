@@ -180,6 +180,26 @@ public sealed class RequestStatisticsCollectorTests
     }
 
     [Fact]
+    public void RecordUnmatched_DoesNotReclassifyAMatchedLogicalRequest()
+    {
+        var collector = new RequestStatisticsCollector();
+        var endpointId = Guid.NewGuid();
+
+        collector.RecordMatched(endpointId, "GET", "/matched", 200, 1, "logical-request");
+        collector.RecordUnmatched("GET", "/missing", "logical-request");
+
+        var snapshot = collector.GetSnapshot();
+        Assert.Equal(1, snapshot.TotalRequests);
+        Assert.Equal(0, snapshot.UnmatchedRequests);
+        Assert.Equal(1, snapshot.MatchedRequests);
+        Assert.Equal(1, Assert.Single(snapshot.Endpoints).TotalRequests);
+        var request = Assert.Single(snapshot.RecentRequests);
+        Assert.Equal(endpointId, request.EndpointId);
+        Assert.Equal("/matched", request.Path);
+        Assert.Equal(1, request.TransportAttempts);
+    }
+
+    [Fact]
     public void RecordUnmatched_EvictsTheOldestLogicalRequestIdAtCapacity()
     {
         var collector = new RequestStatisticsCollector();

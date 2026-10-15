@@ -21,6 +21,7 @@ applyTo: "**/*.{cs,csproj,sln,props,targets}"
   dirty, return an explicit `autosave-failed` problem, and offer manual save retry without replaying the mutation.
   Serialize saves through the configured store and persist a superseding revision rather than overwriting it.
 - Keep request dispatch free of persistence and management concerns.
+- After authentication and exact route matching, allow optional request bodies on mock POST, PUT, and PATCH. Limit supplied payloads to 1 MiB and validate UTF-8 JSON syntax for non-empty JSON payloads, never business content. Return actual 400/413/415 problem responses before configured delays, aborts, or rate-limit selection; attribute them once to the matched endpoint without retaining request content. Other media types receive size checks only; reserved routes keep independent contracts.
 - Require the instance API key before the mock dispatcher by default; leave health probes public.
   Apply configured administrator credentials to Security Settings, but permit setup when administration is anonymous.
   Keep security persistence separate from endpoint configuration, activate only after a successful save,

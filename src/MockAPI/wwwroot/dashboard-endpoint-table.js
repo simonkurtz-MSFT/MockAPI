@@ -10,6 +10,7 @@ import {
 } from "./dashboard-core.js?v={{ASSET_VERSION}}";
 import { HTTP_STATUS_REASONS } from "./dashboard-endpoint-editor.js?v={{ASSET_VERSION}}";
 import {
+  bindDashboardTooltip,
   createDashboardDom,
   createDashboardEventScope,
   getDashboardElements,
@@ -258,7 +259,6 @@ export function createDashboardEndpointTable({
     const info = makeElement("button", "api-description-button", "i");
     info.type = "button";
     info.setAttribute("aria-label", label);
-    let suppressNextFocusPreview = false;
     const tooltip = makeElement("div", "api-description-tooltip");
     tooltip.id = id;
     tooltip.setAttribute("role", "tooltip");
@@ -268,40 +268,9 @@ export function createDashboardEndpointTable({
     if (detail) tooltip.append(makeElement("small", "api-description-detail", detail));
     tooltip.append(makeElement("small", null, "Click the information button to edit."));
     info.setAttribute("aria-describedby", tooltip.id);
-    function showDescription() {
-      const bounds = info.getBoundingClientRect();
-      tooltip.style.top = `${bounds.bottom}px`;
-      tooltip.style.maxHeight = "";
-      tooltip.showPopover();
-      const size = tooltip.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - bounds.bottom - 8;
-      const spaceAbove = bounds.top - 8;
-      const below = size.height <= spaceBelow || spaceBelow >= spaceAbove;
-      // Keep the preview on-screen without covering its own activation button.
-      tooltip.style.maxHeight = `${Math.max(0, Math.min(320, window.innerHeight / 2, below ? spaceBelow : spaceAbove))}px`;
-      tooltip.style.top = `${below ? bounds.bottom : bounds.top - tooltip.getBoundingClientRect().height}px`;
-      tooltip.style.left = `${Math.max(8, Math.min(bounds.right - size.width, window.innerWidth - size.width - 8))}px`;
-    }
-    rowEvents.listen(info, "mouseenter", showDescription);
-    rowEvents.listen(info, "focus", () => {
-      if (suppressNextFocusPreview) {
-        suppressNextFocusPreview = false;
-        tooltip.hidePopover();
-        return;
-      }
-      showDescription();
-    });
-    rowEvents.listen(info, "mouseleave", () => tooltip.hidePopover());
-    rowEvents.listen(info, "blur", () => {
-      if (!info.matches(":hover")) tooltip.hidePopover();
-    });
+    const preview = bindDashboardTooltip({ trigger: info, tooltip, events: rowEvents, onActivate });
     rowEvents.listen(document, "keydown", (event) => {
-      if (event.key === "Escape") tooltip.hidePopover();
-    });
-    rowEvents.listen(info, "click", () => {
-      tooltip.hidePopover();
-      suppressNextFocusPreview = true;
-      onActivate();
+      if (event.key === "Escape") preview.hide();
     });
     return { info, tooltip };
   }

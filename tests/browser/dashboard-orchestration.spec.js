@@ -170,7 +170,7 @@ test("keeps table selection and statistics scope by stable ID through live edits
   await page.locator("#statistics-endpoint-select").selectOption(endpoint.id);
   expect((await request.get(endpoint.path)).status()).toBe(200);
   await expect(row.locator("[data-endpoint-requests]")).toHaveText("1");
-  await expect(page.locator(".request-log-entry")).toContainText(endpoint.name);
+  await expect(page.locator(".request-log-entry")).toContainText(endpoint.path);
 
   const renamed = { ...endpoint, name: "Renamed live endpoint" };
   await importDocument(request, { ...emptyDocument, endpoints: [renamed, second] });
@@ -179,7 +179,7 @@ test("keeps table selection and statistics scope by stable ID through live edits
   await expect(page.locator("#selection-count")).toHaveText("1");
   await expect(page.locator("#statistics-endpoint-select")).toHaveValue(endpoint.id);
   await expect(page.locator("#statistics-chart-title")).toHaveText(`${renamed.name} attempt activity`);
-  await expect(page.locator(".request-log-entry")).toContainText(renamed.name);
+  await expect(page.locator(".request-log-entry")).not.toContainText(renamed.name);
 
   await importDocument(request, { ...emptyDocument, endpoints: [second] });
   await expect(row).toHaveCount(0);

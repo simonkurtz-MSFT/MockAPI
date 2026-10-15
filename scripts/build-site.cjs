@@ -14,8 +14,9 @@ const assets = {
   "sitemap.xml": "site/sitemap.xml",
   "brand-mark.svg": "src/MockAPI/wwwroot/brand-mark.svg",
   "dashboard.png": "docs/images/site-dashboard-overview.png",
-  "dashboard-endpoints.png": "docs/images/site-dashboard-endpoints.png",
-  "dashboard-request-log.png": "docs/images/site-dashboard-request-log.png",
+  "dashboard.webp": "docs/images/site-dashboard-overview.webp",
+  "dashboard-endpoints.webp": "docs/images/site-dashboard-endpoints.webp",
+  "dashboard-request-log.webp": "docs/images/site-dashboard-request-log.webp",
 };
 
 function readApplicationVersion() {

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http.Features;
+using System.Text.Json;
 using MockAPI.Configuration;
 
 namespace MockAPI.Runtime;
@@ -6,17 +7,20 @@ namespace MockAPI.Runtime;
 /// <summary>Dispatches non-reserved HTTP requests against one captured configuration snapshot.</summary>
 public static class MockRequestDispatcher
 {
-    /// <summary>Writes the configured exact-route response, aborts the connection, or returns <c>404</c>.</summary>
+    /// <summary>Validates optional request payloads, then writes the configured response, aborts the connection, or returns <c>404</c>.</summary>
     /// <param name="context">The current HTTP request and response context.</param>
     /// <param name="configuration">The atomic configuration state used for route lookup.</param>
     /// <param name="statistics">The process-local collector updated for the dispatch outcome.</param>
     /// <returns>A task that completes after response bytes are written or the connection is aborted.</returns>
     /// <remarks>
     /// <c>HEAD</c> requests receive configured status and headers without response body bytes.
+    /// Matched <c>POST</c>, <c>PUT</c>, and <c>PATCH</c> requests may omit their payloads. Non-empty
+    /// payloads are bounded and must contain valid UTF-8 JSON syntax for JSON media types. Validation
+    /// errors override configured behavior, without validating business fields or values or retaining request content.
     /// Query strings do not participate in matching. Failed attempts retain the selected response status,
     /// or no status when failure occurs before response selection, including cancellation during the delay.
     /// </remarks>
-    /// <exception cref="OperationCanceledException">The request is aborted during the configured delay or while response bytes are being written.</exception>
+    /// <exception cref="OperationCanceledException">The request is aborted during payload reading, the configured delay, or response writing.</exception>
     /// <exception cref="IOException">The response body cannot be written.</exception>
     public static async Task DispatchAsync(
         HttpContext context,
@@ -37,6 +41,19 @@ public static class MockRequestDispatcher
         var responseBytes = 0L;
         try
         {
+            var problem = await MockRequestBodyValidator.ValidateAsync(context.Request);
+            if (problem is not null)
+            {
+                statusCode = problem.Status;
+                context.Response.StatusCode = problem.Status;
+                context.Response.ContentType = "application/problem+json";
+                var problemBytes = JsonSerializer.SerializeToUtf8Bytes(problem, MockRuntimeJsonContext.Default.MockRequestProblem);
+                await context.Response.Body.WriteAsync(problemBytes, context.RequestAborted);
+                responseBytes = problemBytes.Length;
+                outcome = RequestLogOutcome.Response;
+                return;
+            }
+
             if (endpoint.Delay > TimeSpan.Zero)
             {
                 await Task.Delay(endpoint.Delay, context.RequestAborted);

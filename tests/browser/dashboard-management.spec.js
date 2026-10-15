@@ -410,7 +410,13 @@ test("previews a built-in conflict and force-updates only reviewed endpoints", a
 
   await page.getByRole("button", { name: "Load examples" }).first().click();
   await expect(page.getByRole("heading", { name: "Built-in configuration conflicts" })).toBeVisible();
-  await expect(page.locator("#confirm-message")).toContainText("Discover the parks conflicts");
+  await expect(page.locator("#confirm-message")).toContainText("1 conflict found");
+  const conflictList = page.getByRole("list", { name: "Conflicting endpoints" });
+  await expect(conflictList.getByRole("listitem")).toHaveCount(1);
+  await expect(conflictList).toContainText("Different definition (same endpoint ID)");
+  await expect(conflictList).toContainText("Built-in");
+  await expect(conflictList).toContainText("Current configuration");
+  await expect(conflictList).toContainText("GET /ctp/parks");
   await expectNoUnreviewedAccessibilityViolations(page);
   await page.getByRole("button", { name: "Force update" }).click();
   await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(16);

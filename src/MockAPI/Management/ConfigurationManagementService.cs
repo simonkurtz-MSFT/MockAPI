@@ -174,9 +174,13 @@ public sealed class ConfigurationManagementService(
                 conflicts.Add(new BuiltInMergeConflict(
                     builtIn.Id,
                     builtIn.Name,
+                    builtIn.Path,
+                    builtIn.Methods,
                     "different",
                     sameId.Id,
-                    sameId.Name));
+                    sameId.Name,
+                    sameId.Path,
+                    sameId.Methods));
             }
 
             var routeCollisions = activeEndpoints.Where(active =>
@@ -191,9 +195,13 @@ public sealed class ConfigurationManagementService(
                 conflicts.Add(new BuiltInMergeConflict(
                     builtIn.Id,
                     builtIn.Name,
+                    builtIn.Path,
+                    builtIn.Methods,
                     "routeCollision",
                     collision.Id,
-                    collision.Name));
+                    collision.Name,
+                    collision.Path,
+                    collision.Methods));
             }
 
             if (sameId is null && routeCollisions.Length == 0)

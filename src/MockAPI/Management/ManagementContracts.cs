@@ -77,15 +77,23 @@ public sealed record ConfigurationSaveResponse(
 /// <summary>Describes a built-in endpoint difference or route collision.</summary>
 /// <param name="BuiltInEndpointId">The stable ID of the built-in endpoint.</param>
 /// <param name="BuiltInName">The built-in endpoint name.</param>
+/// <param name="BuiltInPath">The exact path configured by the built-in endpoint.</param>
+/// <param name="BuiltInMethods">The HTTP methods configured by the built-in endpoint.</param>
 /// <param name="Kind">The machine-readable conflict kind: <c>different</c> or <c>routeCollision</c>.</param>
 /// <param name="ExistingEndpointId">The stable ID of the conflicting active endpoint.</param>
 /// <param name="ExistingName">The conflicting active endpoint name.</param>
+/// <param name="ExistingPath">The exact path configured by the conflicting active endpoint.</param>
+/// <param name="ExistingMethods">The HTTP methods configured by the conflicting active endpoint.</param>
 public sealed record BuiltInMergeConflict(
     Guid BuiltInEndpointId,
     string BuiltInName,
+    string BuiltInPath,
+    IReadOnlyList<string> BuiltInMethods,
     string Kind,
     Guid ExistingEndpointId,
-    string ExistingName);
+    string ExistingName,
+    string ExistingPath,
+    IReadOnlyList<string> ExistingMethods);
 
 /// <summary>Reports a built-in merge application or conflict preview.</summary>
 /// <param name="Applied">Whether the operation created and activated a new revision.</param>

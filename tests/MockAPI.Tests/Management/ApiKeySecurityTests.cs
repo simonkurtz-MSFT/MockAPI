@@ -88,6 +88,10 @@ public sealed class ApiKeySecurityTests : IDisposable
         using var wrong = await publicClient.SendAsync(wrongRequest);
         using var validRequest = new HttpRequestMessage(new HttpMethod(method), "/protected");
         validRequest.Headers.Add("X-MockAPI-Key", created.Key);
+        if (method is "POST" or "PUT" or "PATCH")
+        {
+            validRequest.Content = new StringContent("{}");
+        }
         using var valid = await publicClient.SendAsync(validRequest);
 
         Assert.Equal(HttpStatusCode.Unauthorized, missing.StatusCode);
