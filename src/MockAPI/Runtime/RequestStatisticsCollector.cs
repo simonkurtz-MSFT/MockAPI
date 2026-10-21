@@ -38,6 +38,7 @@ public sealed class RequestStatisticsCollector
     private long _version;
 
     internal long Version => Interlocked.Read(ref _version);
+    internal DateTimeOffset UtcNow => _timeProvider.GetUtcNow();
 
     /// <summary>Initializes a request statistics collector.</summary>
     /// <param name="timeProvider">The UTC time source, or <see langword="null"/> to use <see cref="TimeProvider.System"/>.</param>
@@ -154,9 +155,11 @@ public sealed class RequestStatisticsCollector
 
     /// <summary>Captures aggregate, endpoint, and trailing 60-minute statistics without blocking recorders globally.</summary>
     /// <returns>An immutable, point-in-time view ordered by endpoint ID.</returns>
-    public RequestStatisticsSnapshot GetSnapshot()
+    public RequestStatisticsSnapshot GetSnapshot() => GetSnapshot(UtcNow);
+
+    // The management cache uses the same instant for its minute key and rolling buckets.
+    internal RequestStatisticsSnapshot GetSnapshot(DateTimeOffset now)
     {
-        var now = _timeProvider.GetUtcNow();
         var endpoints = _endpoints
             .Select(pair => pair.Value.GetSnapshot(pair.Key, now))
             .OrderBy(snapshot => snapshot.EndpointId)

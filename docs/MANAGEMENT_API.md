@@ -113,6 +113,21 @@ at minute boundaries to advance the rolling window. Idle streams send keepalive 
 approximately every 16 seconds. Disable proxy buffering and allow long-lived SSE responses.
 The existing `/statistics/events` route remains available with its original behavior.
 
+All three statistics delivery paths share one bounded management-side cache keyed by the
+collector's version and UTC minute: GET reuses the immutable snapshot, while both SSE routes
+reuse its compact JSON. GET retains its indented JSON formatting and serializer options;
+the standalone statistics stream still transmits every two seconds even when unchanged.
+Recording, retries, and successful resets invalidate the version; an idle minute rollover
+advances both aggregate and endpoint histories. The cache reads the version before capturing
+counters so a recording or reset completing during capture invalidates the next read.
+Snapshots retain the collector's existing concurrent, non-transactional read semantics.
+
+Only management readers acquire the cache lock. Recording never waits for serialization,
+and no per-client payload cache or replay queue is added. One snapshot and, when requested,
+one compact string are retained, replacing the previous dashboard-only string cache.
+SSE framing writes its prefix, compact JSON, and terminator separately, avoiding a second
+full-payload string without changing the event bytes.
+
 Reconnects receive current state; there is no replay queue or `Last-Event-ID` history. The
 dashboard reloads endpoint definitions only when their revision changes or after reconnecting
 (a restart can reuse a numeric revision). Saves at the same revision update the Save button
@@ -140,6 +155,54 @@ The request log offers **Collapse all buckets**, switching to **Expand all bucke
 current buckets are collapsed. New minute buckets start expanded; additional requests in an
 existing bucket retain its state. Table columns use stable widths and reserved scrollbar space,
 with long values wrapping and horizontal scrolling available on narrow panels.
+
+### Statistics Allocation Diagnostic
+
+The opt-in [statistics delivery diagnostic](../tests/MockAPI.Tests/Management/StatisticsDeliveryDiagnostics.cs)
+measures the actual GET and SSE handlers against synchronous non-retaining sinks, plus an
+uncached snapshot/serialization reference. Normal regression tests separately pin exact GET
+and SSE bytes, cache invalidation, refreshes, concurrent recording/readers/resets, cancellation,
+and warmed allocation bounds.
+
+On 2026-10-21, local Windows ARM64 managed Release runs on .NET 10.0.13 used **256 tracked
+endpoints**, **100 recent summaries**, and **2,811,113 compact JSON characters**. Tiered
+compilation was disabled. Each allocation result below is the median of five samples of ten
+calls after ten warmups; fixture creation is outside measurement.
+
+| Idle controlling path                  | Allocated bytes/call before | Allocated bytes/call after |
+| -------------------------------------- | --------------------------- | -------------------------- |
+| GET statistics, indented serialization | 2,301,002                   | 1,265,032                  |
+| Standalone SSE, one statistics event   | 9,650,524                   | 1,317,408                  |
+| Dashboard SSE, initial two events      | 8,794,341                   | 1,454,212                  |
+| Dashboard compact JSON cache lookup    | 0                           | 0                          |
+
+GET still allocates serializer traversal state; it does not cache a second indented payload.
+The shared cache retains approximately 1 MiB of snapshot data at this fixture size in addition
+to the compact string. Changed versions still require snapshot capture and serialization;
+no improvement is claimed for continuously changing, single-consumer traffic. Array-pool and
+GC behavior affected individual samples, especially full serialization and framing, so these
+figures describe this local experiment, not HTTP throughput, network latency, container memory,
+or cross-environment guarantees. The diagnostic also reports elapsed-time samples.
+
+Repeat against the same fixture, runtime, build configuration, and environment for both revisions:
+
+```powershell
+pwsh -NoProfile -Command {
+    $env:MOCKAPI_STATISTICS_DIAGNOSTICS = '1'
+    $env:DOTNET_TieredCompilation = '0'
+    dotnet test .\tests\MockAPI.Tests\MockAPI.Tests.csproj --no-restore `
+        --configuration Release --filter "FullyQualifiedName~StatisticsDeliveryDiagnostics" `
+        --logger "console;verbosity=detailed"
+    exit $LASTEXITCODE
+}
+```
+
+```bash
+MOCKAPI_STATISTICS_DIAGNOSTICS=1 DOTNET_TieredCompilation=0 \
+  dotnet test ./tests/MockAPI.Tests/MockAPI.Tests.csproj --no-restore \
+    --configuration Release --filter "FullyQualifiedName~StatisticsDeliveryDiagnostics" \
+    --logger "console;verbosity=detailed"
+```
 
 ## Configuration Read Efficiency
 

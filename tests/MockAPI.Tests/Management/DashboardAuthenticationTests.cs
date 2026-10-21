@@ -14,12 +14,13 @@ public sealed class DashboardAuthenticationTests
     private const string Username = "operator";
     private const string Password = "test-password";
 
-    [Fact]
-    public async Task DashboardEvents_AuthenticateBeforeOpeningStream()
+    [Theory]
+    [InlineData("/__mockapi/api/dashboard/events")]
+    [InlineData("/__mockapi/api/statistics/events")]
+    public async Task EventStreams_AuthenticateBeforeOpeningStream(string path)
     {
         await using var factory = CreateFactory();
         using var client = factory.CreateClient();
-        const string path = "/__mockapi/api/dashboard/events";
         using var anonymous = await client.GetAsync(path);
         Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
 
@@ -54,6 +55,7 @@ public sealed class DashboardAuthenticationTests
     [InlineData("/dashboard-test-request.js")]
     [InlineData("/dashboard-tutorial.js")]
     [InlineData("/__mockapi/api/configuration")]
+    [InlineData("/__mockapi/api/statistics")]
     [InlineData("/__mockapi/api/configuration/export/openapi?download=false")]
     [InlineData("/__mockapi/openapi/v1.json")]
     [InlineData("/__mockapi/swagger/index.html")]

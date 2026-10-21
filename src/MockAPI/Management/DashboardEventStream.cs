@@ -5,17 +5,35 @@ using MockAPI.Runtime;
 namespace MockAPI.Management;
 
 /// <summary>Streams configuration invalidations and coalesced statistics without per-client event queues.</summary>
-public sealed class DashboardEventStream(
-    ConfigurationState configuration,
-    RequestStatisticsCollector statistics,
-    TimeProvider? timeProvider = null)
+public sealed class DashboardEventStream
 {
     private static readonly ManagementJsonContext JsonContext = new(
         new JsonSerializerOptions(ManagementJsonContext.Default.Options) { WriteIndented = false });
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-    private readonly object _cacheGate = new();
-    private (long Version, long Minute) _statisticsKey = (-1, -1);
-    private string _statisticsJson = string.Empty;
+    private readonly ConfigurationState _configuration;
+    private readonly StatisticsSnapshotCache _statistics;
+    private readonly TimeProvider _timeProvider;
+
+    /// <summary>Initializes a dashboard stream with a bounded statistics cache shared by its connections.</summary>
+    /// <param name="configuration">The configuration source for invalidation events.</param>
+    /// <param name="statistics">The collector whose UTC clock determines statistics minute rollover.</param>
+    /// <param name="timeProvider">The stream timer and keepalive clock, or <see langword="null"/> for the system clock.</param>
+    public DashboardEventStream(
+        ConfigurationState configuration,
+        RequestStatisticsCollector statistics,
+        TimeProvider? timeProvider = null)
+        : this(configuration, new StatisticsSnapshotCache(statistics), timeProvider)
+    {
+    }
+
+    internal DashboardEventStream(
+        ConfigurationState configuration,
+        StatisticsSnapshotCache statistics,
+        TimeProvider? timeProvider = null)
+    {
+        _configuration = configuration;
+        _statistics = statistics;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     /// <summary>Writes initial state, immediate configuration changes, and at most one statistics update every two seconds.</summary>
     /// <param name="context">The authenticated management request; disconnecting cancels all stream work.</param>
@@ -36,12 +54,12 @@ public sealed class DashboardEventStream(
         {
             while (!cancellation.IsCancellationRequested)
             {
-                var current = configuration.Current;
+                var current = _configuration.Current;
                 var wrote = false;
                 if (!ReferenceEquals(observed, current))
                 {
                     var status = ConfigurationStatusResponse.FromSnapshot(current);
-                    await WriteEventAsync(context, "configuration", JsonSerializer.Serialize(status, JsonContext.ConfigurationStatusResponse));
+                    await ManagementEventWriter.WriteAsync(context, "configuration", JsonSerializer.Serialize(status, JsonContext.ConfigurationStatusResponse));
                     observed = current;
                     wrote = true;
                 }
@@ -52,7 +70,7 @@ public sealed class DashboardEventStream(
                     var json = GetStatisticsJson();
                     if (!ReferenceEquals(sentStatistics, json))
                     {
-                        await WriteEventAsync(context, "statistics", json);
+                        await ManagementEventWriter.WriteAsync(context, "statistics", json);
                         sentStatistics = json;
                         wrote = true;
                     }
@@ -70,7 +88,7 @@ public sealed class DashboardEventStream(
                     lastWrite = _timeProvider.GetUtcNow();
                 }
 
-                await Task.WhenAny(configuration.WaitForChangeAsync(observed), tick);
+                await Task.WhenAny(_configuration.WaitForChangeAsync(observed), tick);
             }
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
@@ -79,20 +97,5 @@ public sealed class DashboardEventStream(
         }
     }
 
-    internal string GetStatisticsJson()
-    {
-        lock (_cacheGate)
-        {
-            var key = (statistics.Version, _timeProvider.GetUtcNow().ToUnixTimeSeconds() / 60);
-            if (_statisticsKey != key)
-            {
-                _statisticsJson = JsonSerializer.Serialize(statistics.GetSnapshot(), JsonContext.RequestStatisticsSnapshot);
-                _statisticsKey = key;
-            }
-            return _statisticsJson;
-        }
-    }
-
-    private static Task WriteEventAsync(HttpContext context, string name, string json) =>
-        context.Response.WriteAsync($"event: {name}\ndata: {json}\n\n", context.RequestAborted);
+    internal string GetStatisticsJson() => _statistics.GetCompactJson();
 }

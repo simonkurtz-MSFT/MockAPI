@@ -16,8 +16,6 @@ public static class ManagementApiEndpoints
     private const string BasePath = "/__mockapi/api";
     private const string ProblemBase = "https://mockapi.local/problems/";
     private const string AutoSaveDescription = " Changes activate immediately and are saved automatically. A 500 autosave-failed problem means the change is active but unsaved; retry persistence with configuration/save, not the mutation.";
-    private static readonly ManagementJsonContext CompactJsonContext = new(
-        new JsonSerializerOptions(ManagementJsonContext.Default.Options) { WriteIndented = false });
 
     /// <summary>Maps all management configuration, endpoint, and statistics routes under <c>/__mockapi/api</c>.</summary>
     /// <param name="app">The application receiving the routes.</param>
@@ -42,8 +40,9 @@ public static class ManagementApiEndpoints
 
         MapConfigurationEndpoints(group, service, configuration);
         MapEndpointEndpoints(group, service, configuration);
-        MapStatisticsEndpoints(group, statistics);
-        var dashboardEvents = new DashboardEventStream(app.Services.GetRequiredService<ConfigurationState>(), statistics);
+        var statisticsCache = new StatisticsSnapshotCache(statistics);
+        MapStatisticsEndpoints(group, statistics, statisticsCache);
+        var dashboardEvents = new DashboardEventStream(app.Services.GetRequiredService<ConfigurationState>(), statisticsCache);
         group.MapGet("/dashboard/events", (HttpContext context, CancellationToken _) => dashboardEvents.WriteAsync(context))
             .WithName("StreamDashboardEvents")
             .WithSummary("Stream configuration changes and live statistics")
@@ -241,14 +240,17 @@ public static class ManagementApiEndpoints
                 StatusCodes.Status500InternalServerError);
     }
 
-    private static void MapStatisticsEndpoints(RouteGroupBuilder group, RequestStatisticsCollector statistics)
+    private static void MapStatisticsEndpoints(
+        RouteGroupBuilder group,
+        RequestStatisticsCollector statistics,
+        StatisticsSnapshotCache statisticsCache)
     {
-        group.MapGet("/statistics", (HttpContext context, CancellationToken _) => WriteStatisticsAsync(context, statistics))
+        group.MapGet("/statistics", (HttpContext context, CancellationToken _) => WriteStatisticsAsync(context, statisticsCache))
             .WithName("GetStatistics")
             .WithSummary("Get aggregate and per-endpoint request statistics")
             .Produces<RequestStatisticsSnapshot>(StatusCodes.Status200OK, "application/json");
 
-        group.MapGet("/statistics/events", (HttpContext context, CancellationToken _) => StreamStatisticsAsync(context, statistics))
+        group.MapGet("/statistics/events", (HttpContext context, CancellationToken _) => StreamStatisticsAsync(context, statisticsCache))
             .WithName("StreamStatisticsEvents")
             .WithSummary("Stream request statistics as server-sent events")
             .Produces<string>(StatusCodes.Status200OK, "text/event-stream");
@@ -608,7 +610,7 @@ public static class ManagementApiEndpoints
         }
     }
 
-    private static Task WriteStatisticsAsync(HttpContext context, RequestStatisticsCollector statistics) =>
+    internal static Task WriteStatisticsAsync(HttpContext context, StatisticsSnapshotCache statistics) =>
         WriteJsonAsync(
             context,
             StatusCodes.Status200OK,
@@ -617,24 +619,26 @@ public static class ManagementApiEndpoints
 
     internal static async Task StreamStatisticsAsync(
         HttpContext context,
-        RequestStatisticsCollector statistics)
+        StatisticsSnapshotCache statistics)
     {
         context.Response.StatusCode = StatusCodes.Status200OK;
         context.Response.ContentType = "text/event-stream";
         context.Response.Headers.CacheControl = "no-cache";
         context.Response.Headers.Connection = "keep-alive";
 
-        while (!context.RequestAborted.IsCancellationRequested)
+        try
         {
-            var json = JsonSerializer.Serialize(
-                statistics.GetSnapshot(),
-                CompactJsonContext.RequestStatisticsSnapshot);
-            await context.Response.WriteAsync("event: statistics\ndata: ", context.RequestAborted);
-            await context.Response.WriteAsync(json, context.RequestAborted);
-            await context.Response.WriteAsync("\n\n", context.RequestAborted);
-            await context.Response.Body.FlushAsync(context.RequestAborted);
-            await Task.Delay(TimeSpan.FromSeconds(2), context.RequestAborted)
-                .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            while (!context.RequestAborted.IsCancellationRequested)
+            {
+                await ManagementEventWriter.WriteAsync(context, "statistics", statistics.GetCompactJson());
+                await context.Response.Body.FlushAsync(context.RequestAborted);
+                await Task.Delay(TimeSpan.FromSeconds(2), context.RequestAborted)
+                    .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            }
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            // A disconnect during framing or flushing is as normal as cancellation between events.
         }
     }
 

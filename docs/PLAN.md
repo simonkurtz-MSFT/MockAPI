@@ -396,6 +396,10 @@ The UI must be keyboard usable and responsive, with WCAG 2.2 AA as the design an
   status, including rate-limit success responses. Intentional connection aborts remain a distinct outcome.
 - Attribute attempts by stable endpoint ID, not path, so edits do not corrupt identity.
 - Use atomic counters for totals and a bounded ring buffer of 60 one-minute buckets, retaining 60 minutes of recent rate data.
+- Share one immutable statistics snapshot and lazy compact SSE serialization across management
+  delivery paths while the collector version and UTC minute are unchanged. Keep cache locks off
+  recorders, retain non-transactional concurrent snapshot semantics, preserve indented GET JSON,
+  and keep dashboard coalescing distinct from the standalone stream's two-second refresh.
 - Retain at most 100 newest-first request summaries containing only timestamp, method, normalized path, stable endpoint ID, outcome, status, and response byte count.
 - Do not retain request or response bodies, authorization headers, cookies, or query values.
 - Treat statistics as process-local and reset them on restart in the initial release.
