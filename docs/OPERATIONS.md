@@ -25,6 +25,27 @@ connection aborts, rate limiting, or mock statistics. Administrative credentials
 4. Supply `X-MockAPI-Key` on external mock calls. Dashboard tests automatically use the key held in memory.
    After a reload, enter the existing key in Settings or generate a replacement.
 
+For fully automatic deployment, supply `MockApi__ApiKey` through a container secret instead of generating a
+key in the dashboard. Use a cryptographically random value containing 32-256 ASCII letters, digits, hyphens,
+or underscores (for example, 32 random bytes encoded as unpadded Base64url). Keys are case-sensitive.
+Invalid non-empty values fail startup without including the value in the error.
+
+On first startup, if the security file or blob does not exist, MockAPI persists the supplied key's SHA-256
+hash and enables protection before accepting requests, even when `MockApi__RequireApiKey=false`.
+Persistence failure fails startup; the key is never activated without a successful save.
+Existing security settings always take precedence: changing the container value does not replace a saved
+key, undo rotation, or re-enable disabled protection. Malformed or inaccessible security settings fail startup
+rather than being replaced. An absent or empty deployment key preserves the existing dashboard setup flow.
+If the security document is lost while the deployment key remains configured, the next startup seeds it again.
+Retain the security document and coordinate any later rotation with callers.
+
+The [Bicep entry point](../infra/main.bicep) accepts the optional secure `mockApiKey` parameter.
+The [Container Apps module](../infra/resources.bicep) stores it as a Container Apps secret and references that
+secret from `MockApi__ApiKey`; it never emits the value in deployment outputs. An external IaC deployment,
+such as APIM Samples, can pass its shared secret into this parameter and configure its caller to send the same
+value in `X-MockAPI-Key`. This requires no dashboard interaction. APIM policy and Named Value provisioning
+remain the responsibility of the calling deployment.
+
 Settings separates instance-wide **Request protection** from the memory-only **Dashboard test key**.
 Changing the **Require X-MockAPI-Key on mock requests** checkbox automatically saves the protection setting
 on the server for all callers, including after a restart. Disabling protection still requires confirmation;
@@ -75,7 +96,8 @@ the test blade open when it dismisses a visible popover. Tapping an icon also op
 The hash and enforcement setting are saved in `<ConfigurationPath>.security.json`, or in a sibling
 `<configuration-blob-name>.security.json` when Blob persistence is configured. Retain this document with the
 configuration volume or private Blob container. Endpoint import/export/save never changes it. Losing this
-document restores the fail-closed default; generate a replacement key as an administrator.
+document restores the fail-closed default unless a deployment key seeds it again; otherwise generate a
+replacement key as an administrator.
 
 For a deliberately unauthenticated local fixture, set `MockApi__RequireApiKey=false` before the first security
 document is saved. Persisted security settings take precedence over this bootstrap setting. Operators can also
@@ -116,7 +138,7 @@ text in light and dark themes. `DROP` uses a neutral badge for connection aborts
 uses system highlight colors. The displayed code remains readable without relying on color alone.
 
 Path appears immediately after the selection checkbox, before the information button and operation
-name. It omits the API group prefix: `/ctp/parks` appears as `/parks` under `ctp/`, and `/ctp` appears
+name. It omits the API group prefix: `/inventory/items` appears as `/items` under `inventory/`, and `/inventory` appears
 as `/`. Hovering the path shows its full configured value. Editing, filtering, exports, and endpoint
 tests continue to use the full path; the shorter display does not change routing.
 
@@ -160,9 +182,17 @@ AZURE_CUSTOM_DOMAIN=
 AZURE_CUSTOM_DOMAIN_VALIDATION_METHOD=CNAME
 AZURE_DASHBOARD_USERNAME=
 AZURE_DASHBOARD_PASSWORD=
+AZURE_MOCKAPI_KEY=
 ```
 
 Set both dashboard values to enable Basic authentication, or leave both empty to deploy the dashboard and management API without authentication. The password must contain at least 8 characters. `start.ps1` derives the PBKDF2-SHA256 password hash locally and sends only the username and hash to azd; plaintext is confined to the ignored `.env` or process environment. Partial credentials fail preflight.
+
+Optionally set `AZURE_MOCKAPI_KEY` in the ignored `.env` or process environment to seed mock authorization
+automatically. Both developer CLIs validate and synchronize it to azd, which passes it to the secure
+`mockApiKey` Bicep parameter. The deployment key is retained in local azd environment state and as a Container
+Apps secret, while MockAPI's separate security document contains only its hash. Protect `.env` and `.azure`
+as secret-bearing local state. Leaving the value blank does not disable protection or erase a saved key.
+See [Mock API keys](#mock-api-keys) for the initial-setup-only precedence and rotation behavior.
 
 Run `./start.ps1 -Action azure-setup -InstallMissing` to install or verify Azure Developer CLI 1.27.1 or newer and Azure CLI through WinGet. This action does not authenticate or configure an environment. Then run `./start.ps1 -Action azure-check`; it verifies the cached login status, starts interactive login when needed, synchronizes the named azd environment, parses the Docker service, and builds Bicep locally. The local `check` and `setup` actions remain independent of Azure tooling.
 

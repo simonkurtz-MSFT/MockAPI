@@ -153,66 +153,270 @@ test("shows all operations with relative paths and sorts within alphabetical API
   expect(Math.abs(regionBounds.y - headerBounds.y)).toBeLessThanOrEqual(1);
 });
 
+test("@smoke selects and clears one API without changing other API selections", async ({ page, request }) => {
+  const endpoints = ["alpha", "zeta"].flatMap((api, groupIndex) =>
+    ["GET", "POST"].map((method, index) => ({
+      id: `00000000-0000-4000-8000-${String(groupIndex * 2 + index + 1).padStart(12, "0")}`,
+      name: `${api} ${method}`,
+      enabled: true,
+      methods: [method],
+      path: `/${api}/operation`,
+      response: { statusCode: 200, headers: {}, contentType: "text/plain", body: "ok" },
+    }))
+  );
+  await importDocument(request, { ...emptyDocument, endpoints });
+  const alpha = page.getByRole("checkbox", { name: "Select all matching endpoints in alpha", exact: true });
+  const zeta = page.getByRole("checkbox", { name: "Select all matching endpoints in zeta", exact: true });
+  const selectAll = page.locator("#select-all-endpoints");
+  const count = page.locator("#selection-count");
+  const configuration = await request.get("/__mockapi/api/configuration");
+
+  await expect(alpha).not.toBeChecked();
+  await expect(zeta).not.toBeChecked();
+  await page.getByRole("checkbox", { name: "Select zeta GET", exact: true }).check();
+  await alpha.focus();
+  await page.keyboard.press("Space");
+  await expect(alpha).toBeChecked();
+  await expect(alpha).toBeFocused();
+  await expect(zeta).toBeChecked({ indeterminate: true });
+  await expect(selectAll).toBeChecked({ indeterminate: true });
+  await expect(count).toHaveText("3");
+
+  await page.getByRole("checkbox", { name: "Select alpha GET", exact: true }).uncheck();
+  await expect(alpha).toBeChecked({ indeterminate: true });
+  await alpha.focus();
+  await page.keyboard.press("Space");
+  await expect(alpha).toBeChecked();
+  await page.keyboard.press("Space");
+  await expect(alpha).not.toBeChecked();
+  await expect(count).toHaveText("1");
+  await expect(page.getByRole("checkbox", { name: "Select zeta GET", exact: true })).toBeChecked();
+
+  await page.getByRole("button", { name: "Collapse alpha", exact: true }).click();
+  await alpha.check();
+  await expect(page.locator(".endpoint-row")).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Expand alpha", exact: true })).toBeVisible();
+  await expect(count).toHaveText("3");
+  await selectAll.check();
+  await expect(alpha).toBeChecked();
+  await expect(zeta).toBeChecked();
+  await expect(count).toHaveText("4");
+  await selectAll.uncheck();
+  await expect(alpha).not.toBeChecked();
+  await expect(zeta).not.toBeChecked();
+  await expect(count).toHaveText("0");
+
+  await zeta.check();
+  await expect(count).toHaveText("2");
+  const afterSelection = await request.get("/__mockapi/api/configuration");
+  expect(await afterSelection.json()).toEqual(await configuration.json());
+  await expectNoUnreviewedAccessibilityViolations(page, ".workspace");
+  await page.locator("#bulk-disable").click();
+  await expect(page.getByText("Disabled 2 endpoints", { exact: true })).toBeVisible();
+  const stored = await (await request.get("/__mockapi/api/endpoints")).json();
+  expect(stored.filter((endpoint) => endpoint.enabled).map((endpoint) => endpoint.id)).toEqual(
+    endpoints.filter((endpoint) => endpoint.path.startsWith("/alpha/")).map((endpoint) => endpoint.id)
+  );
+});
+
+test("per-API selection respects filters and preserves hidden selections", async ({ page, request }) => {
+  const endpoints = ["alpha", "zeta"].flatMap((api, groupIndex) =>
+    ["GET", "POST"].map((method, index) => ({
+      id: `00000000-0000-4000-8000-${String(groupIndex * 2 + index + 1).padStart(12, "0")}`,
+      name: `${api} ${method}`,
+      enabled: true,
+      methods: [method],
+      path: `/${api}/operation`,
+      response: { statusCode: 200, headers: {}, contentType: "text/plain", body: "ok" },
+    }))
+  );
+  await importDocument(request, { ...emptyDocument, endpoints });
+  const alpha = page.getByRole("checkbox", { name: "Select all matching endpoints in alpha", exact: true });
+  const zeta = page.getByRole("checkbox", { name: "Select all matching endpoints in zeta", exact: true });
+  const count = page.locator("#selection-count");
+  await page.getByRole("checkbox", { name: "Select alpha POST", exact: true }).check();
+  await page.getByRole("checkbox", { name: "Select zeta POST", exact: true }).check();
+  await page.locator("#filter-method").selectOption("GET");
+  await expect(alpha).not.toBeChecked();
+  await expect(zeta).not.toBeChecked();
+  await alpha.check();
+  await expect(count).toHaveText("3");
+  await expect(page.getByRole("checkbox", { name: "Select alpha GET", exact: true })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "Select zeta GET", exact: true })).not.toBeChecked();
+  await alpha.uncheck();
+  await expect(count).toHaveText("2");
+  await page.locator("#filter-method").selectOption("");
+  await expect(alpha).toBeChecked({ indeterminate: true });
+  await expect(zeta).toBeChecked({ indeterminate: true });
+  await expect(page.getByRole("checkbox", { name: "Select alpha POST", exact: true })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "Select zeta POST", exact: true })).toBeChecked();
+
+  await page.locator("#filter-text").fill("/alpha");
+  await alpha.check();
+  await expect(count).toHaveText("3");
+  await page.locator("#filter-text").fill("no matches");
+  await expect(page.locator(".endpoint-group-selection")).toHaveCount(0);
+  await expect(page.locator("#select-all-endpoints")).toBeDisabled();
+  await expect(count).toHaveText("3");
+  await page.locator("#filter-text").fill("");
+  await expect(alpha).toBeChecked();
+  await expect(zeta).toBeChecked({ indeterminate: true });
+  await expect(count).toHaveText("3");
+});
+
+test("@smoke collapses and expands all API groups without changing endpoint configuration or selection", async ({
+  page,
+  request,
+}) => {
+  const control = page.locator("#endpoint-toggle-groups");
+  await expect(control).toHaveText("Collapse all groups");
+  await expect(control).toBeDisabled();
+  await page.getByRole("button", { name: "Load examples" }).first().click();
+  const rows = page.locator("#endpoint-rows .endpoint-row");
+  const groups = page.locator(".endpoint-group-toggle");
+  await expect(rows).toHaveCount(41);
+  await expect(control).toBeEnabled();
+  await rows.first().locator(".selection-checkbox").check();
+  const configuration = await request.get("/__mockapi/api/configuration");
+
+  await control.focus();
+  await page.keyboard.press("Enter");
+  await expect(control).toHaveText("Expand all groups");
+  await expect(control).toBeFocused();
+  await expect(rows).toHaveCount(0);
+  await expect(groups).toHaveCount(3);
+  await expect(page.locator('.endpoint-group-toggle[aria-expanded="false"]')).toHaveCount(3);
+  await expect(page.locator("#endpoint-count")).toHaveText("41");
+  await expect(page.locator("#selection-count")).toHaveText("1");
+  await expectNoUnreviewedAccessibilityViolations(page, ".workspace");
+
+  await page.keyboard.press("Space");
+  await expect(rows).toHaveCount(41);
+  await expect(control).toHaveText("Collapse all groups");
+  await expect(control).toBeFocused();
+  await expect(rows.locator(".selection-checkbox:checked")).toHaveCount(1);
+  await page.getByRole("button", { name: "Collapse inventory", exact: true }).click();
+  await expect(control).toHaveText("Collapse all groups");
+  await expect(rows).toHaveCount(30);
+  await control.click();
+  await expect(rows).toHaveCount(0);
+  await expect(control).toHaveText("Expand all groups");
+  await page.getByRole("button", { name: "Expand aoai", exact: true }).click();
+  await expect(rows).toHaveCount(16);
+  await expect(control).toHaveText("Collapse all groups");
+  await control.click();
+  await expect(rows).toHaveCount(0);
+  await page.getByRole("button", { name: "Collapse endpoints", exact: true }).click();
+  await expect(control).toBeHidden();
+  await page.getByRole("button", { name: "Expand endpoints", exact: true }).click();
+  await expect(control).toHaveText("Expand all groups");
+  await control.click();
+  await expect(rows).toHaveCount(41);
+  await expect(rows.locator(".selection-checkbox:checked")).toHaveCount(1);
+
+  const current = await request.get("/__mockapi/api/configuration");
+  expect(current.headers().etag).toBe(configuration.headers().etag);
+  await expectNoUnreviewedAccessibilityViolations(page, ".workspace");
+});
+
+test("bulk API group collapse applies to filtered groups and preserves hidden group state", async ({ page }) => {
+  await page.getByRole("button", { name: "Load examples" }).first().click();
+  const control = page.locator("#endpoint-toggle-groups");
+  const filter = page.locator("#filter-text");
+  const rows = page.locator("#endpoint-rows .endpoint-row");
+  await expect(rows).toHaveCount(41);
+  await filter.fill("/inventory/");
+  await expect(rows).toHaveCount(11);
+  await control.click();
+  await expect(rows).toHaveCount(0);
+  await expect(control).toHaveText("Expand all groups");
+  await filter.fill("");
+  await expect(rows).toHaveCount(30);
+  await expect(control).toHaveText("Collapse all groups");
+  await expect(page.getByRole("button", { name: "Expand inventory", exact: true })).toBeVisible();
+  await filter.fill("no matching API group");
+  await expect(page.locator(".endpoint-group-toggle")).toHaveCount(0);
+  await expect(control).toBeDisabled();
+  await filter.fill("/shipping/");
+  await expect(rows).toHaveCount(14);
+  await expect(control).toBeEnabled();
+  await control.click();
+  await expect(rows).toHaveCount(0);
+  await filter.fill("");
+  await expect(rows).toHaveCount(16);
+  await expect(page.getByRole("button", { name: "Expand inventory", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Expand shipping", exact: true })).toBeVisible();
+  await control.click();
+  await expect(rows).toHaveCount(0);
+  await control.click();
+  await expect(rows).toHaveCount(41);
+});
+
 test("@smoke loads examples idempotently and filters by status", async ({ page, request }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(16);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(41);
+  await expect(page.locator(".endpoint-group-row")).toHaveCount(3);
+  await expect(page.getByRole("button", { name: "Collapse aoai", exact: true })).toContainText("16");
   await expect(page.getByRole("navigation", { name: "Endpoint pages" })).toHaveCount(0);
   const responseHeader = page.getByRole("columnheader", { name: "Response" });
   await responseHeader.getByRole("button").click();
   await responseHeader.getByRole("button").click();
   await expect(responseHeader).toHaveAttribute("aria-sort", "descending");
   await expect(page.locator("#endpoint-rows .endpoint-row").first().locator(".status-badge")).toHaveText("DROP");
+  await expect(page.locator("#endpoint-rows .endpoint-row").nth(16).locator(".status-badge")).toHaveText("503");
+  await expect(page.locator("#endpoint-rows .endpoint-row").nth(27).locator(".status-badge")).toHaveText("DROP");
   await page.getByRole("columnheader", { name: "Endpoint" }).getByRole("button").click();
-  const exampleGroup = page.getByRole("button", { name: "Collapse ctp" });
-  await expect(exampleGroup).toContainText("16");
+  const exampleGroup = page.getByRole("button", { name: "Collapse inventory" });
+  await expect(exampleGroup).toContainText("11");
   await page.locator("#endpoint-rows .endpoint-row").first().locator(".selection-checkbox").check();
   await expect(page.locator("#selection-count")).toHaveText("1");
   await exampleGroup.click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(0);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(30);
   await expect(page.locator("#selection-count")).toHaveText("1");
   await page.locator("#select-all-endpoints").check();
-  await expect(page.locator("#selection-count")).toHaveText("16");
-  await page.getByRole("button", { name: "Expand ctp" }).click();
-  await expect(page.locator("#endpoint-rows .selection-checkbox:checked")).toHaveCount(16);
+  await expect(page.locator("#selection-count")).toHaveText("41");
+  await page.getByRole("button", { name: "Expand inventory" }).click();
+  await expect(page.locator("#endpoint-rows .selection-checkbox:checked")).toHaveCount(41);
   await page.locator("#select-all-endpoints").uncheck();
   await page.getByRole("button", { name: "Load examples" }).first().click();
   await expect(page.getByText("No example changes were needed")).toBeVisible();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(16);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(41);
+  const completion = await request.post("/aoai/200/chat/completions", {
+    data: { messages: [{ role: "user", content: "How many Trail flasks are available?" }] },
+  });
+  expect(completion.status()).toBe(200);
+  expect((await completion.json()).choices[0].message.content).toContain("Trailhead Supply");
 
   await page.locator("#filter-status").selectOption("3");
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(1);
-  await expect(page.getByRole("row", { name: /Find the featured attraction/ }).locator(".status-badge")).toHaveText(
-    "302"
-  );
-  const redirect = await request.get("/ctp/attractions/featured", { maxRedirects: 0 });
-  expect(redirect.status()).toBe(302);
-  expect(redirect.headers().location).toBe("/ctp/attractions/cloud-cruiser");
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(0);
 
   await page.locator("#filter-status").selectOption("5");
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(2);
-  await expect(
-    page.getByRole("row", { name: /Ticket service maintenance fault demo/ }).locator(".status-badge")
-  ).toHaveText("503");
-  await expect(page.getByRole("row", { name: /Parade schedule timeout demo/ }).locator(".status-badge")).toHaveText(
-    "500"
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(7);
+  await expect(page.getByRole("row", { name: /Warehouse outage fault demo/ }).locator(".status-badge")).toHaveText(
+    "503"
   );
-  const serverError = await request.get("/ctp/demo-faults/parade-schedule");
-  expect(serverError.status()).toBe(500);
+  await expect(page.getByRole("row", { name: /Carrier timeout fault demo/ }).locator(".status-badge")).toHaveText(
+    "504"
+  );
+  const serverError = await request.get("/shipping/demo-faults/carrier-timeout");
+  expect(serverError.status()).toBe(504);
   expect(await serverError.json()).toEqual({
-    error: "parade_schedule_unavailable",
-    message: "The parade schedule hit a little hiccup. Please try again later.",
+    type: "about:blank",
+    title: "Gateway Timeout",
+    status: 504,
+    detail: "The sample carrier did not respond before the fictional gateway deadline.",
   });
 
   await page.locator("#filter-status").selectOption("4");
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(3);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(15);
   await expect(
     page.getByRole("row", { name: /Reservation validation fault demo/ }).locator(".status-badge")
   ).toHaveText("422");
-  await expect(page.getByRole("row", { name: /Reservation conflict fault demo/ }).locator(".status-badge")).toHaveText(
+  await expect(page.getByRole("row", { name: /Insufficient stock fault demo/ }).locator(".status-badge")).toHaveText(
     "409"
   );
-  const rateLimitedRow = page.locator("#endpoint-rows").getByRole("row", { name: /Check Cloud Cruiser wait times/ });
-  await expect(rateLimitedRow.locator(".endpoint-name-heading > strong")).toHaveText("Check Cloud Cruiser wait times");
+  const rateLimitedRow = page.locator("#endpoint-rows").getByRole("row", { name: /Tracking rate-limit fault demo/ });
+  await expect(rateLimitedRow.locator(".endpoint-name-heading > strong")).toHaveText("Tracking rate-limit fault demo");
   const responseCode = rateLimitedRow.locator(".status-badge");
   await responseCode.hover();
   await expect(responseCode).toHaveAttribute("title", "Too Many Requests");
@@ -276,7 +480,7 @@ test("keeps column geometry stable through group collapse and sorting, with cent
 }) => {
   const example = await (await request.get("/__mockapi/api/configuration/example")).json();
   await importDocument(request, example);
-  await expect(page.locator(".endpoint-row")).toHaveCount(16);
+  await expect(page.locator(".endpoint-row")).toHaveCount(41);
   for (const width of [1200, 1920]) {
     await page.setViewportSize({ width, height: 1000 });
     await expect(page.locator("html")).toHaveAttribute("data-dashboard-layout", width === 1200 ? "stacked" : "columns");
@@ -298,8 +502,12 @@ test("keeps column geometry stable through group collapse and sorting, with cent
         };
       });
     const groupCaret = await page.locator(".endpoint-group-chevron").first().boundingBox();
+    const groupSelection = await page.locator(".endpoint-group-selection-control").first().boundingBox();
     expect(groupCell.paddingInlineStart).toBe("0px");
-    expect(groupCaret.x - groupCell.x).toBeLessThanOrEqual(14);
+    expect(groupSelection.x).toBe(groupCell.x);
+    expect(groupSelection.width).toBe(34);
+    expect(groupCaret.x).toBeGreaterThanOrEqual(groupSelection.x + groupSelection.width);
+    expect(groupCaret.x - (groupSelection.x + groupSelection.width)).toBeLessThanOrEqual(14);
     for (const [column, maximumWidth] of [
       [4, 80],
       [5, 80],
@@ -323,14 +531,14 @@ test("keeps column geometry stable through group collapse and sorting, with cent
     expect(buttons[0].x).toBeGreaterThanOrEqual(actionBounds.x);
     expect(buttons.at(-1).x + buttons.at(-1).width).toBeLessThanOrEqual(actionBounds.x + actionBounds.width);
     for (const button of buttons) expect(button.width).toBe(32);
-    await page.getByRole("button", { name: "Collapse ctp", exact: true }).click();
-    await expect(page.locator(".endpoint-row")).toHaveCount(0);
+    await page.getByRole("button", { name: "Collapse inventory", exact: true }).click();
+    await expect(page.locator(".endpoint-row")).toHaveCount(30);
     const collapsed = await headers.evaluateAll((cells) =>
       cells.map((cell) => ({ x: cell.getBoundingClientRect().x, width: cell.getBoundingClientRect().width }))
     );
     expect(collapsed).toEqual(original);
-    await page.getByRole("button", { name: "Expand ctp", exact: true }).click();
-    await expect(page.locator(".endpoint-row")).toHaveCount(16);
+    await page.getByRole("button", { name: "Expand inventory", exact: true }).click();
+    await expect(page.locator(".endpoint-row")).toHaveCount(41);
     const expanded = await headers.evaluateAll((cells) =>
       cells.map((cell) => ({ x: cell.getBoundingClientRect().x, width: cell.getBoundingClientRect().width }))
     );
@@ -377,10 +585,20 @@ test("duplicate drafts do not display or reuse the source operation ID", async (
   );
 });
 
-test("selects multiple or all endpoints for bulk actions", async ({ page }) => {
+test("selects multiple or all endpoints beyond former count limits for bulk actions", async ({ page, request }) => {
+  const endpoints = Array.from({ length: 13 }, (_, index) => ({
+    id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    name: `Custom bulk endpoint ${index + 1}`,
+    enabled: true,
+    methods: ["GET"],
+    path: `/custom-bulk/${index + 1}`,
+    response: { statusCode: 200, headers: {}, contentType: "text/plain", body: "ok" },
+  }));
+  await importDocument(request, { ...emptyDocument, endpoints });
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(13);
   await page.getByRole("button", { name: "Load examples" }).first().click();
   const rows = page.locator("#endpoint-rows .endpoint-row");
-  await expect(rows).toHaveCount(16);
+  await expect(rows).toHaveCount(54);
 
   await rows.nth(0).locator(".selection-checkbox").check();
   await rows.nth(1).locator(".selection-checkbox").check();
@@ -392,16 +610,16 @@ test("selects multiple or all endpoints for bulk actions", async ({ page }) => {
   await expect(rows.nth(1).getByRole("checkbox", { name: /^Enable |^Disable / })).not.toBeChecked();
 
   await page.locator("#select-all-endpoints").check();
-  await expect(page.locator("#selection-count")).toHaveText("16");
+  await expect(page.locator("#selection-count")).toHaveText("54");
   await page.getByRole("button", { name: "Enable", exact: true }).click();
-  await expect(page.getByText("Enabled 16 endpoints", { exact: true })).toBeVisible();
-  await expect(rows.getByRole("checkbox", { name: /^Disable / })).toHaveCount(16);
+  await expect(page.getByText("Enabled 54 endpoints", { exact: true })).toBeVisible();
+  await expect(rows.getByRole("checkbox", { name: /^Disable / })).toHaveCount(54);
 
   await page.locator("#select-all-endpoints").check();
   await page.locator("#bulk-delete").click();
-  await expect(page.getByRole("dialog", { name: "Delete 16 selected endpoints" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Delete 54 selected endpoints" })).toBeVisible();
   await page
-    .getByRole("dialog", { name: "Delete 16 selected endpoints" })
+    .getByRole("dialog", { name: "Delete 54 selected endpoints" })
     .getByRole("button", { name: "Delete", exact: true })
     .click();
   await expect(rows).toHaveCount(0);
@@ -594,7 +812,7 @@ test("reports denied clipboard access when copying an endpoint URL", async ({ pa
 
 test("@smoke collapses endpoints and restores the preference", async ({ page }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(16);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(41);
 
   await page.getByRole("button", { name: "Collapse endpoints" }).click();
   await expect(page.locator("#endpoint-body")).toBeHidden();
@@ -607,7 +825,7 @@ test("@smoke collapses endpoints and restores the preference", async ({ page }) 
   const expand = page.getByRole("button", { name: "Expand endpoints" });
   await expect(expand).toHaveAttribute("aria-expanded", "false");
   await expand.click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(16);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(41);
   await expect(page.locator("#endpoint-controls")).toBeVisible();
   await expect(page.locator("#endpoint-toggle")).toBeFocused();
 });

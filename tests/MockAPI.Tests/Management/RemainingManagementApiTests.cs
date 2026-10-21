@@ -188,8 +188,8 @@ public sealed class RemainingManagementApiTests : IDisposable
 
         var example = await ReadDocumentAsync(client, $"{BasePath}/configuration/example");
 
-        var rateLimited = Assert.Single(example.Endpoints, endpoint => endpoint.Path == "/ctp/attractions/cloud-cruiser/wait-times");
-        Assert.Equal(5, rateLimited.RequestCount);
+        var rateLimited = Assert.Single(example.Endpoints, endpoint => endpoint.Path == "/shipping/demo-faults/tracking-rate-limit");
+        Assert.Equal(3, rateLimited.RequestCount);
         Assert.All(
             example.Endpoints.Where(endpoint => endpoint.Path != rateLimited.Path),
             endpoint => Assert.Null(endpoint.RequestCount));
@@ -206,19 +206,23 @@ public sealed class RemainingManagementApiTests : IDisposable
             ManagementJsonContext.Default.MockEndpointDefinitionArray);
         Assert.NotNull(activeEndpoints);
         Assert.Equal(
-            5,
+            3,
             Assert.Single(activeEndpoints, endpoint => endpoint.Path == rateLimited.Path).RequestCount);
     }
 
-    [Fact]
-    public async Task PortableExports_RepresentAbortedConnectionsWithoutFabricatingAResponse()
+    [Theory]
+    [InlineData("/aoai/transport-failure/chat/completions", "post")]
+    [InlineData("/shipping/demo-faults/connection-failure", "get")]
+    public async Task PortableExports_RepresentAbortedConnectionsWithoutFabricatingAResponse(
+        string path, string method)
     {
         await using var factory = CreateFactory();
         using var client = factory.CreateClient();
         var example = await ReadDocumentAsync(client, $"{BasePath}/configuration/example");
         var abortEndpoint = Assert.Single(
             example.Endpoints,
-            endpoint => endpoint.Response.Behavior == MockResponseBehavior.AbortConnection);
+            endpoint => endpoint.Path == path);
+        Assert.Equal(MockResponseBehavior.AbortConnection, abortEndpoint.Response.Behavior);
         using var imported = await SendDocumentAsync(
             client,
             HttpMethod.Put,
@@ -236,7 +240,7 @@ public sealed class RemainingManagementApiTests : IDisposable
         var defaultResponse = openApi.RootElement
             .GetProperty("paths")
             .GetProperty(abortEndpoint.Path)
-            .GetProperty("get")
+            .GetProperty(method)
             .GetProperty("responses")
             .GetProperty("default");
         Assert.Equal("abortConnection", defaultResponse.GetProperty("x-mockapi-behavior").GetString());
@@ -295,108 +299,81 @@ public sealed class RemainingManagementApiTests : IDisposable
     public async Task BuiltInExample_IsAvailableAndCanBeImported()
     {
         await using var factory = CreateFactory();
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        using var client = factory.CreateClient();
+        var example = await ReadDocumentAsync(client, $"{BasePath}/configuration/example");
 
-        using var exampleResponse = await client.GetAsync($"{BasePath}/configuration/example");
-        var example = JsonSerializer.Deserialize(
-            await exampleResponse.Content.ReadAsByteArrayAsync(),
-            MockApiJsonContext.Default.MockApiConfigurationDocument)!;
-
-        Assert.Equal(HttpStatusCode.OK, exampleResponse.StatusCode);
-        Assert.Equal(16, example.Endpoints.Count);
-        var exampleEndpoint = Assert.Single(
-            example.Endpoints,
-            endpoint => endpoint.Path == "/ctp/attractions/cloud-cruiser/wait-times");
-        var abortEndpoint = Assert.Single(
-            example.Endpoints,
-            endpoint => endpoint.Path == "/ctp/demo-faults/ride-sensor");
-
+        Assert.Equal(41, example.Endpoints.Count);
+        Assert.Equal(["/aoai", "/inventory", "/shipping"], example.ApiDescriptions!.Keys.Order().ToArray());
         using var imported = await SendDocumentAsync(
-            client,
-            HttpMethod.Put,
-            $"{BasePath}/configuration/import",
-            example,
-            "\"0\"");
-        using var firstAllowed = await client.GetAsync(exampleEndpoint.Path);
-        using var secondAllowed = await client.GetAsync(exampleEndpoint.Path);
-        using var thirdAllowed = await client.GetAsync(exampleEndpoint.Path);
-        using var fourthAllowed = await client.GetAsync(exampleEndpoint.Path);
-        using var mocked = await client.GetAsync(exampleEndpoint.Path);
-        using var parks = await client.GetAsync("/ctp/parks?park=ignored");
-        using var head = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "/ctp/health"));
-        using var parksHead = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "/ctp/parks"));
-        using var healthGet = await client.GetAsync("/ctp/health");
-        using var reservationBeforeCreation = await client.GetAsync("/ctp/reservations/42");
-        using var created = await client.PostAsync("/ctp/reservations", new StringContent("{\"partySize\":99}"));
-        using var reservation = await client.GetAsync(created.Headers.Location);
-        using var deleted = await client.DeleteAsync("/ctp/reservations/42");
-        using var reservationAfterCancellation = await client.GetAsync("/ctp/reservations/42");
-        using var redirect = await client.GetAsync("/ctp/attractions/featured");
-        using var attraction = await client.GetAsync(redirect.Headers.Location);
-        using var serverError = await client.GetAsync("/ctp/demo-faults/parade-schedule");
-        using var unsupportedMethod = await client.PostAsync(exampleEndpoint.Path, content: null);
-        using var missing = await client.GetAsync("/ctp/reservations/43");
-        using var oldRoute = await client.GetAsync("/ex/hello");
-        using var activeEndpoints = await client.GetAsync($"{BasePath}/endpoints");
-        using var activated = await ReadJsonAsync(activeEndpoints);
+            client, HttpMethod.Put, $"{BasePath}/configuration/import", example, "\"0\"");
 
         Assert.Equal(HttpStatusCode.OK, imported.StatusCode);
-        Assert.Equal(example.Endpoints.Count, activated.RootElement.GetArrayLength());
-        await Assert.ThrowsAsync<OperationCanceledException>(() => client.GetAsync(abortEndpoint.Path));
-        var parksEndpoint = Assert.Single(example.Endpoints, endpoint => endpoint.Path == "/ctp/parks");
-        Assert.Equal(HttpStatusCode.OK, parks.StatusCode);
-        Assert.Equal(parksEndpoint.Response.Body, await parks.Content.ReadAsStringAsync());
-        Assert.Equal("application/json; charset=utf-8", parks.Content.Headers.ContentType!.ToString());
-        Assert.Equal(["MockAPI"], parks.Headers.GetValues("X-Mock-Source"));
-        Assert.Equal(parks.StatusCode, head.StatusCode);
-        Assert.Equal("OK", head.ReasonPhrase);
-        Assert.Null(head.Content.Headers.ContentType);
-        Assert.Equal(["MockAPI"], head.Headers.GetValues("X-Mock-Source"));
-        Assert.Empty(await head.Content.ReadAsByteArrayAsync());
-        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
-        Assert.Equal("/ctp/reservations/42", created.Headers.Location!.OriginalString);
-        const string reservationBody = "{\"id\":42,\"parkId\":\"starlight-gardens\",\"attractionId\":\"cloud-cruiser\",\"partySize\":2,\"status\":\"reserved\",\"confirmationCode\":\"CTP-0042\",\"message\":\"Your Cloud Cruiser reservation is confirmed.\"}";
-        Assert.Equal(reservationBody, await created.Content.ReadAsStringAsync());
-        Assert.Equal("application/json; charset=utf-8", created.Content.Headers.ContentType!.ToString());
-        foreach (var lookup in new[] { reservationBeforeCreation, reservation, reservationAfterCancellation })
+        foreach (var path in new[] { "/inventory/items", "/shipping/rates" })
         {
-            Assert.Equal(HttpStatusCode.OK, lookup.StatusCode);
-            Assert.Equal(reservationBody, await lookup.Content.ReadAsStringAsync());
+            var endpoint = Assert.Single(example.Endpoints, candidate => candidate.Path == path);
+            Assert.Equal(endpoint.Response.Body, await client.GetStringAsync(path));
         }
-        Assert.All([firstAllowed, secondAllowed, thirdAllowed, fourthAllowed], response =>
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode));
-        Assert.Equal("{\"attractionId\":\"cloud-cruiser\",\"waitMinutes\":15,\"status\":\"open\"}", await firstAllowed.Content.ReadAsStringAsync());
-        Assert.Equal(["MockAPI", "checked-in-example"], firstAllowed.Headers.GetValues("X-Mock-Source"));
-        Assert.Equal((HttpStatusCode)429, mocked.StatusCode);
-        Assert.Equal(["10"], mocked.Headers.GetValues("Retry-After"));
-        Assert.Equal(["MockAPI", "checked-in-example"], mocked.Headers.GetValues("X-Mock-Source"));
-        Assert.Equal("application/json; charset=utf-8", mocked.Content.Headers.ContentType!.ToString());
-        Assert.Equal("{\"error\":\"wait_times_rate_limited\",\"message\":\"Take a little breather! Check back in 10 seconds.\"}", await mocked.Content.ReadAsStringAsync());
-        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
-        Assert.Empty(await deleted.Content.ReadAsByteArrayAsync());
-        Assert.Equal(HttpStatusCode.Found, redirect.StatusCode);
-        Assert.Equal("/ctp/attractions/cloud-cruiser", redirect.Headers.Location!.OriginalString);
-        Assert.Equal(["MockAPI"], redirect.Headers.GetValues("X-Mock-Source"));
-        Assert.Empty(await redirect.Content.ReadAsByteArrayAsync());
-        Assert.Equal(HttpStatusCode.OK, attraction.StatusCode);
-        var attractionEndpoint = Assert.Single(example.Endpoints, endpoint => endpoint.Path == redirect.Headers.Location.OriginalString);
-        Assert.Equal(attractionEndpoint.Response.Body, await attraction.Content.ReadAsStringAsync());
-        Assert.Equal("application/json; charset=utf-8", attraction.Content.Headers.ContentType!.ToString());
-        Assert.Equal(HttpStatusCode.InternalServerError, serverError.StatusCode);
-        Assert.Equal(["MockAPI"], serverError.Headers.GetValues("X-Mock-Source"));
-        Assert.Equal("application/json; charset=utf-8", serverError.Content.Headers.ContentType!.ToString());
-        Assert.Equal("{\"error\":\"parade_schedule_unavailable\",\"message\":\"The parade schedule hit a little hiccup. Please try again later.\"}", await serverError.Content.ReadAsStringAsync());
-        Assert.All([unsupportedMethod, missing, oldRoute, parksHead, healthGet], response => Assert.Equal(HttpStatusCode.NotFound, response.StatusCode));
+        var assistant = Assert.Single(example.Endpoints, endpoint => endpoint.Path == "/aoai/200/chat/completions");
+        using var completion = await client.PostAsync(assistant.Path, null);
+        Assert.Equal(HttpStatusCode.OK, completion.StatusCode);
+        Assert.Equal(assistant.Response.Body, await completion.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task BuiltInExample_ChangedRoutesRequireReviewAndPreserveMetadataAndStatistics()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var example = await ReadDocumentAsync(client, $"{BasePath}/configuration/example");
+        var original = Assert.Single(example.Endpoints, endpoint => endpoint.Path == "/inventory/items");
+        var moved = original with { Path = "/previous/items" };
+        var custom = CreateEndpoint("/custom", "custom");
+        var initial = CreateDocument(moved, custom) with
+        {
+            ApiDescriptions = new() { ["/inventory"] = "My inventory overview", ["/previous"] = "Previous overview" }
+        };
+        using var imported = await SendDocumentAsync(
+            client, HttpMethod.Put, $"{BasePath}/configuration/import", initial, "\"0\"");
+        Assert.Equal(HttpStatusCode.OK, imported.StatusCode);
+        using var previous = await client.GetAsync(moved.Path);
+        Assert.Equal(HttpStatusCode.OK, previous.StatusCode);
+
+        using var conflict = await SendAsync(client, HttpMethod.Post, $"{BasePath}/configuration/example/merge", "\"1\"");
+        Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
+        Assert.Equal("\"1\"", conflict.Headers.ETag!.Tag);
+        var unchanged = await ReadDocumentAsync(client, $"{BasePath}/configuration/export");
+        Assert.Equal(2, unchanged.Endpoints.Count);
+        Assert.Contains(unchanged.Endpoints, endpoint => endpoint.Path == moved.Path);
+
+        using var forced = await SendAsync(client, HttpMethod.Post, $"{BasePath}/configuration/example/merge?force=true", "\"1\"");
+        Assert.Equal(HttpStatusCode.OK, forced.StatusCode);
+        var migrated = await ReadDocumentAsync(client, $"{BasePath}/configuration/export");
+        Assert.Equal(42, migrated.Endpoints.Count);
+        Assert.DoesNotContain(migrated.Endpoints, endpoint => endpoint.Path == moved.Path);
+        Assert.Equal("My inventory overview", migrated.ApiDescriptions!["/inventory"]);
+        Assert.Equal("Previous overview", migrated.ApiDescriptions["/previous"]);
+        Assert.Equal(example.ApiDescriptions!["/shipping"], migrated.ApiDescriptions["/shipping"]);
+        Assert.Equal(example.ApiDescriptions!["/aoai"], migrated.ApiDescriptions["/aoai"]);
+        Assert.Equal(original.Response.Body, await client.GetStringAsync(original.Path));
+        Assert.Equal("custom", await client.GetStringAsync(custom.Path));
+        using var statisticsResponse = await client.GetAsync($"{BasePath}/statistics");
+        using var statistics = await ReadJsonAsync(statisticsResponse);
+        var itemStatistics = Assert.Single(
+            statistics.RootElement.GetProperty("endpoints").EnumerateArray(),
+            endpoint => endpoint.GetProperty("endpointId").GetGuid() == original.Id);
+        Assert.Equal(2, itemStatistics.GetProperty("totalRequests").GetInt32());
     }
 
     [Theory]
-    [InlineData("/ctp/demo-faults/reservation-validation", "POST", 422, "application/problem+json; charset=utf-8")]
-    [InlineData("/ctp/demo-faults/reservation-conflict", "POST", 409, "application/problem+json; charset=utf-8")]
-    [InlineData("/ctp/demo-faults/ticket-service", "GET", 503, "application/problem+json; charset=utf-8")]
-    [InlineData("/ctp/parks/starlight-gardens/schedule.csv", "GET", 200, "text/csv; charset=utf-8")]
-    [InlineData("/ctp/reservations/42", "PATCH", 200, "application/json; charset=utf-8")]
-    [InlineData("/ctp/reservations/42", "OPTIONS", 204, null)]
-    [InlineData("/ctp/health", "HEAD", 200, null)]
+    [InlineData("/inventory/demo-faults/invalid-reservation", "POST", 422, "application/problem+json; charset=utf-8")]
+    [InlineData("/inventory/demo-faults/insufficient-stock", "POST", 409, "application/problem+json; charset=utf-8")]
+    [InlineData("/inventory/demo-faults/warehouse-unavailable", "GET", 503, "application/problem+json; charset=utf-8")]
+    [InlineData("/shipping/shipments/shp-demo-001/label.txt", "GET", 200, "text/plain; charset=utf-8")]
+    [InlineData("/shipping/shipments", "POST", 201, "application/json; charset=utf-8")]
+    [InlineData("/inventory/reservations/res-demo-001", "DELETE", 204, null)]
+    [InlineData("/aoai/health", "HEAD", 200, null)]
+    [InlineData("/inventory/health", "HEAD", 200, null)]
+    [InlineData("/shipping/health", "HEAD", 200, null)]
     public async Task BuiltInExample_MergesAdditionalExamplesAndServesExactStaticResponses(
         string path, string method, int statusCode, string? contentType)
     {
@@ -408,25 +385,21 @@ public sealed class RemainingManagementApiTests : IDisposable
         using var merged = await SendAsync(client, HttpMethod.Post, $"{BasePath}/configuration/example/merge", "\"0\"");
         Assert.Equal(HttpStatusCode.OK, merged.StatusCode);
 
-        foreach (var requestBody in new[] { "{\"partySize\":2}", "{\"partySize\":99}" })
+        foreach (var requestBody in new[] { "{\"quantity\":2}", "{\"quantity\":99}" })
         {
             using var request = new HttpRequestMessage(new HttpMethod(method), $"{path}?date=ignored");
             if (method is "POST" or "PATCH")
             {
                 request.Content = new StringContent(requestBody, Encoding.UTF8, "application/json");
             }
-            if (method == "OPTIONS")
-            {
-                request.Headers.Add("Origin", "http://localhost:8092");
-                request.Headers.Add("Access-Control-Request-Method", "PATCH");
-                request.Headers.Add("Access-Control-Request-Headers", "content-type, x-mockapi-key");
-            }
             using var response = await client.SendAsync(request);
 
             Assert.Equal((HttpStatusCode)statusCode, response.StatusCode);
             Assert.Equal(endpoint.Response.ReasonPhrase, response.ReasonPhrase);
             Assert.Equal(contentType, response.Content.Headers.ContentType?.ToString());
-            Assert.Equal(Encoding.UTF8.GetBytes(endpoint.Response.Body), await response.Content.ReadAsByteArrayAsync());
+            Assert.Equal(
+                Encoding.UTF8.GetBytes(method == "HEAD" ? string.Empty : endpoint.Response.Body),
+                await response.Content.ReadAsByteArrayAsync());
             foreach (var header in endpoint.Response.Headers)
             {
                 // HttpClient otherwise splits standard comma-separated headers such as Allow.
@@ -445,131 +418,6 @@ public sealed class RemainingManagementApiTests : IDisposable
         {
             Assert.Equal(header.Value, roundTripped.Response.Headers[header.Key]);
         }
-    }
-
-    [Fact]
-    public async Task BuiltInExample_PatchDoesNotChangeLookupAndOptionsIsExplicitAndStatic()
-    {
-        await using var factory = CreateFactory();
-        using var client = factory.CreateClient();
-        using var merged = await SendAsync(client, HttpMethod.Post, $"{BasePath}/configuration/example/merge", "\"0\"");
-        Assert.Equal(HttpStatusCode.OK, merged.StatusCode);
-        const string path = "/ctp/reservations/42";
-        var original = await client.GetStringAsync(path);
-
-        using var patch = await client.PatchAsync(path,
-            new StringContent("{\"partySize\":6}", Encoding.UTF8, "application/json"));
-        Assert.Equal(HttpStatusCode.OK, patch.StatusCode);
-        using var updated = await ReadJsonAsync(patch);
-        Assert.Equal(4, updated.RootElement.GetProperty("partySize").GetInt32());
-        Assert.Equal(original, await client.GetStringAsync(path));
-        using var lookup = JsonDocument.Parse(original);
-        Assert.Equal(2, lookup.RootElement.GetProperty("partySize").GetInt32());
-
-        using var optionsRequest = new HttpRequestMessage(HttpMethod.Options, path);
-        optionsRequest.Headers.Add("Origin", "http://localhost:8092");
-        optionsRequest.Headers.Add("Access-Control-Request-Method", "DELETE");
-        optionsRequest.Headers.Add("Access-Control-Request-Headers", "unlisted-header");
-        using var options = await client.SendAsync(optionsRequest);
-        Assert.Equal(HttpStatusCode.NoContent, options.StatusCode);
-        Assert.Equal(["PATCH, OPTIONS"], options.Headers.GetValues("Access-Control-Allow-Methods"));
-        Assert.Equal(["Content-Type, X-MockAPI-Key"], options.Headers.GetValues("Access-Control-Allow-Headers"));
-        Assert.Empty(await options.Content.ReadAsByteArrayAsync());
-
-        using var unconfigured = await client.SendAsync(new HttpRequestMessage(HttpMethod.Options, "/ctp/reservations"));
-        Assert.Equal(HttpStatusCode.NotFound, unconfigured.StatusCode);
-    }
-
-    [Theory]
-    [InlineData(9, 7)]
-    [InlineData(13, 3)]
-    [InlineData(15, 1)]
-    public async Task BuiltInExample_MovesParksHeadOnlyAfterReviewAndPreservesExistingParkConfiguration(
-        int previousCount, int expectedAdded)
-    {
-        await using var factory = CreateFactory();
-        using var client = factory.CreateClient();
-        var example = await ReadDocumentAsync(client, $"{BasePath}/configuration/example");
-        var additionalPaths = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "/ctp/demo-faults/reservation-validation",
-            "/ctp/demo-faults/reservation-conflict",
-            "/ctp/demo-faults/ticket-service",
-            "/ctp/parks/starlight-gardens/schedule.csv"
-        };
-        var existingEndpoints = example.Endpoints
-            .Where(endpoint => endpoint.Path != "/ctp/health")
-            .Where(endpoint => previousCount == 15 || (!endpoint.Methods.Contains("PATCH") && !endpoint.Methods.Contains("OPTIONS")))
-            .Where(endpoint => previousCount >= 13 || !additionalPaths.Contains(endpoint.Path))
-            .Select(endpoint => endpoint.Path == "/ctp/parks"
-                ? endpoint with
-                {
-                    Methods = ["GET", "HEAD"],
-                    Description = "Welcome to Contoso Theme Parks! Discover the fictional Starlight Gardens park and its Cloud Cruiser attraction through a static 200 OK JSON response with an X-Mock-Source header. HEAD returns the same status and headers without a body."
-                }
-                : endpoint)
-            .ToArray();
-        Assert.Equal(previousCount, existingEndpoints.Length);
-        var custom = CreateEndpoint("/custom", "custom");
-        var existing = CreateDocument([.. existingEndpoints, custom]) with
-        {
-            ApiDescriptions = new() { ["/ctp"] = "My park overview" }
-        };
-        using var imported = await SendDocumentAsync(client, HttpMethod.Put, $"{BasePath}/configuration/import", existing, "\"0\"");
-        Assert.Equal(HttpStatusCode.OK, imported.StatusCode);
-
-        using var conflict = await SendAsync(client, HttpMethod.Post, $"{BasePath}/configuration/example/merge", "\"1\"");
-        using var preview = await ReadJsonAsync(conflict);
-        Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
-        Assert.Equal("\"1\"", conflict.Headers.ETag!.Tag);
-        var parksConflict = Assert.Single(preview.RootElement.GetProperty("conflicts").EnumerateArray());
-        Assert.Equal("different", parksConflict.GetProperty("kind").GetString());
-        Assert.Equal(Guid.Parse("4cb6e141-5f4f-4a30-9715-ec2c68554ad0"), parksConflict.GetProperty("builtInEndpointId").GetGuid());
-        Assert.Equal("/ctp/parks", parksConflict.GetProperty("builtInPath").GetString());
-        Assert.Equal("GET", Assert.Single(parksConflict.GetProperty("builtInMethods").EnumerateArray()).GetString());
-        Assert.Equal("/ctp/parks", parksConflict.GetProperty("existingPath").GetString());
-        Assert.Equal(
-            ["GET", "HEAD"],
-            parksConflict.GetProperty("existingMethods").EnumerateArray().Select(method => method.GetString()));
-        var unchanged = await ReadDocumentAsync(client, $"{BasePath}/configuration/export");
-        Assert.Equal(previousCount + 1, unchanged.Endpoints.Count);
-        using var oldHead = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "/ctp/parks"));
-        using var missingHealth = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "/ctp/health"));
-        Assert.Equal(HttpStatusCode.OK, oldHead.StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, missingHealth.StatusCode);
-
-        using var merged = await SendAsync(client, HttpMethod.Post, $"{BasePath}/configuration/example/merge?force=true", "\"1\"");
-        using var result = await ReadJsonAsync(merged);
-        var active = await ReadDocumentAsync(client, $"{BasePath}/configuration/export");
-
-        Assert.Equal(HttpStatusCode.OK, merged.StatusCode);
-        Assert.Equal("\"2\"", merged.Headers.ETag!.Tag);
-        Assert.Equal(expectedAdded, result.RootElement.GetProperty("added").GetInt32());
-        Assert.Equal(1, result.RootElement.GetProperty("updated").GetInt32());
-        Assert.Equal(previousCount - 1, result.RootElement.GetProperty("skipped").GetInt32());
-        Assert.Equal(example.Endpoints.Count + 1, active.Endpoints.Count);
-        Assert.Equal("My park overview", active.ApiDescriptions!["/ctp"]);
-        Assert.Equal("custom", await client.GetStringAsync(custom.Path));
-        var parks = Assert.Single(active.Endpoints, endpoint => endpoint.Path == "/ctp/parks");
-        Assert.Equal(["GET"], parks.Methods);
-        using var newHead = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "/ctp/health"));
-        using var removedHead = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "/ctp/parks"));
-        Assert.Equal(HttpStatusCode.OK, newHead.StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, removedHead.StatusCode);
-        foreach (var endpoint in existingEndpoints)
-        {
-            var preserved = Assert.Single(active.Endpoints, candidate => candidate.Id == endpoint.Id);
-            Assert.Equal(endpoint.Path, preserved.Path);
-            Assert.Equal(endpoint.Response.Body, preserved.Response.Body);
-        }
-
-        using var repeated = await SendAsync(client, HttpMethod.Post, $"{BasePath}/configuration/example/merge", "\"2\"");
-        using var repeatedResult = await ReadJsonAsync(repeated);
-        Assert.Equal(HttpStatusCode.OK, repeated.StatusCode);
-        Assert.Equal("\"2\"", repeated.Headers.ETag!.Tag);
-        Assert.False(repeatedResult.RootElement.GetProperty("applied").GetBoolean());
-        Assert.Equal(0, repeatedResult.RootElement.GetProperty("added").GetInt32());
-        Assert.Equal(example.Endpoints.Count, repeatedResult.RootElement.GetProperty("skipped").GetInt32());
     }
 
     [Fact]
@@ -602,8 +450,8 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Equal("\"2\"", firstExampleMerge.Headers.ETag!.Tag);
         Assert.Equal(HttpStatusCode.OK, secondExampleMerge.StatusCode);
         Assert.Equal("\"2\"", secondExampleMerge.Headers.ETag!.Tag);
-        Assert.Equal(17, active.RootElement.GetArrayLength());
-        Assert.Equal(17, active.RootElement.EnumerateArray().Select(endpoint => endpoint.GetProperty("id").GetGuid()).Distinct().Count());
+        Assert.Equal(42, active.RootElement.GetArrayLength());
+        Assert.Equal(42, active.RootElement.EnumerateArray().Select(endpoint => endpoint.GetProperty("id").GetGuid()).Distinct().Count());
         Assert.Equal("custom", await client.GetStringAsync(customEndpoint.Path));
     }
 
@@ -613,17 +461,17 @@ public sealed class RemainingManagementApiTests : IDisposable
         await using var factory = CreateFactory();
         using var client = factory.CreateClient();
         var example = await ReadDocumentAsync(client, $"{BasePath}/configuration/example");
-        var builtInParks = Assert.Single(example.Endpoints, endpoint => endpoint.Path == "/ctp/parks");
-        var changedParks = builtInParks with
+        var builtInInventory = Assert.Single(example.Endpoints, endpoint => endpoint.Path == "/inventory/items");
+        var changedInventory = builtInInventory with
         {
-            Response = builtInParks.Response with { Body = "changed locally" }
+            Response = builtInInventory.Response with { Body = "changed locally" }
         };
         var custom = CreateEndpoint("/custom", "custom");
         using var initialImport = await SendDocumentAsync(
             client,
             HttpMethod.Put,
             $"{BasePath}/configuration/import",
-            CreateDocument(changedParks, custom),
+            CreateDocument(changedInventory, custom),
             "\"0\"");
 
         using var conflict = await SendAsync(
@@ -640,7 +488,7 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Equal("different", Assert.Single(conflictJson.RootElement.GetProperty("conflicts").EnumerateArray()).GetProperty("kind").GetString());
         Assert.Equal("\"1\"", conflict.Headers.ETag!.Tag);
         Assert.Equal(2, unchanged.RootElement.GetArrayLength());
-        Assert.Equal("changed locally", await client.GetStringAsync(changedParks.Path));
+        Assert.Equal("changed locally", await client.GetStringAsync(changedInventory.Path));
 
         using var forced = await SendAsync(
             client,
@@ -656,70 +504,8 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Equal(example.Endpoints.Count - 1, forcedJson.RootElement.GetProperty("added").GetInt32());
         Assert.Equal(1, forcedJson.RootElement.GetProperty("updated").GetInt32());
         Assert.Equal(example.Endpoints.Count + 1, active.RootElement.GetArrayLength());
-        Assert.Equal(builtInParks.Response.Body, await client.GetStringAsync(builtInParks.Path));
+        Assert.Equal(builtInInventory.Response.Body, await client.GetStringAsync(builtInInventory.Path));
         Assert.Equal("custom", await client.GetStringAsync(custom.Path));
-    }
-
-    [Fact]
-    public async Task BuiltInExample_MigratesLegacyRoutesOnlyAfterReviewAndPreservesMetadataAndStatistics()
-    {
-        await using var factory = CreateFactory();
-        using var client = factory.CreateClient();
-        var example = await ReadDocumentAsync(client, $"{BasePath}/configuration/example");
-        var legacyPaths = new Dictionary<Guid, string>
-        {
-            [Guid.Parse("4cb6e141-5f4f-4a30-9715-ec2c68554ad0")] = "/ex/hello",
-            [Guid.Parse("17a50c14-e67f-4770-9bf6-afb4a80e4609")] = "/ex/orders",
-            [Guid.Parse("7b2d425d-75f1-4ded-a74e-503374a7e99e")] = "/ex/rate-limited",
-            [Guid.Parse("b53545e8-fd25-44cb-940b-0ce175547483")] = "/ex/orders/42",
-            [Guid.Parse("ec8d45cb-a095-4d7e-9540-c7d9d81fe426")] = "/ex/redirect",
-            [Guid.Parse("a276b184-ecf6-4377-bf45-5ef1dc8f7433")] = "/ex/server-error",
-            [Guid.Parse("5f8c908d-42e1-4af9-952a-35c77c408a26")] = "/ex/abort-connection"
-        };
-        var legacyEndpoints = example.Endpoints
-            .Where(endpoint => legacyPaths.ContainsKey(endpoint.Id))
-            .Select(endpoint => endpoint with { Path = legacyPaths[endpoint.Id] })
-            .ToArray();
-        var custom = CreateEndpoint("/custom", "custom");
-        var legacy = CreateDocument([.. legacyEndpoints, custom]) with
-        {
-            ApiDescriptions = new() { ["/ex"] = "Legacy overview", ["/ctp"] = "My park overview" }
-        };
-        using var imported = await SendDocumentAsync(client, HttpMethod.Put, $"{BasePath}/configuration/import", legacy, "\"0\"");
-        Assert.Equal(HttpStatusCode.OK, imported.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/ex/hello")).StatusCode);
-
-        using var conflict = await SendAsync(client, HttpMethod.Post, $"{BasePath}/configuration/example/merge", "\"1\"");
-        using var preview = await ReadJsonAsync(conflict);
-
-        Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
-        Assert.Equal(7, preview.RootElement.GetProperty("conflicts").GetArrayLength());
-        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/ctp/parks")).StatusCode);
-        var unchanged = await ReadDocumentAsync(client, $"{BasePath}/configuration/export");
-        Assert.Equal(8, unchanged.Endpoints.Count);
-        Assert.Contains(unchanged.Endpoints, endpoint => endpoint.Path == "/ex/hello");
-
-        using var forced = await SendAsync(client, HttpMethod.Post, $"{BasePath}/configuration/example/merge?force=true", "\"1\"");
-        using var result = await ReadJsonAsync(forced);
-        var migrated = await ReadDocumentAsync(client, $"{BasePath}/configuration/export");
-
-        Assert.Equal(HttpStatusCode.OK, forced.StatusCode);
-        Assert.Equal(example.Endpoints.Count - legacyEndpoints.Length, result.RootElement.GetProperty("added").GetInt32());
-        Assert.Equal(7, result.RootElement.GetProperty("updated").GetInt32());
-        Assert.Equal(example.Endpoints.Count + 1, migrated.Endpoints.Count);
-        Assert.Equal(example.Endpoints.Count + 1, migrated.Endpoints.Select(endpoint => endpoint.Id).Distinct().Count());
-        Assert.DoesNotContain(migrated.Endpoints, endpoint => endpoint.Path.StartsWith("/ex/", StringComparison.Ordinal));
-        Assert.Equal("Legacy overview", migrated.ApiDescriptions!["/ex"]);
-        Assert.Equal("My park overview", migrated.ApiDescriptions["/ctp"]);
-        Assert.Equal("custom", await client.GetStringAsync(custom.Path));
-        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/ctp/parks")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/ex/hello")).StatusCode);
-
-        using var statistics = await client.GetAsync($"{BasePath}/statistics");
-        using var statisticsJson = await ReadJsonAsync(statistics);
-        var parkStatistics = Assert.Single(statisticsJson.RootElement.GetProperty("endpoints").EnumerateArray(),
-            endpoint => endpoint.GetProperty("endpointId").GetGuid() == Guid.Parse("4cb6e141-5f4f-4a30-9715-ec2c68554ad0"));
-        Assert.Equal(2, parkStatistics.GetProperty("totalRequests").GetInt64());
     }
 
     [Fact]
@@ -895,12 +681,17 @@ public sealed class RemainingManagementApiTests : IDisposable
         }
     }
 
-    [Fact]
-    public async Task BuiltInMerge_InvalidMergedDocumentLeavesActiveConfigurationUnchanged()
+    [Theory]
+    [InlineData(13, false)]
+    [InlineData(100, false)]
+    [InlineData(100, true)]
+    public async Task BuiltInMerge_PreservesUnrelatedEndpointsBeyondFormerCountLimits(
+        int customEndpointCount,
+        bool force)
     {
         await using var factory = CreateFactory();
         using var client = factory.CreateClient();
-        var endpoints = Enumerable.Range(0, ConfigurationLimits.MaximumEndpoints - 3)
+        var endpoints = Enumerable.Range(0, customEndpointCount)
             .Select(index => CreateEndpoint($"/custom-{index}", $"body-{index}"))
             .ToArray();
         using var imported = await SendDocumentAsync(
@@ -909,18 +700,109 @@ public sealed class RemainingManagementApiTests : IDisposable
             $"{BasePath}/configuration/import",
             CreateDocument(endpoints),
             "\"0\"");
+        Assert.Equal(HttpStatusCode.OK, imported.StatusCode);
 
         using var response = await SendAsync(
             client,
             HttpMethod.Post,
-            $"{BasePath}/configuration/example/merge",
+            $"{BasePath}/configuration/example/merge?force={force.ToString().ToLowerInvariant()}",
             "\"1\"");
         using var active = await client.GetAsync($"{BasePath}/endpoints");
         using var activeJson = await ReadJsonAsync(active);
 
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var example = await client.GetAsync($"{BasePath}/configuration/example");
+        using var exampleJson = await ReadJsonAsync(example);
+        var builtInCount = exampleJson.RootElement.GetProperty("endpoints").GetArrayLength();
+        Assert.Equal(customEndpointCount + builtInCount, activeJson.RootElement.GetArrayLength());
+        Assert.Equal("\"2\"", response.Headers.ETag!.Tag);
+        foreach (var endpoint in endpoints)
+        {
+            Assert.Equal(endpoint.Response.Body, await client.GetStringAsync(endpoint.Path));
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BuiltInMerge_RejectsOversizedCandidateWithoutChangingActiveOrSavedConfiguration(bool force)
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var body = new string('a', ConfigurationLimits.MaximumBodyBytes - 1024);
+        var endpoints = Enumerable.Range(0, 4)
+            .Select(index => CreateEndpoint($"/large-{index}", body))
+            .ToArray();
+        var candidate = CreateDocument(endpoints);
+        Assert.True(ConfigurationValidator.Validate(candidate).IsValid);
+        using var imported = await SendDocumentAsync(
+            client, HttpMethod.Put, $"{BasePath}/configuration/import", candidate, "\"0\"");
+        Assert.Equal(HttpStatusCode.OK, imported.StatusCode);
+
+        using var response = await SendAsync(
+            client,
+            HttpMethod.Post,
+            $"{BasePath}/configuration/example/merge?force={force.ToString().ToLowerInvariant()}",
+            "\"1\"");
+
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
-        Assert.Equal(endpoints.Length, activeJson.RootElement.GetArrayLength());
         Assert.Equal("\"1\"", response.Headers.ETag!.Tag);
+        using var problem = await ReadJsonAsync(response);
+        Assert.Contains(problem.RootElement.GetProperty("errors").EnumerateArray(), error =>
+            error.GetProperty("path").GetString() == "$" && error.GetProperty("code").GetString() == "maximumBytes");
+        var active = await ReadDocumentAsync(client, $"{BasePath}/configuration/export");
+        var saved = JsonSerializer.Deserialize(
+            await File.ReadAllBytesAsync(Path.Combine(_directory, "mockapi.json")),
+            MockApiJsonContext.Default.MockApiConfigurationDocument)!;
+        Assert.Equal(endpoints.Select(endpoint => endpoint.Id), active.Endpoints.Select(endpoint => endpoint.Id));
+        Assert.Equal(endpoints.Select(endpoint => endpoint.Id), saved.Endpoints.Select(endpoint => endpoint.Id));
+        Assert.All(active.Endpoints, endpoint => Assert.Equal(body, endpoint.Response.Body));
+        Assert.All(saved.Endpoints, endpoint => Assert.Equal(body, endpoint.Response.Body));
+    }
+
+    [Theory]
+    [InlineData(51)]
+    [InlineData(250)]
+    public async Task BulkOperations_ApplySelectionsBeyondFormerCountLimits(int endpointCount)
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        var endpoints = Enumerable.Range(0, endpointCount)
+            .Select(index => CreateEndpoint($"/bulk-many/{index}", "ok"))
+            .ToArray();
+        using var imported = await SendDocumentAsync(
+            client, HttpMethod.Put, $"{BasePath}/configuration/import", CreateDocument(endpoints), "\"0\"");
+        Assert.Equal(HttpStatusCode.OK, imported.StatusCode);
+        var endpointIds = string.Join(",", endpoints.Select(endpoint => $"\"{endpoint.Id}\""));
+
+        using var disabled = await SendAsync(
+            client, HttpMethod.Post, $"{BasePath}/endpoints/bulk", "\"1\"",
+            $$"""{"endpointIds":[{{endpointIds}}],"operation":"disable"}""");
+        Assert.Equal(HttpStatusCode.NoContent, disabled.StatusCode);
+        Assert.Equal("\"2\"", disabled.Headers.ETag!.Tag);
+        var disabledDocument = await ReadDocumentAsync(client, $"{BasePath}/configuration/export");
+        Assert.Equal(endpointCount, disabledDocument.Endpoints.Count);
+        Assert.All(disabledDocument.Endpoints, endpoint => Assert.False(endpoint.Enabled));
+        using var disabledRoute = await client.GetAsync(endpoints[^1].Path);
+        Assert.Equal(HttpStatusCode.NotFound, disabledRoute.StatusCode);
+
+        using var enabled = await SendAsync(
+            client, HttpMethod.Post, $"{BasePath}/endpoints/bulk", "\"2\"",
+            $$"""{"endpointIds":[{{endpointIds}}],"operation":"enable"}""");
+        Assert.Equal(HttpStatusCode.NoContent, enabled.StatusCode);
+        Assert.Equal("\"3\"", enabled.Headers.ETag!.Tag);
+        var enabledDocument = await ReadDocumentAsync(client, $"{BasePath}/configuration/export");
+        Assert.Equal(endpointCount, enabledDocument.Endpoints.Count);
+        Assert.All(enabledDocument.Endpoints, endpoint => Assert.True(endpoint.Enabled));
+        Assert.Equal("ok", await client.GetStringAsync(endpoints[^1].Path));
+
+        using var deleted = await SendAsync(
+            client, HttpMethod.Post, $"{BasePath}/endpoints/bulk", "\"3\"",
+            $$"""{"endpointIds":[{{endpointIds}}],"operation":"delete"}""");
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        Assert.Equal("\"4\"", deleted.Headers.ETag!.Tag);
+        var empty = await ReadDocumentAsync(client, $"{BasePath}/configuration/export");
+        Assert.Empty(empty.Endpoints);
     }
 
     [Fact]

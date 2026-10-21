@@ -7,9 +7,17 @@ import {
 } from "../../src/MockAPI/wwwroot/dashboard-dom.js";
 
 describe("shared information tooltips", () => {
-  function createTooltipFixture({ top = 100, bottom = 126, right = 200, height = 120, width = 360, onActivate } = {}) {
+  function createTooltipFixture({
+    top = 100,
+    bottom = 126,
+    right = 200,
+    height = 120,
+    width = 360,
+    viewportHeight = 800,
+    onActivate,
+  } = {}) {
     const trigger = Object.assign(new EventTarget(), {
-      ownerDocument: { defaultView: { innerHeight: 800, innerWidth: 1000 } },
+      ownerDocument: { defaultView: { innerHeight: viewportHeight, innerWidth: 1000 } },
       getBoundingClientRect: () => ({ top, bottom, right }),
       matches: vi.fn(() => false),
     });
@@ -28,7 +36,7 @@ describe("shared information tooltips", () => {
     const { trigger, tooltip, preview } = createTooltipFixture();
     trigger.dispatchEvent(new Event("mouseenter"));
     expect(tooltip.showPopover).toHaveBeenCalledTimes(1);
-    expect(tooltip.style).toEqual({ top: "126px", left: "8px", maxHeight: "320px" });
+    expect(tooltip.style).toEqual({ top: "126px", left: "8px", maxHeight: "400px" });
     trigger.dispatchEvent(new Event("mouseleave"));
     expect(tooltip.hidePopover).toHaveBeenCalledTimes(1);
     trigger.dispatchEvent(new Event("focus"));
@@ -47,13 +55,30 @@ describe("shared information tooltips", () => {
   it("places tall previews above their trigger and keeps them within the right viewport edge", () => {
     const { trigger, tooltip } = createTooltipFixture({ top: 700, bottom: 726, right: 1100, height: 200 });
     trigger.dispatchEvent(new Event("mouseenter"));
-    expect(tooltip.style).toEqual({ top: "500px", left: "632px", maxHeight: "320px" });
+    expect(tooltip.style).toEqual({ top: "500px", left: "632px", maxHeight: "400px" });
   });
 
   it("uses the larger space below for an oversized preview and limits its height", () => {
     const { trigger, tooltip } = createTooltipFixture({ top: 300, bottom: 326, right: 600, height: 700 });
     trigger.dispatchEvent(new Event("focus"));
-    expect(tooltip.style).toEqual({ top: "326px", left: "240px", maxHeight: "320px" });
+    expect(tooltip.style).toEqual({ top: "326px", left: "240px", maxHeight: "400px" });
+  });
+
+  it("limits previews to sixty percent of a short viewport", () => {
+    const { trigger, tooltip } = createTooltipFixture({ viewportHeight: 500 });
+    trigger.dispatchEvent(new Event("focus"));
+    expect(tooltip.style.maxHeight).toBe("300px");
+  });
+
+  it("limits previews to the available space beside the trigger", () => {
+    const { trigger, tooltip } = createTooltipFixture({
+      top: 280,
+      bottom: 306,
+      viewportHeight: 600,
+      height: 500,
+    });
+    trigger.dispatchEvent(new Event("focus"));
+    expect(tooltip.style).toEqual({ top: "306px", left: "8px", maxHeight: "286px" });
   });
 
   it("activates the editor without reopening help when focus is restored", () => {

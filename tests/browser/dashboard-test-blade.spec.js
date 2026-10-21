@@ -55,21 +55,21 @@ test("tests a configured non-2xx response and restores focus", async ({ page, re
   const exampleResponse = await request.get("/__mockapi/api/configuration/example");
   const example = await exampleResponse.json();
   expect(
-    example.endpoints.find((endpoint) => endpoint.path === "/ctp/attractions/cloud-cruiser/wait-times").requestCount
-  ).toBe(5);
+    example.endpoints.find((endpoint) => endpoint.path === "/shipping/demo-faults/tracking-rate-limit").requestCount
+  ).toBe(3);
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  const row = page.getByRole("row", { name: /Check Cloud Cruiser wait times/ });
+  const row = page.getByRole("row", { name: /Tracking rate-limit fault demo/ });
   const trigger = row.getByRole("button", { name: "Test" });
   await trigger.click();
-  await page.getByLabel("Path and query").fill("/ctp/attractions/cloud-cruiser/wait-times?browser=1");
+  await page.getByLabel("Path and query").fill("/shipping/demo-faults/tracking-rate-limit?browser=1");
   const requestCount = page.getByLabel("Number of requests");
-  await expect(requestCount).toHaveValue("5");
+  await expect(requestCount).toHaveValue("3");
   await expect(requestCount).toHaveAttribute("min", "1");
   await expect(requestCount).toHaveAttribute("max", "5");
   await page.getByRole("button", { name: "Send request" }).click();
-  await expect(page.locator("#test-status")).toHaveText("5 requests completed; final response HTTP 429.");
+  await expect(page.locator("#test-status")).toHaveText("3 requests completed; final response HTTP 429.");
   await expect(page.locator("#test-response-body")).toHaveText(
-    '{"error":"wait_times_rate_limited","message":"Take a little breather! Check back in 10 seconds."}'
+    '{"type":"about:blank","title":"Too Many Requests","status":429,"detail":"The sample tracking request limit was exceeded. Retry in 10 seconds."}'
   );
   await expect(page.locator("#test-response-headers")).toContainText("x-mock-source");
   const colonColumns = await page.locator("#test-response-headers").evaluate((element) =>
@@ -87,7 +87,7 @@ test("tests a configured non-2xx response and restores focus", async ({ page, re
 test("aligns request information icons and shares hover and focus tooltip behavior", async ({ page }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
   await page
-    .getByRole("row", { name: /Reserve a ride/ })
+    .getByRole("row", { name: /Reserve inventory/ })
     .getByRole("button", { name: "Test" })
     .click();
 
@@ -175,7 +175,7 @@ test("aligns request information icons and shares hover and focus tooltip behavi
   await page.locator("#test-blade-close").click();
   await expect(page.locator("#test-request-body-hint")).toBeHidden();
   await page
-    .getByRole("row", { name: /Reserve a ride/ })
+    .getByRole("row", { name: /Reserve inventory/ })
     .getByRole("button", { name: "Test" })
     .click();
   await expect(guidance).toBeHidden();
@@ -191,19 +191,16 @@ test("aligns request information icons and shares hover and focus tooltip behavi
 test("prefills an editable sample and displays real backend payload errors", async ({ page, request }) => {
   await request.post("/__mockapi/api/statistics/reset");
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  const createRow = page.getByRole("row", { name: /Reserve a ride/ });
+  const createRow = page.getByRole("row", { name: /Reserve inventory/ });
   await createRow.getByRole("button", { name: "Test" }).click();
 
   const headers = page.locator("#test-request-headers");
   const body = page.locator("#test-request-body");
   await expect(headers).toHaveValue("Content-Type: application/json; charset=utf-8");
   expect(JSON.parse(await body.inputValue())).toEqual({
-    parkId: "starlight-gardens",
-    attractionId: "cloud-cruiser",
-    reservationDate: "2030-06-15",
-    reservationTime: "10:30",
-    partySize: 2,
-    guest: { name: "Alex Morgan", email: "alex@example.com" },
+    sku: "SKU-1001",
+    quantity: 2,
+    warehouseId: "WH-DEMO-01",
   });
   await page.getByRole("button", { name: "Request header information" }).click();
   await expect(page.getByText("The browser requires valid header syntax", { exact: false })).toBeVisible();
@@ -220,7 +217,8 @@ test("prefills an editable sample and displays real backend payload errors", asy
   ]) {
     await body.fill(payload);
     const responsePromise = page.waitForResponse(
-      (response) => new URL(response.url()).pathname === "/ctp/reservations" && response.request().method() === "POST"
+      (response) =>
+        new URL(response.url()).pathname === "/inventory/reservations" && response.request().method() === "POST"
     );
     await page.getByRole("button", { name: "Send request" }).click();
     const response = await responsePromise;
@@ -232,7 +230,7 @@ test("prefills an editable sample and displays real backend payload errors", asy
       await expect(page.locator("#test-response-body")).toContainText('"status":400');
     } else {
       await expect(page.locator("#test-status")).toHaveText("Request completed with HTTP 201.");
-      await expect(page.locator("#test-response-body")).toContainText('"confirmationCode":"CTP-0042"');
+      await expect(page.locator("#test-response-body")).toContainText('"id":"res-demo-001"');
     }
   }
 
@@ -286,32 +284,29 @@ test("prefills POST PUT and PATCH without replacing deliberate request edits", a
   await expect(body).toHaveValue("{deliberately-malformed");
 });
 
-test("tests body-bearing and empty-response endpoints", async ({ page }) => {
+test("tests body-bearing and empty-response endpoints", async ({ page, request }) => {
+  const example = await (await request.get("/__mockapi/api/configuration/example")).json();
+  const reservationBody = example.endpoints.find((endpoint) => endpoint.path === "/inventory/reservations").response
+    .body;
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  const createRow = page.getByRole("row", { name: /Reserve a ride/ });
+  const createRow = page.getByRole("row", { name: /Reserve inventory/ });
   await createRow.getByRole("button", { name: "Test" }).click();
   await page.getByLabel("Request headers", { exact: true }).fill("Content-Type: application/json; charset=utf-8");
-  await page.getByLabel("Request body", { exact: true }).fill('{"attractionId":"cloud-cruiser","partySize":2}');
+  await page.getByLabel("Request body", { exact: true }).fill('{"sku":"SKU-1001","quantity":2}');
   await page.getByRole("button", { name: "Send request" }).click();
   await expect(page.locator("#test-status")).toHaveText("Request completed with HTTP 201.");
-  await expect(page.locator("#test-response-body")).toHaveText(
-    '{"id":42,"parkId":"starlight-gardens","attractionId":"cloud-cruiser","partySize":2,"status":"reserved","confirmationCode":"CTP-0042","message":"Your Cloud Cruiser reservation is confirmed."}'
-  );
+  await expect(page.locator("#test-response-body")).toHaveText(reservationBody);
   const prettyPrint = page.getByRole("button", { name: "Pretty print" });
   await expect(prettyPrint).toBeVisible();
   await prettyPrint.click();
   await expect(page.locator("#test-response-body-label")).toHaveText("Pretty response body");
-  await expect(page.locator("#test-response-body")).toHaveText(
-    '{\n  "id": 42,\n  "parkId": "starlight-gardens",\n  "attractionId": "cloud-cruiser",\n  "partySize": 2,\n  "status": "reserved",\n  "confirmationCode": "CTP-0042",\n  "message": "Your Cloud Cruiser reservation is confirmed."\n}'
-  );
+  await expect(page.locator("#test-response-body")).toHaveText(JSON.stringify(JSON.parse(reservationBody), null, 2));
   await page.getByRole("button", { name: "Show raw" }).click();
   await expect(page.locator("#test-response-body-label")).toHaveText("Raw response body");
-  await expect(page.locator("#test-response-body")).toHaveText(
-    '{"id":42,"parkId":"starlight-gardens","attractionId":"cloud-cruiser","partySize":2,"status":"reserved","confirmationCode":"CTP-0042","message":"Your Cloud Cruiser reservation is confirmed."}'
-  );
+  await expect(page.locator("#test-response-body")).toHaveText(reservationBody);
   await page.keyboard.press("Escape");
 
-  const deleteRow = page.getByRole("row", { name: /Cancel your ride reservation/ });
+  const deleteRow = page.getByRole("row", { name: /Cancel the sample reservation/ });
   await deleteRow.getByRole("button", { name: "Test" }).click();
   await page.getByRole("button", { name: "Send request" }).click();
   await expect(page.locator("#test-status")).toHaveText("Request completed with HTTP 204.");
@@ -328,11 +323,11 @@ test("prefers and persists pretty endpoint test responses when available", async
   await responseBodyDisplay.selectOption("pretty");
   await settings.getByRole("button", { name: "Done" }).click();
 
-  const row = page.getByRole("row", { name: /Reserve a ride/ });
+  const row = page.getByRole("row", { name: /Reserve inventory/ });
   await row.getByRole("button", { name: "Test" }).click();
   await page.getByRole("button", { name: "Send request" }).click();
   await expect(page.locator("#test-response-body-label")).toHaveText("Pretty response body");
-  await expect(page.locator("#test-response-body")).toContainText('\n  "id": 42,');
+  await expect(page.locator("#test-response-body")).toContainText('\n  "id": "res-demo-001",');
   await expect(page.getByRole("button", { name: "Show raw" })).toBeVisible();
   await page.getByRole("button", { name: "Close endpoint test" }).last().click();
 
@@ -347,7 +342,7 @@ test("prefers and persists pretty endpoint test responses when available", async
 
 test("keeps request and response sections compact and closes from the backdrop", async ({ page }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  const trigger = page.getByRole("row", { name: /Discover the parks/ }).getByRole("button", { name: "Test" });
+  const trigger = page.getByRole("row", { name: /Browse inventory/ }).getByRole("button", { name: "Test" });
   await trigger.click();
 
   const requestActions = await page.locator(".test-actions").boundingBox();
@@ -363,48 +358,81 @@ test("keeps request and response sections compact and closes from the backdrop",
   await expect(trigger).toBeFocused();
 });
 
-for (const { name, path, status, contentType } of [
+for (const { name, path, status, contentType, method } of [
   {
-    name: "Reservation validation fault demo",
-    path: "/ctp/demo-faults/reservation-validation",
-    status: 422,
-    contentType: "application/problem+json; charset=utf-8",
-  },
-  {
-    name: "Reservation conflict fault demo",
-    path: "/ctp/demo-faults/reservation-conflict",
-    status: 409,
-    contentType: "application/problem+json; charset=utf-8",
-  },
-  {
-    name: "Ticket service maintenance fault demo",
-    path: "/ctp/demo-faults/ticket-service",
-    status: 503,
-    contentType: "application/problem+json; charset=utf-8",
-  },
-  {
-    name: "Download the park schedule",
-    path: "/ctp/parks/starlight-gardens/schedule.csv",
-    status: 200,
-    contentType: "text/csv; charset=utf-8",
-  },
-  {
-    name: "Update your ride reservation",
-    path: "/ctp/reservations/42",
+    name: "Trailhead assistant - success",
+    path: "/aoai/200/chat/completions",
     status: 200,
     contentType: "application/json; charset=utf-8",
   },
   {
-    name: "Check reservation preflight",
-    path: "/ctp/reservations/42",
+    name: "Reservation validation fault demo",
+    path: "/inventory/demo-faults/invalid-reservation",
+    status: 422,
+    contentType: "application/problem+json; charset=utf-8",
+  },
+  {
+    name: "Insufficient stock fault demo",
+    path: "/inventory/demo-faults/insufficient-stock",
+    status: 409,
+    contentType: "application/problem+json; charset=utf-8",
+  },
+  {
+    name: "Warehouse outage fault demo",
+    path: "/inventory/demo-faults/warehouse-unavailable",
+    status: 503,
+    contentType: "application/problem+json; charset=utf-8",
+  },
+  {
+    name: "Download a demonstration label",
+    path: "/shipping/shipments/shp-demo-001/label.txt",
+    status: 200,
+    contentType: "text/plain; charset=utf-8",
+  },
+  {
+    name: "Create a sample shipment",
+    path: "/shipping/shipments",
+    status: 201,
+    contentType: "application/json; charset=utf-8",
+  },
+  {
+    name: "Cancel the sample reservation",
+    path: "/inventory/reservations/res-demo-001",
     status: 204,
     contentType: null,
   },
   {
-    name: "Check the park API health",
-    path: "/ctp/health",
+    name: "Inspect an in-stock product",
+    path: "/inventory/items/SKU-1001",
+    status: 200,
+    contentType: "application/json; charset=utf-8",
+  },
+  {
+    name: "Inspect the sample shipment",
+    path: "/shipping/shipments/shp-demo-001",
+    status: 200,
+    contentType: "application/json; charset=utf-8",
+  },
+  {
+    name: "Trailhead assistant - health",
+    path: "/aoai/health",
     status: 200,
     contentType: null,
+    method: "HEAD",
+  },
+  {
+    name: "Inventory API health",
+    path: "/inventory/health",
+    status: 200,
+    contentType: null,
+    method: "HEAD",
+  },
+  {
+    name: "Shipping API health",
+    path: "/shipping/health",
+    status: 200,
+    contentType: null,
+    method: "HEAD",
   },
 ]) {
   test(`previews and tests the built-in ${name} example`, async ({ page, request }) => {
@@ -419,61 +447,93 @@ for (const { name, path, status, contentType } of [
     await row.getByRole("button", { name: "Test", exact: true }).click();
     await expect(page.getByLabel("Path and query")).toHaveValue(path);
     await expect(page.locator("#test-method")).toHaveValue(endpoint.methods[0]);
+    if (method) await page.locator("#test-method").selectOption(method);
     if (endpoint.methods.includes("POST") || endpoint.methods.includes("PATCH")) {
-      await page.getByLabel("Request body", { exact: true }).fill('{"partySize":2}');
+      await page.getByLabel("Request body", { exact: true }).fill('{"quantity":2}');
     }
     await page.getByRole("button", { name: "Send request" }).click();
     await expect(page.locator("#test-status")).toHaveText(`Request completed with HTTP ${status}.`);
-    await expect(page.locator("#test-response-body")).toHaveText(endpoint.response.body || "Empty response body.");
+    await expect(page.locator("#test-response-body")).toHaveText(
+      method === "HEAD" ? "Empty response body." : endpoint.response.body || "Empty response body."
+    );
     if (contentType) {
       await expect(page.locator("#test-response-headers")).toContainText(contentType);
     }
     if (status === 503) {
       await expect(page.locator("#test-response-headers")).toContainText(/retry-after\s*: 30/);
     }
-    if (contentType?.startsWith("text/csv")) {
+    if (contentType?.startsWith("text/plain")) {
       await expect(page.locator("#test-response-headers")).toContainText(
-        'attachment; filename="starlight-gardens-schedule.csv"'
+        "attachment; filename=shipping-label-demo-001.txt"
       );
-    }
-    if (endpoint.methods.includes("PATCH")) {
-      expect((await (await request.get(path)).json()).partySize).toBe(2);
-    }
-    if (endpoint.methods.includes("OPTIONS")) {
-      await expect(page.locator("#test-response-headers")).toContainText(/allow\s*: GET, PATCH, DELETE, OPTIONS/);
-      await expect(page.locator("#test-response-headers")).toContainText(
-        /access-control-allow-methods\s*: PATCH, OPTIONS/
-      );
-      await expect(page.locator("#test-response-headers")).not.toContainText(/(?:^|\n)content-type\s*:/);
     }
     if (endpoint.methods.includes("HEAD")) {
       await expect(page.locator("#test-response-headers")).toContainText(/x-mock-source\s*: MockAPI/);
-      await expect(page.locator("#test-response-headers")).not.toContainText(/(?:^|\n)content-type\s*:/);
       expect((await request.get(path)).status()).toBe(404);
-      expect((await request.head("/ctp/parks")).status()).toBe(404);
-      await expect(page.getByRole("row", { name: /Discover the parks/ }).locator(".method-badge")).toHaveText(["GET"]);
+    } else if (name.startsWith("Inspect")) {
+      expect((await request.head(path)).status()).toBe(404);
+      await expect(row.locator(".method-badge")).toHaveText(["GET"]);
     }
   });
 }
 
 test("performs a cross-origin PATCH preflight with API-key protection disabled", async ({ page, request, baseURL }) => {
-  const example = await (await request.get("/__mockapi/api/configuration/example")).json();
-  await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(example.endpoints.length);
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": ["*"],
+    "Access-Control-Allow-Methods": ["PATCH, OPTIONS"],
+    "Access-Control-Allow-Headers": ["Content-Type, X-MockAPI-Key"],
+    "Access-Control-Expose-Headers": ["X-Mock-Source"],
+    "X-Mock-Source": ["MockAPI"],
+  };
+  const preflight = {
+    id: "c4880e93-664a-4c8f-8915-bdd01f629311",
+    name: "CORS preflight",
+    enabled: true,
+    methods: ["OPTIONS"],
+    path: "/cors/item",
+    response: { statusCode: 204, headers: corsHeaders, body: "" },
+  };
+  await importDocument(request, {
+    schemaVersion: "1.0",
+    endpoints: [
+      preflight,
+      {
+        id: "9ebf089a-cc5a-46c6-9e8e-3a953204f9ab",
+        name: "CORS update",
+        enabled: true,
+        methods: ["PATCH"],
+        path: "/cors/item",
+        response: {
+          statusCode: 200,
+          headers: corsHeaders,
+          contentType: "application/json",
+          body: '{"status":"updated"}',
+        },
+      },
+      {
+        id: "46cfac48-20c3-40d9-99cc-c27e2bc020f0",
+        name: "CORS lookup",
+        enabled: true,
+        methods: ["GET"],
+        path: "/cors/item",
+        response: { statusCode: 200, headers: {}, contentType: "application/json", body: '{"status":"original"}' },
+      },
+    ],
+  });
   const clientUrl = new URL(baseURL);
   clientUrl.hostname = "localhost";
   await page.goto(clientUrl.href);
   await expect(page.locator("#connection-status")).toHaveText("Live");
 
   const result = await page.evaluate(async (url) => {
-    const response = await fetch(`${url}/ctp/reservations/42`, {
+    const response = await fetch(`${url}/cors/item`, {
       method: "PATCH",
       credentials: "omit",
       headers: {
         "Content-Type": "application/json",
         "X-MockAPI-Key": "sample-key-for-cors-demo",
       },
-      body: '{"partySize":6}',
+      body: '{"status":"requested"}',
     });
     return {
       status: response.status,
@@ -483,13 +543,12 @@ test("performs a cross-origin PATCH preflight with API-key protection disabled",
   }, baseURL);
   expect(result.status).toBe(200);
   expect(result.source).toBe("MockAPI");
-  expect(result.body.partySize).toBe(4);
-  expect((await (await request.get("/ctp/reservations/42")).json()).partySize).toBe(2);
-  const options = example.endpoints.find((endpoint) => endpoint.methods.includes("OPTIONS"));
+  expect(result.body).toEqual({ status: "updated" });
+  expect(await (await request.get("/cors/item")).json()).toEqual({ status: "original" });
   await expect
     .poll(async () => {
       const statistics = await (await request.get("/__mockapi/api/statistics")).json();
-      return statistics.endpoints.find((endpoint) => endpoint.endpointId === options.id)?.totalRequests;
+      return statistics.endpoints.find((endpoint) => endpoint.endpointId === preflight.id)?.totalRequests;
     })
     .toBe(1);
 });
@@ -497,13 +556,15 @@ test("performs a cross-origin PATCH preflight with API-key protection disabled",
 test("reports endpoint-test network errors", async ({ page, request }) => {
   await request.post("/__mockapi/api/statistics/reset");
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  const row = page.locator("#endpoint-rows").getByRole("row", { name: /Ride sensor connection fault demo/ });
+  const row = page.locator("#endpoint-rows").getByRole("row", { name: /Carrier connection fault demo/ });
   await expect(row).toContainText("DROP");
   await row.getByRole("button", { name: "Test" }).click();
   await page.getByRole("button", { name: "Send request" }).click();
   await expect(page.locator("#test-status")).toContainText("Network error:");
   const requestLog = page.getByRole("region", { name: "Recent request log" });
-  const loggedRow = requestLog.locator(".request-log-entry").filter({ hasText: "/ctp/demo-faults/ride-sensor" });
+  const loggedRow = requestLog
+    .locator(".request-log-entry")
+    .filter({ hasText: "/shipping/demo-faults/connection-failure" });
   await expect(loggedRow).toHaveCount(1);
   await expect
     .poll(async () => Number(await loggedRow.locator(".request-log-attempts").textContent()))
@@ -523,11 +584,11 @@ test("reports endpoint-test network errors", async ({ page, request }) => {
 
 test("cancels an active endpoint test", async ({ page }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await page.route("**/ctp/parks", async (route) => {
+  await page.route("**/inventory/items", async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 2_000));
     await route.abort();
   });
-  const row = page.getByRole("row", { name: /Discover the parks/ });
+  const row = page.getByRole("row", { name: /Browse inventory/ });
   await row.getByRole("button", { name: "Test" }).click();
   await page.getByRole("button", { name: "Send request" }).click();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();

@@ -430,7 +430,7 @@
           </div>
 
           <div id="endpoint-body">
-            <div id="bulk-actions" class="bulk-actions" aria-label="Selected endpoint actions">
+            <div id="bulk-actions" class="bulk-actions" aria-label="Endpoint table actions">
               <span>
                 <strong id="selection-count">0</strong>
                 selected
@@ -440,6 +440,16 @@
                 <button id="bulk-disable" class="button quiet" type="button" disabled>Disable</button>
                 <button id="bulk-delete" class="button quiet bulk-delete" type="button" disabled>Delete</button>
               </div>
+              <button
+                id="endpoint-toggle-groups"
+                class="button quiet"
+                type="button"
+                aria-controls="endpoint-rows"
+                title="Collapse or expand all API groups in the current filtered result."
+                disabled
+              >
+                Collapse all groups
+              </button>
             </div>
 
             <div
@@ -719,7 +729,7 @@
                   type="password"
                   autocomplete="off"
                   spellcheck="false"
-                  maxlength="43"
+                  maxlength="256"
                   placeholder="Paste an existing key"
                   aria-describedby="settings-api-key-description settings-api-key-error"
                 />

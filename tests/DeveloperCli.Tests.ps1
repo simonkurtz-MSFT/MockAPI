@@ -661,7 +661,7 @@ try {
   }
   foreach ($requiredBashContract in @(
       '/__mockapi/api/configuration', '/__mockapi/api/endpoints',
-      '/__mockapi/api/statistics', '/ctp/attractions/cloud-cruiser/wait-times',
+      '/__mockapi/api/statistics', '/shipping/demo-faults/tracking-rate-limit',
       'build --pull --tag', 'image tag', 'MockApi__DashboardUsername=',
       'MockApi__DashboardPasswordHash=', 'publish mockapi --environment',
       'az bicep build', 'should_process'
@@ -704,6 +704,15 @@ try {
   Assert-True ($bashCliSource -match '--build-arg "NUGET_SOURCE=\$containerBuildNuGetSource"') 'Bash container builds must pass the resolved NuGet source to the Dockerfile.'
   Assert-True ($dockerfileSource -match 'ARG NUGET_SOURCE=https://api\.nuget\.org/v3/index\.json') 'Dockerfile must retain a portable public NuGet fallback.'
   Assert-True ($dockerfileSource -match 'dotnet restore .* --source "\$NUGET_SOURCE"') 'Dockerfile restore must use the selected NuGet source.'
+  $sampleCopies = [regex]::Match(
+    $dockerfileSource, '(?m)^COPY (?<sources>config/[^\r\n]+) config/\r?$'
+  ).Groups['sources'].Value -split '\s+'
+  $developmentWorkflow = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\devcontainer.yml') -Raw
+  foreach ($sample in Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'config') -Filter 'trailhead-*.json' -File) {
+    $samplePath = "config/$($sample.Name)"
+    Assert-True ($sampleCopies -ccontains $samplePath) "Dockerfile must copy the $($sample.Name) sample into the build stage."
+    Assert-True ($developmentWorkflow.Contains("`"$samplePath`"")) "Development container validation must run when $($sample.Name) changes."
+  }
   Assert-True ($dockerfileSource -match 'FROM mcr\.microsoft\.com/dotnet/sdk:10\.[^\s]+-aot@sha256:[0-9a-f]{64} AS build') 'Container compilation must use the pinned native AOT SDK.'
   foreach ($command in @('restore', 'publish')) {
     Assert-True ($dockerfileSource -match "dotnet $command [^\r\n]*-p:PublishAot=true") "Container $command must enable Native AOT."
@@ -721,16 +730,16 @@ try {
   Assert-True ($cliSource -match 'Removing dashboard assets makes only a very small difference') 'Container guidance must state that removing dashboard assets has minimal size impact.'
   Assert-True ($cliSource -match 'MockApi__EnableDashboard=false to disable the dashboard') 'Container guidance must identify the runtime dashboard switch.'
   Assert-True ($dockerfileSource -notmatch 'MockApi__EnableDashboard=false') 'Dockerfile must not disable the dashboard by default.'
-  Assert-True ($cliSource -match 'for \(\$attempt = 1; \$attempt -le 5; \$attempt\+\+\)') 'PowerShell showcase must make five requests before asserting HTTP 429.'
+  Assert-True ($cliSource -match 'for \(\$attempt = 1; \$attempt -le 3; \$attempt\+\+\)') 'PowerShell showcase must make up to three requests before asserting HTTP 429.'
   Assert-True (([regex]::Matches($cliSource, '\.TryGetValues\(')).Count -ge 2) 'PowerShell showcase must read optional response headers without throwing.'
-  Assert-True ($bashCliSource -match 'for attempt in 1 2 3 4 5') 'Bash showcase must make five requests before asserting HTTP 429.'
+  Assert-True ($bashCliSource -match 'for attempt in 1 2 3; do') 'Bash showcase must make up to three requests before asserting HTTP 429.'
   Assert-True ($cliSource -match '\$retryAfter -eq ''10''') 'PowerShell showcase must assert the checked-in Retry-After value.'
   Assert-True ($bashCliSource -match '\$retryAfter" == "10') 'Bash showcase must assert the checked-in Retry-After value.'
-  $example = Get-Content -LiteralPath (Join-Path $repositoryRoot 'config\mockapi.json') -Raw | ConvertFrom-Json
-  $waitTimes = $example.endpoints | Where-Object { $_.path -eq '/ctp/attractions/cloud-cruiser/wait-times' }
+  $example = Get-Content -LiteralPath (Join-Path $repositoryRoot 'config\trailhead-shipping.json') -Raw | ConvertFrom-Json
+  $tracking = $example.endpoints | Where-Object { $_.path -eq '/shipping/demo-faults/tracking-rate-limit' }
   foreach ($source in @($cliSource, $bashCliSource)) {
-    Assert-True ($source.Contains($waitTimes.path)) 'Both showcases must use the Contoso Theme Parks wait-times route.'
-    Assert-True ($source.Contains($waitTimes.response.body)) 'Both showcases must assert the exact configured wait-times error body.'
+    Assert-True ($source.Contains($tracking.path)) 'Both showcases must use the Trailhead shipping rate-limit route.'
+    Assert-True ($source.Contains($tracking.response.body)) 'Both showcases must assert the exact configured tracking error body.'
   }
   Assert-True ($cliSource.Contains('[string] $_.path -ceq $examplePath')) 'PowerShell showcase must detect older routes even when the stable ID exists.'
   Assert-True ($bashCliSource.Contains('entry.get("path") == os.environ["MOCKAPI_EXAMPLE_PATH"]')) 'Bash showcase must detect older routes even when the stable ID exists.'
@@ -1048,6 +1057,57 @@ write_color() { printf '%s\n' "$2"; }
   Assert-True ($commands -match 'az bicep build --file') 'Azure preflight must build the Bicep entry point.'
   Assert-True ($commands -match 'env set AZURE_DASHBOARD_USERNAME=') 'Empty dashboard credentials must clear the azd username value.'
   Assert-True ($commands -match 'env set AZURE_DASHBOARD_PASSWORD_HASH=') 'Empty dashboard credentials must clear the azd password hash value.'
+  Assert-True ($commands -match 'env set AZURE_MOCKAPI_KEY=') 'An empty deployment key must clear the azd bootstrap key value.'
+
+  $bashKeyConfiguration = @'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+REPOSITORY_ROOT="$PWD"
+ENVIRONMENT_FILE="$1"
+commands=()
+die() { printf '%s\n' "$1" >&2; exit 1; }
+azd() { commands+=("$*"); }
+run_tool() { shift; "$@"; }
+new_dashboard_password_hash() { printf 'test-hash'; }
+'@
+  foreach ($functionName in @('get_azure_deployment_configuration', 'configuration_value', 'set_azd_environment')) {
+    $bashKeyConfiguration += "`n" + [regex]::Match($bashCliSource, "(?ms)^$functionName\(\) \{.*?^\}").Value
+  }
+  $bashKeyConfiguration += @'
+
+configuration="$(get_azure_deployment_configuration)"
+set_azd_environment "$configuration"
+if [[ -n "$2" ]]; then
+  [[ "${commands[*]}" == *"env set AZURE_MOCKAPI_KEY $2 --environment"* ]]
+else
+  [[ "${commands[*]}" == *"env set AZURE_MOCKAPI_KEY= --environment"* ]]
+fi
+'@
+  Set-Content -LiteralPath $bashMenuTestPath -Value $bashKeyConfiguration.Replace("`r", '') -Encoding utf8NoBOM -NoNewline
+  foreach ($key in @('', ('a' * 32), ('deployment_key-' + ('b' * 49)), ('c' * 256), 'short', ('d' * 257), ('invalid!' * 4))) {
+    $keyFile = New-EnvironmentFile -Name 'deployment-key.env' -Lines @(
+      'AZURE_SUBSCRIPTION_ID=00000000-0000-0000-0000-000000000000',
+      'AZURE_LOCATION=eastus2',
+      'AZURE_ENV_NAME=mockapi-dev',
+      "AZURE_MOCKAPI_KEY=$key"
+    )
+    Copy-Item -LiteralPath $keyFile -Destination $bashEnvironmentPath
+    Clear-Content -LiteralPath $commandLog
+    $result = Invoke-CliProcess -Arguments @('-Action', 'azure-check', '-EnvironmentFile', $keyFile)
+    $bashResult = Invoke-BashCliProcess -ScriptPath ('./' + (Split-Path -Leaf $bashMenuTestPath)) -Arguments @(
+      (Split-Path -Leaf $bashEnvironmentPath), $key
+    )
+    $validKey = -not $key -or $key -cmatch '\A[A-Za-z0-9_-]{32,256}\z'
+    Assert-True (($result.ExitCode -eq 0) -eq $validKey) 'PowerShell must validate deployment key length and header-safe characters.'
+    Assert-True (($bashResult.ExitCode -eq 0) -eq $validKey) "Bash must validate and synchronize the same deployment keys: $($bashResult.Output)"
+    if ($key) {
+      Assert-True (-not $result.Output.Contains($key) -and -not $bashResult.Output.Contains($key)) 'Deployment keys must not appear in CLI output or validation errors.'
+    }
+    if ($validKey -and $key) {
+      $commands = Get-Content -LiteralPath $commandLog -Raw
+      Assert-True ($commands.Contains("env set AZURE_MOCKAPI_KEY $key")) 'The supplied deployment key must be synchronized to azd unchanged.'
+    }
+  }
 
   $dashboardPassword = 'eight888'
   $dashboardFile = New-EnvironmentFile -Name 'dashboard.env' -Lines @(

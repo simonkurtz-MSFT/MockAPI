@@ -95,7 +95,7 @@ export function bindDashboardTooltip({ trigger, tooltip, events, onActivate }) {
     const spaceAbove = bounds.top - 8;
     const below = size.height <= spaceBelow || spaceBelow >= spaceAbove;
     // Keep the preview on-screen without covering its own activation button.
-    tooltip.style.maxHeight = `${Math.max(0, Math.min(320, window.innerHeight / 2, below ? spaceBelow : spaceAbove))}px`;
+    tooltip.style.maxHeight = `${Math.max(0, Math.min(400, window.innerHeight * 0.6, below ? spaceBelow : spaceAbove))}px`;
     tooltip.style.top = `${below ? bounds.bottom : bounds.top - tooltip.getBoundingClientRect().height}px`;
     tooltip.style.left = `${Math.max(8, Math.min(bounds.right - size.width, window.innerWidth - size.width - 8))}px`;
   }

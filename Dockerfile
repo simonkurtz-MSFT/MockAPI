@@ -14,7 +14,7 @@ COPY src/MockAPI/MockAPI.csproj src/MockAPI/
 RUN dotnet restore src/MockAPI/MockAPI.csproj --source "$NUGET_SOURCE" -p:PublishAot=true
 
 COPY src/MockAPI/ src/MockAPI/
-COPY config/mockapi.json config/
+COPY config/trailhead-aoai.json config/trailhead-inventory.json config/trailhead-shipping.json config/
 RUN dotnet publish src/MockAPI/MockAPI.csproj --configuration Release --no-restore --output /app/publish -p:PublishAot=true -p:TreatWarningsAsErrors=true
 
 # ---------------------------------------------------------------------

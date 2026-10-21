@@ -52,6 +52,7 @@ public sealed class ConfigurationStartupTests : IDisposable
                 ["MockApi:EnableOpenApi"] = "false",
                 ["MockApi:EnableSwaggerUi"] = "false",
                 ["MockApi:ManagementPermitLimit"] = "321",
+                ["MockApi:ApiKey"] = "deployment-key-with-32-characters_",
                 ["MockApi:DashboardUsername"] = "operator",
                 ["MockApi:DashboardPasswordHash"] = "hash"
             })
@@ -62,6 +63,7 @@ public sealed class ConfigurationStartupTests : IDisposable
         Assert.Equal("/data/mockapi.json", production.ConfigurationPath);
         Assert.True(development.AllowEmptyConfiguration);
         Assert.Equal(120, development.ManagementPermitLimit);
+        Assert.Null(development.ApiKey);
         Assert.Equal("custom.json", explicitOptions.ConfigurationPath);
         Assert.Equal(
             new Uri("https://storage.example/container/mockapi.json"),
@@ -76,6 +78,7 @@ public sealed class ConfigurationStartupTests : IDisposable
         Assert.False(explicitOptions.EnableOpenApi);
         Assert.False(explicitOptions.EnableSwaggerUi);
         Assert.Equal(321, explicitOptions.ManagementPermitLimit);
+        Assert.Equal("deployment-key-with-32-characters_", explicitOptions.ApiKey);
         Assert.Equal("operator", explicitOptions.DashboardUsername);
         Assert.Equal("hash", explicitOptions.DashboardPasswordHash);
         Assert.Throws<ArgumentNullException>((Action)(() => MockApiHostConfiguration.CreateOptions(null!, true, "C:/app")));

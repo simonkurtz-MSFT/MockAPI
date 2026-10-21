@@ -28,7 +28,6 @@
     },
     "endpoints": {
       "type": "array",
-      "maxItems": 25,
       "items": {
         "$ref": "#/$defs/endpoint"
       }

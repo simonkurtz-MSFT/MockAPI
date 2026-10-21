@@ -12,15 +12,19 @@ internal static class ConfigurationSchemaFixture
         "schemas",
         "mockapi.schema.json");
 
-    public static string ExamplePath { get; } = Path.Combine(
-        RepositoryRoot,
-        "config",
-        "mockapi.json");
-
     public static string AoaiPath { get; } = Path.Combine(
         RepositoryRoot,
         "config",
-        "aoai.json");
+        "trailhead-aoai.json");
+
+    public static string GetSamplePath(string fileName) => Path.Combine(RepositoryRoot, "config", fileName);
+
+    public static string ReadExampleJson()
+    {
+        using var resource = MockAPI.Management.ManagementApiEndpoints.OpenBuiltInConfiguration("example");
+        using var reader = new StreamReader(resource);
+        return reader.ReadToEnd();
+    }
 
     private static readonly Lazy<JsonSchema> Schema = new(() =>
         JsonSchema.FromText(File.ReadAllText(SchemaPath)));

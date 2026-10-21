@@ -352,6 +352,11 @@ section.gallery {
   border-radius: 0.8rem;
   background: var(--surface);
 }
+.sample-links {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+}
 .badge {
   display: inline-block;
   max-width: 100%;

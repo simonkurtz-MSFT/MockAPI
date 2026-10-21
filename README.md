@@ -47,9 +47,8 @@ Local runs default to `http://localhost:5080`. Set `ASPNETCORE_URLS` only to ove
 1. Open **[the dashboard](http://localhost:5080/__mockapi/)** and select **Load examples**.
 2. Configure [dashboard administrator credentials](docs/OPERATIONS.md#mock-api-keys), then open
    **Settings > Mock API security** and generate a key. Mock calls fail with `401` until a key is generated.
-3. Select **Test** on `/ctp/parks`. CTP stands for **Contoso Theme Parks**; the examples follow a
-   fictional park visit, from discovering attractions to reserving a ride. Dashboard tests use the
-   generated key automatically.
+3. Select **Test** on `/inventory/items`. The **Trailhead Supply** examples cover stock, reservations,
+   shipping quotes, and shipment tracking. Dashboard tests use the generated key automatically.
    External callers must send it in `X-MockAPI-Key`; opening a mock URL without that header returns `401`.
 4. Edit its response in the dashboard and repeat the test. No restart needed.
 5. Changes are saved automatically to your [writable file or volume](#22-run-directly-with-net). Use **Retry save** if saving fails.
@@ -67,7 +66,7 @@ Keep administrative access on localhost or a protected network unless you config
 > MockAPI is pre-1.0. The published `v1.0.0-alpha.1` image is an older preview, not the current beta source.
 > Use the source quick start for current features. A version in the project does not mean that image has been published.
 
-![Annotated MockAPI dashboard showing nine Contoso Theme Parks endpoints under /ctp, configuration commands, live request metrics, the last-60-minutes activity graph, and recent request outcomes.](docs/images/01-dashboard-overview.png)
+![MockAPI dashboard showing Trailhead Supply inventory and shipping examples, configuration commands, live request metrics, the last-60-minutes activity graph, and recent request outcomes.](docs/images/01-dashboard-overview.png)
 
 The browser dashboard is the operations console: load or import a configuration, watch live request metrics, and manage every mock endpoint in one place.
 
@@ -123,7 +122,7 @@ MockAPI replaces that dependency with a small HTTP server whose behavior is conf
 > [!NOTE]
 > The team can keep moving before a dependency is ready, replay the same scenario on demand, and safely exercise failures that would be impractical to trigger against a real service.
 
-![Annotated request lifecycle panel describing how MockAPI defines a response, matches each request by method and normalized path, responds and records statistics, activates valid edits atomically without a restart, and persists saved changes to disk.](docs/images/06-how-it-works.png)
+![Request lifecycle panel describing how MockAPI defines a response, matches each request by method and normalized path, responds and records statistics, activates valid edits atomically without a restart, and persists saved changes.](docs/images/06-how-it-works.png)
 
 Every request follows the same lifecycle: define a response, match it by method and exact path, then respond and record process-local statistics. Valid edits activate atomically with no restart.
 
@@ -184,11 +183,11 @@ MockAPI is intentionally narrower than a general-purpose API virtualization plat
   credentials protect security Settings, while anonymous local administration can perform initial setup.
 - **Hardened portable runtime:** Run as a trimmed, non-root Linux container on `amd64` and `arm64`, including with a read-only root filesystem.
 
-![Annotated endpoint registry table listing the example endpoints with their methods, exact paths, configured responses, request counts, last-request times, and enabled state, plus per-row test, edit, duplicate, and delete actions.](docs/images/02-endpoints.png)
+![Endpoint registry table listing Trailhead Supply examples with their methods, group-relative paths, configured responses, attempt counts, and enabled state, plus per-row test, edit, duplicate, and delete actions.](docs/images/02-endpoints.png)
 
-The endpoint registry lists every mock with its method, exact path, configured response, and live request count, and offers per-row test, edit, duplicate, and delete actions.
+The endpoint registry lists every mock with its method, exact path, configured response, and live request count, and offers per-row test, edit, duplicate, and delete actions. Use the checkbox beside an API heading to select or clear all of that API's endpoints matching the current filters, even while its group is collapsed. Partial selections show a mixed checkbox state; selections in other APIs and endpoints hidden by filters are preserved. Selected endpoints can be enabled, disabled, or deleted together.
 
-![Annotated per-endpoint statistics table showing request counts, request rate per minute, last observed status, total response bytes, and a plain-language explanation of each configured response.](docs/images/05-statistics.png)
+![Per-endpoint statistics table showing request counts, request rate per minute, last observed status, total response bytes, and a plain-language explanation of each configured response.](docs/images/05-statistics.png)
 
 Process-local statistics report aggregate and per-endpoint activity — request counts, rate, last status, and response bytes — with a plain-language note explaining each configured response. The dashboard also shows the 100 most recent request outcomes newest first. It retains only timestamp, method, normalized path, endpoint identity, outcome, status, and response byte count; never request or response content, headers, cookies, or query values.
 
@@ -268,7 +267,7 @@ Use this path for the shortest local development loop. Start MockAPI in one term
 
 # Terminal 2: verify readiness, then call the first mock endpoint
 Invoke-WebRequest http://localhost:5080/health/ready
-Invoke-RestMethod http://localhost:5080/ctp/parks -Headers @{ 'X-MockAPI-Key' = $env:MOCKAPI_KEY }
+Invoke-RestMethod http://localhost:5080/inventory/items -Headers @{ 'X-MockAPI-Key' = $env:MOCKAPI_KEY }
 ```
 
 </details>
@@ -282,7 +281,7 @@ Invoke-RestMethod http://localhost:5080/ctp/parks -Headers @{ 'X-MockAPI-Key' = 
 
 # Terminal 2: verify readiness, then call the first mock endpoint
 curl -fsS http://localhost:5080/health/ready
-curl -fsS -H "X-MockAPI-Key: $MOCKAPI_KEY" http://localhost:5080/ctp/parks
+curl -fsS -H "X-MockAPI-Key: $MOCKAPI_KEY" http://localhost:5080/inventory/items
 ```
 
 </details>
@@ -294,7 +293,7 @@ Direct development starts with an empty configuration unless a configuration pat
 
 ```powershell
 New-Item -ItemType Directory -Force artifacts/local-data | Out-Null
-Copy-Item config/mockapi.json artifacts/local-data/mockapi.json
+Copy-Item config/trailhead-inventory.json artifacts/local-data/mockapi.json
 $env:MockApi__ConfigurationPath = (Resolve-Path artifacts/local-data/mockapi.json).Path
 $env:MockApi__AllowEmptyConfiguration = 'false'
 .\start.ps1 -Action run
@@ -307,7 +306,7 @@ $env:MockApi__AllowEmptyConfiguration = 'false'
 
 ```bash
 mkdir -p artifacts/local-data
-cp config/mockapi.json artifacts/local-data/mockapi.json
+cp config/trailhead-inventory.json artifacts/local-data/mockapi.json
 export MockApi__ConfigurationPath="$(realpath artifacts/local-data/mockapi.json)"
 export MockApi__AllowEmptyConfiguration='false'
 ./start.sh --action run
@@ -400,7 +399,7 @@ Open `http://localhost:8080/`, select **Load examples**, and verify the first re
 <summary><strong>PowerShell 7</strong></summary>
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/ctp/parks -Headers @{ 'X-MockAPI-Key' = $env:MOCKAPI_KEY }
+Invoke-RestMethod http://localhost:8080/inventory/items -Headers @{ 'X-MockAPI-Key' = $env:MOCKAPI_KEY }
 ```
 
 </details>
@@ -409,7 +408,7 @@ Invoke-RestMethod http://localhost:8080/ctp/parks -Headers @{ 'X-MockAPI-Key' = 
 <summary><strong>Bash</strong></summary>
 
 ```bash
-curl -fsS -H "X-MockAPI-Key: $MOCKAPI_KEY" http://localhost:8080/ctp/parks
+curl -fsS -H "X-MockAPI-Key: $MOCKAPI_KEY" http://localhost:8080/inventory/items
 ```
 
 </details>
@@ -490,6 +489,12 @@ docker compose up --detach
 ### 2.4) Deploy to Azure Container Apps
 
 The repository includes `azd` infrastructure for Azure Container Apps, Azure Container Registry, private managed-identity Blob persistence, and minimal Log Analytics retention.
+
+For automatic mock authorization, optionally set `AZURE_MOCKAPI_KEY` in the ignored environment file.
+It becomes the container's secret-backed `MockApi__ApiKey` setting, so callers can send the same value in
+`X-MockAPI-Key` without generating a key through the dashboard. Direct IaC consumers can use the secure
+`mockApiKey` Bicep parameter. The key seeds only missing security settings; existing saved keys and protection
+choices take precedence. See [deployment key setup and constraints](docs/OPERATIONS.md#mock-api-keys).
 
 Set up the Azure tools, create the ignored environment file, validate the deployment, and deploy:
 
@@ -599,9 +604,9 @@ The image runs as the non-root `app` user. `/data` is the only required writable
 The same workflow applies to every execution model:
 
 1. Open the dashboard at the application root.
-2. Select **Load examples** to add the built-in Contoso Theme Parks (`/ctp/*`) endpoints.
+2. Select **Load examples** to merge the built-in Trailhead Supply AI assistant, inventory, and shipping endpoints.
 3. With administrator credentials configured, generate a key in **Settings > Mock API security**.
-   Copy it before reloading; the server stores only its hash. Select **Test** on an endpoint, or call `/ctp/parks`
+   Copy it before reloading; the server stores only its hash. Select **Test** on an endpoint, or call `/inventory/items`
    with the key in `X-MockAPI-Key`. Set `MOCKAPI_KEY` in the calling terminal for the request examples above.
 4. Edit, duplicate, enable, disable, or create an endpoint. Valid changes become active immediately.
 5. Changes are saved automatically to the selected persistence target. If saving fails, changes stay active
@@ -610,11 +615,11 @@ The same workflow applies to every execution model:
 
 The built-in example merge adds missing endpoints, skips identical ones, preserves unrelated configuration, and requires explicit confirmation before replacing a conflicting example.
 
-![Annotated endpoint editor for /ctp/parks showing its description, GET and HEAD methods, exact path, response behavior, status code, headers, raw body, enabled toggle, and the apply-endpoint action.](docs/images/03-endpoint-editor.png)
+![Endpoint editor for /inventory/items/SKU-1001 showing its description, GET and HEAD methods, exact path, response behavior, status code, headers, body, enabled toggle, and the apply-endpoint action.](docs/images/03-endpoint-editor.png)
 
 The endpoint editor defines everything a response returns: methods, exact path, status code, reason phrase, headers, content type, and body. Valid changes apply immediately.
 
-![Annotated endpoint test drawer for /ctp/parks showing the request controls and a local HTTP 200 response with headers, timing, effective URL, and the static park discovery body.](docs/images/04-endpoint-test.png)
+![Endpoint test drawer for /inventory/items showing the request controls and a local HTTP 200 response with headers, timing, effective URL, and the static inventory body.](docs/images/04-endpoint-test.png)
 
 The built-in test drawer sends a real request to any endpoint and shows the live response — status, elapsed time, effective URL, and headers — without leaving the dashboard.
 
@@ -634,8 +639,8 @@ Each request generates the document from one current active configuration snapsh
 2. In APIM, choose **APIs > Add API > OpenAPI** and supply the deployed export URL, or upload a freshly downloaded file if the export requires authentication or is private.
 3. Set APIM's **Web service URL** to the deployed MockAPI HTTPS base URL. The export's `servers` value is a local-development placeholder, not deployment discovery.
 4. Configure the backend call to supply `X-MockAPI-Key`, using a secret value rather than embedding the key in
-   the export. Choose an API URL suffix, such as `mockapi`. An enabled `/ctp/parks` route is then called through
-   `https://<apim-gateway>/mockapi/ctp/parks`.
+   the export. Choose an API URL suffix, such as `mockapi`. An enabled `/inventory/items` route is then called through
+   `https://<apim-gateway>/mockapi/inventory/items`.
 5. Test through APIM with its required subscription key or other caller credentials. MockAPI still serves the response; importing the document does not reproduce its behavior inside APIM.
 
 **Runtime generation is not APIM synchronization.** APIM imports a snapshot and does not watch the source URL. Re-import into the same APIM API when its operations or documented responses need updating. Existing imported routes forward to the current MockAPI behavior immediately, subject to APIM policies and caching.
@@ -648,11 +653,28 @@ See [Live mock OpenAPI and APIM import](docs/MANAGEMENT_API.md#live-mock-openapi
 
 ### 3.1) Configuration
 
-MockAPI accepts complete JSON documents conforming to [schemas/mockapi.schema.json](schemas/mockapi.schema.json). [config/mockapi.json](config/mockapi.json) contains examples for normal and delayed responses, repeated headers, non-success status codes, empty bodies, and an intentional connection abort.
+MockAPI accepts complete JSON documents conforming to [schemas/mockapi.schema.json](schemas/mockapi.schema.json). The Trailhead Supply samples cover normal and delayed responses, repeated headers, non-success status codes, empty bodies, and an intentional connection abort.
+
+The repository includes these native sample configurations:
+
+| File                                                        | Scenarios                                                                      |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| [trailhead-aoai.json](config/trailhead-aoai.json)           | Trailhead AI assistant completion, capacity exhaustion, and backend failures   |
+| [trailhead-inventory.json](config/trailhead-inventory.json) | Stock snapshots, reservations, insufficient stock, and warehouse outages       |
+| [trailhead-shipping.json](config/trailhead-shipping.json)   | Quotes, shipments, tracking, label downloads, throttling, and carrier failures |
+
+Import a sample through the dashboard, or use it as the source of the writable startup copy shown
+in [Run Directly with .NET](#22-run-directly-with-net). Samples return static data, not live business services.
+The dashboard's **Load examples** action merges all three Trailhead files as one 41-endpoint example.
+Each API provides a HEAD-only health mock (`/aoai/health`, `/inventory/health`, `/shipping/health`)
+returning an empty `200 OK`; inspection endpoints use GET only. These mock health routes require
+the instance API key when protection is enabled, unlike the public application health probes.
+Existing saved configurations are not replaced automatically. There is no endpoint-count limit;
+the complete merged configuration must still fit the 4 MiB UTF-8 document-size limit and pass validation.
 
 The primary runtime switches control persistence and independently expose the dashboard, management API, OpenAPI document, and Swagger UI. Detailed settings, limits, endpoint fields, and persistence behavior are documented in the [configuration reference](docs/CONFIGURATION.md).
 
-![Annotated configuration commands showing example loading, JSON import, export, and Retry save, with a guide listing all eight export formats and explaining automatic persistence.](docs/images/07-export-formats.png)
+![Configuration commands showing example loading, JSON import, export-format selection, export, and Retry save.](docs/images/07-export-formats.png)
 
 Export the active configuration as MockAPI JSON or as a ready-to-use Postman, Insomnia, cURL, JMeter, OpenAPI, k6, or HTTP-file collection, import a saved configuration, and save valid changes to the selected persistence target.
 
@@ -762,7 +784,14 @@ To review the GitHub Pages documentation locally, run `.\start.ps1 -Action site-
 
 The documentation site's **Toggle color theme** sun-icon button matches the dashboard. On first load, the theme follows the operating system unless a Light or Dark choice was saved. Clicking toggles between Light and Dark and saves the choice independently of dashboard preferences.
 
-The documentation gallery shows a populated dashboard overview, all 16 Contoso Theme Parks (`/ctp`) example endpoints, and an expanded log of 16 sample requests. Use the left/right arrow buttons, the named view buttons, or the left/right arrow keys within the gallery to switch screenshots. Images open at full size in a new tab. The carousel does not advance automatically; without JavaScript, all three screenshots remain visible. Captures use only the checked-in example configuration and generated local requests, not a running deployment's data.
+The documentation gallery captures the 23-endpoint inventory and shipping subset of Trailhead Supply,
+with a populated dashboard overview and recent entries from 25 sample requests. **Load examples**
+loads all 41 endpoints, including the 15 AI assistant scenarios and three HEAD-only API health mocks
+not shown in these captures. Use the left/right arrow
+buttons, the named view buttons, or the left/right arrow keys within the gallery to switch screenshots.
+Images open at full size in a new tab. The carousel does not advance automatically; without JavaScript,
+all three screenshots remain visible. Captures use only the checked-in example configuration and
+generated local requests, not a running deployment's data.
 
 Gallery screenshots use lossless WebP at their original dimensions, with a combined 160 KiB transfer budget checked by tests. A PNG overview is retained for social previews. Documentation images are published only with the static site, not with the application container.
 

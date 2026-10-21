@@ -148,10 +148,10 @@ describe("sortEndpoints", () => {
 
 describe("getEndpointDisplayPath", () => {
   it.each([
-    ["/ctp/parks", "/parks"],
-    ["/ctp/attractions/ctp", "/attractions/ctp"],
-    ["/ctp", "/"],
-    ["/ctp/", "/"],
+    ["/inventory/items", "/items"],
+    ["/inventory/attractions/inventory", "/attractions/inventory"],
+    ["/inventory", "/"],
+    ["/inventory/", "/"],
     ["/", "/"],
   ])("displays %s as %s without its group prefix", (path, expected) => {
     expect(getEndpointDisplayPath(path)).toBe(expected);

@@ -12,19 +12,84 @@ async function loadExample(request) {
   return example;
 }
 
+test("Trailhead endpoint previews fit their full text without scrolling on a desktop viewport", async ({
+  page,
+  request,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const example = await loadExample(request);
+  for (const endpoint of example.endpoints) {
+    const row = page.locator(`.endpoint-row[data-endpoint-id="${endpoint.id}"]`);
+    const info = row.getByRole("button", { name: `Endpoint information for ${endpoint.name}`, exact: true });
+    await info.evaluate((button) => button.scrollIntoView({ block: "center" }));
+    await info.focus();
+    const tooltip = row.getByRole("tooltip", { includeHidden: true });
+    await expect(tooltip).toBeVisible();
+    const dimensions = await tooltip.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      return {
+        scrollHeight: element.scrollHeight,
+        clientHeight: element.clientHeight,
+        height: bounds.height,
+        top: bounds.top,
+        bottom: bounds.bottom,
+      };
+    });
+    expect(dimensions.scrollHeight, endpoint.name).toBeLessThanOrEqual(dimensions.clientHeight + 1);
+    expect(dimensions.height).toBeLessThanOrEqual(400);
+    expect(dimensions.top).toBeGreaterThanOrEqual(8);
+    expect(dimensions.bottom).toBeLessThanOrEqual(892);
+    await page.keyboard.press("Escape");
+  }
+});
+
+test("Trailhead endpoint information shows bold description and technical implementation headings", async ({
+  page,
+  request,
+}) => {
+  const example = await loadExample(request);
+  for (const path of ["/aoai/200/chat/completions", "/inventory/items", "/shipping/shipments"]) {
+    const endpoint = example.endpoints.find((item) => item.path === path);
+    expect(endpoint.description).toMatch(/^Description:\n.+\n\nTechnical implementation:\n.+$/);
+    const row = page.locator(`.endpoint-row[data-endpoint-id="${endpoint.id}"]`);
+    const info = row.getByRole("button", { name: `Endpoint information for ${endpoint.name}`, exact: true });
+    const tooltip = row.getByRole("tooltip", { includeHidden: true });
+    await info.scrollIntoViewIfNeeded();
+    await info.focus();
+    await expect(tooltip).toBeVisible();
+    expect(await tooltip.locator("p").textContent()).toBe(endpoint.description);
+    await expect(tooltip.locator("p")).toHaveCSS("white-space", "pre-wrap");
+    await expect(tooltip.locator("p > strong")).toHaveText(["Description:", "Technical implementation:"]);
+    for (const header of await tooltip.locator("p > strong").all()) {
+      await expect(header).toHaveCSS("font-weight", "700");
+    }
+    await page.keyboard.press("Enter");
+    await expect(page.locator("#endpoint-dialog")).toBeVisible();
+    await expect(page.locator("#field-description")).toHaveValue(endpoint.description);
+    await expectNoUnreviewedAccessibilityViolations(page, "#endpoint-dialog");
+    await page.getByRole("button", { name: "Apply endpoint", exact: true }).click();
+    await expect(page.locator("#endpoint-dialog")).toBeHidden();
+    await expect(info).toBeFocused();
+  }
+  const exported = await (await request.get("/__mockapi/api/configuration/export")).json();
+  expect(exported.endpoints.map((endpoint) => endpoint.description)).toEqual(
+    example.endpoints.map((endpoint) => endpoint.description)
+  );
+});
+
 test("API description supports hover, keyboard editing, whitespace, and native export @smoke", async ({
   page,
   request,
 }, testInfo) => {
   await loadExample(request);
-  const info = page.getByRole("button", { name: "Edit API description for /ctp", exact: true });
+  const info = page.getByRole("button", { name: "Edit API description for /inventory", exact: true });
   await expect(info).toBeVisible();
   await info.hover();
   const tooltip = page.getByRole("tooltip");
-  await expect(tooltip.locator("strong")).toHaveText("ctp");
-  await expect(tooltip).toContainText("CTP stands for Contoso Theme Parks");
-  await expect(tooltip).toContainText("Starlight Gardens");
-  await expect(tooltip).toContainText("static MockAPI examples");
+  await expect(tooltip.locator("strong")).toHaveText("inventory");
+  await expect(tooltip).toContainText("Trailhead Supply");
+  await expect(tooltip).toContainText("stock");
+  await expect(tooltip).toContainText("These static examples");
   await expect(tooltip.locator("p")).toHaveCSS("margin-top", "8px");
   await expect(tooltip.locator("small").last()).toHaveText("Click the information button to edit.");
   await expect(tooltip).toHaveCSS("text-transform", "none");
@@ -57,9 +122,9 @@ test("API description supports hover, keyboard editing, whitespace, and native e
   await expect(tooltip).toContainText("<img src=x onerror=alert(1)>");
   await expect(tooltip.locator("img")).toHaveCount(0);
   const exported = await (await request.get("/__mockapi/api/configuration/export")).json();
-  expect(exported.apiDescriptions["/ctp"]).toBe(description);
-  expect(exported.endpoints).toHaveLength(16);
-  expect((await request.get("/ctp/parks")).status()).toBe(200);
+  expect(exported.apiDescriptions["/inventory"]).toBe(description);
+  expect(exported.endpoints).toHaveLength(41);
+  expect((await request.get("/inventory/items")).status()).toBe(200);
   await page.reload();
   await info.focus();
   await expect(tooltip).toContainText("Second line");
@@ -74,21 +139,22 @@ test("API description supports hover, keyboard editing, whitespace, and native e
 
 test("API description stale drafts never overwrite live updates", async ({ page, request }) => {
   await loadExample(request);
-  const info = page.getByRole("button", { name: "Edit API description for /ctp", exact: true });
+  const info = page.getByRole("button", { name: "Edit API description for /inventory", exact: true });
   await info.click();
   await page.locator("#api-description-text").fill("Stale draft");
   const configuration = await (await request.get("/__mockapi/api/configuration")).json();
   const winner = await request.put("/__mockapi/api/configuration/api-description", {
     headers: { "If-Match": configuration.etag },
-    data: { path: "/ctp", description: "Winning description" },
+    data: { path: "/inventory", description: "Winning description" },
   });
   expect(winner.ok()).toBeTruthy();
-  await expect(page.locator(".endpoint-group-row .api-description-tooltip p")).toHaveText("Winning description");
+  const group = page.locator(".endpoint-group-row").filter({ has: info });
+  await expect(group.locator(".api-description-tooltip p")).toHaveText("Winning description");
   await page.getByRole("button", { name: "Apply description", exact: true }).click();
   await expect(page.locator("#api-description-error")).toBeVisible();
   await expect(page.locator("#api-description-dialog")).toBeVisible();
   const current = await (await request.get("/__mockapi/api/configuration")).json();
-  expect(current.apiDescriptions["/ctp"]).toBe("Winning description");
+  expect(current.apiDescriptions["/inventory"]).toBe("Winning description");
   expect(current.revision).toBe((await winner.json()).revision);
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await info.click();
@@ -97,10 +163,13 @@ test("API description stale drafts never overwrite live updates", async ({ page,
 
 test("information previews stay closed when API and endpoint editors restore focus", async ({ page, request }) => {
   const example = await loadExample(request);
-  const endpoint = example.endpoints.find((item) => item.path === "/ctp/parks");
+  const endpoint = example.endpoints.find((item) => item.path === "/inventory/items");
 
-  const groupInfo = page.getByRole("button", { name: "Edit API description for /ctp", exact: true });
-  const groupTooltip = page.locator(".endpoint-group-row .api-description-tooltip");
+  const groupInfo = page.getByRole("button", { name: "Edit API description for /inventory", exact: true });
+  const groupTooltip = page
+    .locator(".endpoint-group-row")
+    .filter({ has: groupInfo })
+    .locator(".api-description-tooltip");
   await groupInfo.focus();
   await expect(groupTooltip).toBeVisible();
   await page.keyboard.press("Enter");
@@ -132,7 +201,7 @@ test("empty descriptions stay cleared on example merges and retained metadata re
   request,
 }) => {
   const example = await loadExample(request);
-  const info = page.getByRole("button", { name: "Edit API description for /ctp", exact: true });
+  const info = page.getByRole("button", { name: "Edit API description for /inventory", exact: true });
   await info.click();
   await page.locator("#api-description-text").fill("");
   await page.getByRole("button", { name: "Apply description", exact: true }).click();
@@ -143,7 +212,7 @@ test("empty descriptions stay cleared on example merges and retained metadata re
   });
   expect((await merge.json()).applied).toBe(false);
   const exported = await (await request.get("/__mockapi/api/configuration/export")).json();
-  expect(exported.apiDescriptions["/ctp"]).toBe("");
+  expect(exported.apiDescriptions["/inventory"]).toBe("");
   const deleted = await request.post("/__mockapi/api/endpoints/bulk", {
     headers: { "If-Match": current.etag },
     data: { endpointIds: example.endpoints.map((endpoint) => endpoint.id), operation: "delete" },
@@ -151,7 +220,7 @@ test("empty descriptions stay cleared on example merges and retained metadata re
   expect(deleted.ok()).toBeTruthy();
   await expect(info).toHaveCount(0);
   const remaining = await (await request.get("/__mockapi/api/configuration")).json();
-  expect(remaining.apiDescriptions["/ctp"]).toBe("");
+  expect(remaining.apiDescriptions["/inventory"]).toBe("");
   const restored = await request.post("/__mockapi/api/configuration/example/merge", {
     headers: { "If-Match": remaining.etag },
   });
@@ -165,15 +234,15 @@ test("endpoint information is keyboard accessible and untrusted descriptions and
   request,
 }) => {
   const example = await (await request.get("/__mockapi/api/configuration/example")).json();
-  const endpoint = example.endpoints.find((item) => item.path === "/ctp/parks");
+  const endpoint = example.endpoints.find((item) => item.path === "/inventory/items");
   const marker = "document.documentElement.dataset.descriptionExecuted='yes'";
-  const payload = `Mixed Case\n<img src=x onerror="${marker}"><svg onload="${marker}"></svg><script>eval("${marker}")</script>`;
+  const payload = `Description:\nMixed Case <img src=x onerror="${marker}">\n\nTechnical implementation:\n<svg onload="${marker}"></svg><script>eval("${marker}")</script>`;
   endpoint.name = "Untrusted <img src=x onerror=alert(1)>";
   endpoint.description = payload;
   endpoint.response.contentType = "text/html";
   endpoint.response.body = payload;
   endpoint.response.headers = { "X-Untrusted-Text": ["<img src=x onerror=alert(1)>"] };
-  await importDocument(request, { ...example, endpoints: [endpoint], apiDescriptions: { "/ctp": payload } });
+  await importDocument(request, { ...example, endpoints: [endpoint], apiDescriptions: { "/inventory": payload } });
   await page.reload();
 
   const row = page.locator(".endpoint-row");
@@ -183,7 +252,8 @@ test("endpoint information is keyboard accessible and untrusted descriptions and
   await expect(tooltip).toBeHidden();
   await info.hover();
   await expect(tooltip.locator("p")).toHaveText(payload);
-  await expect(tooltip.locator("strong")).toHaveText(endpoint.name);
+  await expect(tooltip.locator(":scope > strong")).toHaveText(endpoint.name);
+  await expect(tooltip.locator("p > strong")).toHaveText(["Description:", "Technical implementation:"]);
   await expect(tooltip.locator("p")).toHaveCSS("margin-top", "8px");
   await expect(tooltip.locator("small").last()).toHaveText("Click the information button to edit.");
   await expect(tooltip).toHaveCSS("text-transform", "none");
@@ -219,7 +289,7 @@ test("endpoint information is keyboard accessible and untrusted descriptions and
   await expect(info).toBeFocused();
   await page.keyboard.press("Escape");
 
-  const groupInfo = page.getByRole("button", { name: "Edit API description for /ctp", exact: true });
+  const groupInfo = page.getByRole("button", { name: "Edit API description for /inventory", exact: true });
   await groupInfo.click();
   await expect(page.locator("#api-description-text")).toHaveValue(payload);
   await page.locator("#api-description-text").fill(edited);
@@ -227,7 +297,7 @@ test("endpoint information is keyboard accessible and untrusted descriptions and
   await expect(page.locator(".endpoint-group-row .api-description-tooltip p")).toHaveText(edited);
   await page.keyboard.press("Escape");
   const exported = await (await request.get("/__mockapi/api/configuration/export")).json();
-  expect(exported.apiDescriptions["/ctp"]).toBe(edited);
+  expect(exported.apiDescriptions["/inventory"]).toBe(edited);
   expect(exported.endpoints[0].description).toBe(edited);
   await page.reload();
   await info.focus();
@@ -270,6 +340,7 @@ test("endpoints without descriptions still offer information and filter by hidde
   await expect(filter).toBeFocused();
   await expect(page.locator(".endpoint-row")).toHaveCount(1);
   await expect(page.locator(".endpoint-row .api-description-tooltip")).toBeHidden();
+  await expect(page.locator(".endpoint-row .api-description-tooltip p > strong")).toHaveCount(0);
   await filter.fill("Description that does not match");
   await expect(page.locator(".endpoint-row")).toHaveCount(0);
 });

@@ -1,0 +1,281 @@
+{
+  "$schema": "../schemas/mockapi.schema.json",
+  "schemaVersion": "1.0",
+  "apiDescriptions": {
+    "/aoai": "A fictional Azure OpenAI-style backend for the Trailhead Supply assistant. The success route returns a fixed answer about the sample Trail flask stock and shipment tracking. These static examples do not run a model, read the inventory or shipping APIs, store conversations, or contact Azure. POST bodies are optional; supplied non-empty JSON is syntax-checked, but prompts, headers, and query strings never select responses. Choose an explicit scenario path to test success, client errors, capacity exhaustion, infrastructure failures, or a connection abort. Retry and circuit-breaker behavior belongs to the caller or its APIM policy, not MockAPI. Usage counts are illustrative, not measured."
+  },
+  "endpoints": [
+    {
+      "id": "0c524b8e-d3c7-4fa4-94d5-76656d912dae",
+      "name": "Trailhead assistant - health",
+      "description": "Description:\nLet an API consumer check that the Trailhead Supply assistant mock is reachable without starting a conversation.\n\nTechnical implementation:\nHEAD returns a fixed 200 OK with sample headers and no response body. This is a mock endpoint subject to instance API-key protection, not a live model or dependency check. GET is not configured.",
+      "enabled": true,
+      "methods": ["HEAD"],
+      "path": "/aoai/health",
+      "response": {
+        "statusCode": 200,
+        "reasonPhrase": "OK",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "aoai-sample"]
+        },
+        "contentType": null,
+        "body": ""
+      }
+    },
+    {
+      "id": "2dd0ad99-53ed-4d37-a9a3-c94c531d8520",
+      "name": "Trailhead assistant - success",
+      "description": "Description:\nDemonstrate a successful Trailhead Supply assistant conversation that helps a shopper check Trail flask availability and understand the status of a sample shipment.\n\nTechnical implementation:\nReturns a fixed Azure OpenAI-style assistant answer about Trailhead Supply's sample stock and shipment, regardless of the prompt. No model or business API is called. APIM should return this response without retrying or tripping the backend circuit breaker.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/200/chat/completions",
+      "response": {
+        "statusCode": 200,
+        "reasonPhrase": "OK",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["success"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"id\":\"chatcmpl-trailhead-demo\",\"object\":\"chat.completion\",\"created\":0,\"model\":\"trailhead-assistant-mock\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"Trailhead Supply demo: SKU-1001 (Trail flask) has 24 units available at WH-DEMO-01. Shipment shp-demo-001 is label_created; its tracking ID is TRACK-DEMO-001. These are fixed sample snapshots, not live inventory or carrier updates.\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":8,\"completion_tokens\":6,\"total_tokens\":14}}"
+      }
+    },
+    {
+      "id": "99c2c757-5f85-4ee0-83f9-b26e8364946f",
+      "name": "Trailhead assistant - invalid request",
+      "description": "Description:\nExercise the assistant experience when a submitted conversation request is invalid, so the application can explain that it needs correction rather than repeatedly resubmitting it.\n\nTechnical implementation:\nReturns a fixed client error for a Trailhead Supply assistant request; it does not inspect prompt or message fields. APIM should pass it through unchanged without retrying or tripping the circuit breaker.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/400/chat/completions",
+      "response": {
+        "statusCode": 400,
+        "reasonPhrase": "Bad Request",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["client-error"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"invalid_request_error\",\"message\":\"The request payload is invalid.\",\"type\":\"invalid_request_error\"}}"
+      }
+    },
+    {
+      "id": "d88b6d82-81d4-49e9-8cf1-d0262231750b",
+      "name": "Trailhead assistant - authentication failed",
+      "description": "Description:\nDemonstrate the assistant being unable to sign in to its AI service, helping the support team distinguish an integration credential problem from an issue with a shopper's question.\n\nTechnical implementation:\nSimulates a backend authentication failure for the Trailhead Supply assistant, not MockAPI's own API-key check. APIM should pass it through unchanged; operators should correct the backend credential or managed identity configuration.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/401/chat/completions",
+      "response": {
+        "statusCode": 401,
+        "reasonPhrase": "Unauthorized",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["authentication-error"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"Unauthorized\",\"message\":\"Backend authentication failed.\"}}"
+      }
+    },
+    {
+      "id": "1b62446b-eedb-4c9b-a5c7-817fdcad5250",
+      "name": "Trailhead assistant - authorization failed",
+      "description": "Description:\nExercise the case where the assistant's service identity lacks permission to use the AI deployment, so the issue can be routed to the team responsible for access rather than treated as temporary demand.\n\nTechnical implementation:\nSimulates a backend authorization failure for the Trailhead Supply assistant. APIM should pass it through unchanged; operators should correct the backend role assignment or authorization policy.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/403/chat/completions",
+      "response": {
+        "statusCode": 403,
+        "reasonPhrase": "Forbidden",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["authorization-error"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"Forbidden\",\"message\":\"The backend identity is not authorized to invoke this deployment.\"}}"
+      }
+    },
+    {
+      "id": "e51ab3dd-91a3-4104-a315-16fd40b826d7",
+      "name": "Trailhead assistant - deployment not found",
+      "description": "Description:\nDemonstrate the assistant being configured to use an AI deployment that is no longer available, so operators can identify a setup problem before restoring shopper assistance.\n\nTechnical implementation:\nSimulates a missing model deployment for the Trailhead Supply assistant. APIM should pass it through unchanged; operators should correct the backend URL or deployment name.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/404/chat/completions",
+      "response": {
+        "statusCode": 404,
+        "reasonPhrase": "Not Found",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["configuration-error"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"DeploymentNotFound\",\"message\":\"The requested model deployment does not exist.\"}}"
+      }
+    },
+    {
+      "id": "a405ed96-53ea-423c-931f-e688a6bb3667",
+      "name": "Trailhead assistant - request timeout",
+      "description": "Description:\nExercise an assistant request that cannot finish in time, testing whether the service can use another available AI backend rather than leave a shopper waiting indefinitely.\n\nTechnical implementation:\nReturns an explicit HTTP 408 for the Trailhead Supply assistant without a real timeout or delay. APIM should trip the responding backend circuit and retry another eligible backend, retaining 408 if the fallback chain is exhausted.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/408/chat/completions",
+      "response": {
+        "statusCode": 408,
+        "reasonPhrase": "Request Timeout",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["timeout"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"RequestTimeout\",\"message\":\"The backend timed out while processing the inference request.\"}}"
+      }
+    },
+    {
+      "id": "a11f58f0-e0da-4a3e-b8fc-418e42dbf2ee",
+      "name": "Trailhead assistant - non-transient conflict",
+      "description": "Description:\nDemonstrate an assistant request blocked by a conflict that needs intervention rather than another automatic attempt, so the application can present a clear failure instead of looping.\n\nTechnical implementation:\nReturns HTTP 409 without Retry-After for the Trailhead Supply assistant. APIM should treat the conflict as non-transient and return it after one backend attempt.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/409/chat/completions",
+      "response": {
+        "statusCode": 409,
+        "reasonPhrase": "Conflict",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["non-transient-conflict"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"Conflict\",\"message\":\"A non-transient backend conflict occurred.\"}}"
+      }
+    },
+    {
+      "id": "f8ab06f1-a428-429e-a71e-2f69cc334d5e",
+      "name": "Trailhead assistant - transient conflict",
+      "description": "Description:\nExercise a temporary conflict while serving an assistant conversation, allowing the integration to try another AI backend without treating the original service as generally unavailable.\n\nTechnical implementation:\nReturns HTTP 409 with Retry-After: 1 for the Trailhead Supply assistant. APIM should retry another backend but should not open the responding backend circuit for this conditional conflict.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/409-retry-after/chat/completions",
+      "response": {
+        "statusCode": 409,
+        "reasonPhrase": "Conflict",
+        "headers": {
+          "Retry-After": ["1"],
+          "X-Mock-Backend-Scenario": ["transient-conflict"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"Conflict\",\"message\":\"A transient backend conflict occurred; retry after one second.\"}}"
+      }
+    },
+    {
+      "id": "7713e516-ac68-4d51-87ed-0fc8caf12387",
+      "name": "Trailhead assistant - capacity exhausted",
+      "description": "Description:\nDemonstrate a surge in shopper questions that exhausts an AI deployment's capacity, testing whether the assistant can continue through spare capacity or explain that it is busy.\n\nTechnical implementation:\nReturns HTTP 429 with Retry-After: 10 to model exhausted Trailhead Supply assistant capacity. This route always fails; no rolling-window counter is configured. APIM should trip the backend circuit and retry another eligible backend.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/429/chat/completions",
+      "response": {
+        "statusCode": 429,
+        "reasonPhrase": "Too Many Requests",
+        "headers": {
+          "Retry-After": ["10"],
+          "X-Mock-Backend-Scenario": ["capacity-exhausted"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"RateLimitReached\",\"message\":\"The backend deployment has exhausted its available capacity.\",\"type\":\"tokens\"}}"
+      }
+    },
+    {
+      "id": "c8226f69-d647-4d32-8323-c196c4a52fa7",
+      "name": "Trailhead assistant - transformed PTU exhaustion",
+      "description": "Description:\nExercise the assistant's fallback journey when its reserved AI processing capacity is exhausted, so shopper conversations can be redirected to another eligible deployment.\n\nTechnical implementation:\nReturns custom HTTP 499 to represent Trailhead Supply assistant PTU exhaustion already transformed from a backend 408. This is a synthetic policy outcome, not a standard Azure OpenAI status or a caller disconnect. APIM should trip the backend circuit and fail over.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/499/chat/completions",
+      "response": {
+        "statusCode": 499,
+        "reasonPhrase": "PTU Capacity Exhausted",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["transformed-ptu-exhaustion"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"PtuCapacityExhausted\",\"message\":\"PTU exhaustion was transformed to the custom 499 response.\"}}"
+      }
+    },
+    {
+      "id": "e7116d72-9a7e-481c-a41c-678a6dd5c9e8",
+      "name": "Trailhead assistant - internal server error",
+      "description": "Description:\nDemonstrate an unexpected AI service failure during a shopper conversation, testing whether the assistant can recover through another backend or clearly report a temporary loss of service.\n\nTechnical implementation:\nReturns HTTP 500 for the Trailhead Supply assistant. APIM should trip the backend circuit, retry another eligible backend, and normalize an exhausted fallback chain to HTTP 503.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/500/chat/completions",
+      "response": {
+        "statusCode": 500,
+        "reasonPhrase": "Internal Server Error",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["infrastructure-error"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"InternalServerError\",\"message\":\"The inference backend encountered an internal error.\"}}"
+      }
+    },
+    {
+      "id": "8db83525-ac49-4208-a921-c3af70a98c31",
+      "name": "Trailhead assistant - bad gateway",
+      "description": "Description:\nExercise a failure in a dependency behind the AI service, ensuring the assistant handles the interruption without presenting a broken response as a useful answer to the shopper.\n\nTechnical implementation:\nReturns HTTP 502 for the Trailhead Supply assistant. APIM should trip the backend circuit, retry another eligible backend, and normalize an exhausted fallback chain to HTTP 503.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/502/chat/completions",
+      "response": {
+        "statusCode": 502,
+        "reasonPhrase": "Bad Gateway",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["gateway-error"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"BadGateway\",\"message\":\"The backend received an invalid response from an upstream dependency.\"}}"
+      }
+    },
+    {
+      "id": "1bd86f8e-e798-4f4b-b809-c67e42cb714b",
+      "name": "Trailhead assistant - unavailable",
+      "description": "Description:\nDemonstrate the assistant's primary AI service being temporarily unavailable, testing continuity through a fallback and an honest unavailable message when no service can help the shopper.\n\nTechnical implementation:\nReturns HTTP 503 with Retry-After: 5 for the Trailhead Supply assistant. APIM should trip the backend circuit, fail over immediately, and return a generic 503 if every fallback is exhausted.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/503/chat/completions",
+      "response": {
+        "statusCode": 503,
+        "reasonPhrase": "Service Unavailable",
+        "headers": {
+          "Retry-After": ["5"],
+          "X-Mock-Backend-Scenario": ["service-unavailable"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"ServiceUnavailable\",\"message\":\"The inference backend is temporarily unavailable.\"}}"
+      }
+    },
+    {
+      "id": "9a641750-c727-4e65-991f-a7b45fd84740",
+      "name": "Trailhead assistant - gateway timeout",
+      "description": "Description:\nExercise an AI service waiting too long for one of its dependencies, so a shopper's conversation can be retried elsewhere or ended with a clear temporary-unavailability message.\n\nTechnical implementation:\nReturns explicit HTTP 504 for the Trailhead Supply assistant without a real timeout or delay. APIM should trip the backend circuit, retry another eligible backend, and normalize an exhausted fallback chain to HTTP 503.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/504/chat/completions",
+      "response": {
+        "statusCode": 504,
+        "reasonPhrase": "Gateway Timeout",
+        "headers": {
+          "X-Mock-Backend-Scenario": ["gateway-timeout"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"error\":{\"code\":\"GatewayTimeout\",\"message\":\"The backend did not receive a timely response from an upstream dependency.\"}}"
+      }
+    },
+    {
+      "id": "4b408fc0-2eda-4adf-83d4-3d74c308ca41",
+      "name": "Trailhead assistant - transport failure",
+      "description": "Description:\nDemonstrate an interrupted connection to the assistant's AI service, testing that the shopper receives a recoverable service message or a fallback answer rather than an unexplained broken conversation.\n\nTechnical implementation:\nAccepts the Trailhead Supply assistant request and aborts the connection before sending HTTP headers. This approximates a backend transport failure that APIM should retry and normalize to 503 when exhausted; it does not reproduce DNS or TLS failures.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/aoai/transport-failure/chat/completions",
+      "response": {
+        "behavior": "abortConnection",
+        "headers": {},
+        "contentType": null,
+        "body": ""
+      }
+    }
+  ]
+}

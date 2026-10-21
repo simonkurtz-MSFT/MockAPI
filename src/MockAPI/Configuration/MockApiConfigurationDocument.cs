@@ -13,7 +13,7 @@ public sealed record MockApiConfigurationDocument
     /// <summary>Gets the configuration contract version. Version 1 documents use <c>1.0</c>.</summary>
     public required string SchemaVersion { get; init; }
 
-    /// <summary>Gets optional descriptions keyed by case-sensitive first-segment paths such as <c>/ctp</c> or <c>/</c>.</summary>
+    /// <summary>Gets optional descriptions keyed by case-sensitive first-segment paths such as <c>/inventory</c> or <c>/</c>.</summary>
     /// <remarks>Metadata is independent of endpoint membership and survives deletion of a group's last endpoint.</remarks>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, string>? ApiDescriptions { get; init; }
@@ -65,9 +65,11 @@ public sealed record MockResponseDefinition
     public int? DelaySeconds { get; init; }
 
     /// <summary>Gets the terminal HTTP status code, or <see langword="null"/> for connection-abort behavior.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? StatusCode { get; init; }
 
     /// <summary>Gets the optional HTTP/1.x reason phrase; HTTP/2 and HTTP/3 do not transmit it.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ReasonPhrase { get; init; }
 
     /// <summary>Gets response header names mapped to ordered values for repeated-field wire semantics.</summary>

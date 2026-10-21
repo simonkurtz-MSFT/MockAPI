@@ -12,23 +12,20 @@ import { methodSupportsBody, parseHeaderLines } from "./dashboard-core.js?v={{AS
 export function createDefaultTestRequest(method, path = "") {
   if (["POST", "PUT", "PATCH"].includes(method.toUpperCase())) {
     const requestPath = path.split(/[?#]/, 1)[0];
-    const sample = ["/ctp/reservations", "/ctp/reservations/42"].includes(requestPath)
-      ? {
-          parkId: "starlight-gardens",
-          attractionId: "cloud-cruiser",
-          reservationDate: "2030-06-15",
-          reservationTime: "10:30",
-          partySize: 2,
-          guest: { name: "Alex Morgan", email: "alex@example.com" },
-        }
-      : {
-          id: "sample-item-001",
-          name: "Example item",
-          status: "active",
-          quantity: 2,
-          tags: ["sample", "dashboard"],
-          metadata: { source: "MockAPI dashboard" },
-        };
+    /** @type {Record<string, unknown>} */
+    let sample = {
+      id: "sample-item-001",
+      name: "Example item",
+      status: "active",
+      quantity: 2,
+      tags: ["sample", "dashboard"],
+      metadata: { source: "MockAPI dashboard" },
+    };
+    if (["/inventory/reservations", "/inventory/reservations/res-demo-001"].includes(requestPath)) {
+      sample = { sku: "SKU-1001", quantity: 2, warehouseId: "WH-DEMO-01" };
+    } else if (["/shipping/shipments", "/shipping/shipments/shp-demo-001"].includes(requestPath)) {
+      sample = { service: "standard", parcelWeightKg: 1.2, items: [{ sku: "SKU-1001", quantity: 2 }] };
+    }
     return {
       headerLines: "Content-Type: application/json; charset=utf-8",
       body: JSON.stringify(sample, null, 2),

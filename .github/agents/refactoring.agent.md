@@ -37,7 +37,7 @@ Only recommend work supported by concrete evidence such as:
 - missing or ambiguous public contract metadata that prevents generated documentation, static tooling, or focused contract tests from describing supported behavior;
 - measured startup, throughput, memory, image-size, or interaction latency regressions.
 
-Do not treat line count, small bounded `O(n)` loops, ordinary collection allocation, or stylistic preference as sufficient evidence. MockAPI supports at most 25 endpoint definitions, so optimize endpoint scans only when large payloads, repeated passes, duplicated policy, or measurements justify the change. Do not introduce pooling, caching, indexing, frameworks, or dependencies without demonstrating a net benefit under repository limits.
+Do not treat line count, small bounded `O(n)` loops, ordinary collection allocation, or stylistic preference as sufficient evidence. MockAPI has no endpoint-count cap, but configurations remain bounded by the 4 MiB UTF-8 document-size limit. Evaluate endpoint scans with representative large configurations and optimize only when repeated passes, duplicated policy, or measurements justify the change. Do not introduce pooling, caching, indexing, frameworks, or dependencies without demonstrating a net benefit under repository limits.
 
 ## Invariants
 

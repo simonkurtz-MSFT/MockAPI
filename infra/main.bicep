@@ -23,6 +23,11 @@ param dashboardUsername string = ''
 @description('Optional locally derived dashboard password hash. Leave empty with dashboardUsername to disable authentication.')
 param dashboardPasswordHash string = ''
 
+@secure()
+@maxLength(256)
+@description('Optional initial mock API key (32-256 ASCII letters, digits, hyphens, or underscores). Used only when no persisted security settings exist.')
+param mockApiKey string = ''
+
 @description('Existing ingress domain bindings preserved by the developer CLI before reprovisioning. New managed certificates are bound after deployment and DNS validation.')
 param customDomains array = []
 
@@ -48,6 +53,7 @@ module resources 'resources.bicep' = {
     location: location
     dashboardUsername: dashboardUsername
     dashboardPasswordHash: dashboardPasswordHash
+    mockApiKey: mockApiKey
     customDomains: customDomains
   }
 }

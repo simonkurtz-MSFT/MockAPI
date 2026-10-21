@@ -242,19 +242,23 @@ for (const theme of ["light", "dark"]) {
     expect(dimensions.labelHeight).toBeGreaterThanOrEqual(44);
 
     const keyInput = page.getByLabel("API key for dashboard tests");
-    await expect(keyInput).toHaveAttribute("maxlength", "43");
+    await expect(keyInput).toHaveAttribute("maxlength", "256");
     await page.keyboard.press("Tab");
     await expect(page.locator("#settings-api-security-enabled")).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(keyInput).toBeFocused();
     await keyInput.fill("invalid");
     await expect(keyInput).toHaveAttribute("aria-invalid", "true");
-    await expect(page.locator("#settings-api-key-error")).toHaveText("Enter a generated 43-character MockAPI key.");
+    await expect(page.locator("#settings-api-key-error")).toHaveText(
+      "Enter a 32-256 character MockAPI key using ASCII letters, digits, hyphens, or underscores."
+    );
     await expect(page.getByRole("button", { name: "Copy key", exact: true })).toBeDisabled();
-    await keyInput.fill("a".repeat(43));
+    await keyInput.fill("a".repeat(32));
+    await expect(keyInput).toHaveAttribute("aria-invalid", "false");
+    await keyInput.fill("a".repeat(256));
     await keyInput.press("End");
     await keyInput.pressSequentially("b");
-    await expect(keyInput).toHaveValue("a".repeat(43));
+    await expect(keyInput).toHaveValue("a".repeat(256));
     await expect(keyInput).toHaveAttribute("aria-invalid", "false");
     await expect(page.locator("#settings-api-key-error")).toBeHidden();
     await expect(page.getByRole("button", { name: "Copy key", exact: true })).toBeEnabled();

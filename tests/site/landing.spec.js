@@ -132,6 +132,20 @@ test("quick starts, assets and accessibility work under the Pages repository pre
   await expect(page).toHaveURL(/#start$/);
   await expect(page.locator("body")).not.toContainText("Codespaces");
   await expect(page.locator('a[href*="codespaces"]')).toHaveCount(0);
+  for (const [name, filename] of [
+    ["Explore inventory examples", "trailhead-inventory.json"],
+    ["Explore shipping examples", "trailhead-shipping.json"],
+    ["Explore AI assistant examples", "trailhead-aoai.json"],
+  ]) {
+    const sample = page.getByRole("link", { name, exact: true });
+    await expect(sample).toHaveAttribute(
+      "href",
+      `https://github.com/simonkurtz-MSFT/MockAPI/blob/main/config/${filename}`
+    );
+    const size = await sample.boundingBox();
+    expect(size.width).toBeGreaterThanOrEqual(24);
+    expect(size.height).toBeGreaterThanOrEqual(24);
+  }
   expect(
     await page.locator("img").evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0))
   ).toBe(true);
@@ -529,8 +543,8 @@ test("dashboard gallery supports named views, wrapping controls, keyboard naviga
       .evaluateAll((images) => images.map((image) => [image.naturalWidth, image.naturalHeight]))
   ).toEqual([
     [1905, 1500],
-    [915, 1235],
-    [915, 811],
+    [915, 1833],
+    [915, 807],
   ]);
   expect(
     await gallery
