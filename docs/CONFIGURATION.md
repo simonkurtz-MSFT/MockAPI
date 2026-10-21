@@ -109,6 +109,10 @@ methods remain unchanged. These are global runtime rules, not new endpoint confi
 remains independent and unchanged. Validation responses are counted against the matched endpoint without retaining
 the request content.
 
+Validation reuses bounded byte buffers and reads JSON tokens without building a document tree.
+All rented buffers are cleared before being returned to the pool, including after failed or cancelled reads.
+These are internal allocation optimizations; payload limits, accepted JSON, and error responses are unchanged.
+
 The test blade and all portable request exports provide optional illustrative JSON samples for
 `POST`, `PUT`, and `PATCH`. Trailhead inventory reservation routes use a SKU, quantity, and warehouse;
 shipping creation routes use a service, parcel weight, and line items. Other routes use a general
