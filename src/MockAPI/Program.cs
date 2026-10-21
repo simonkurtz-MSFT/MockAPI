@@ -256,6 +256,7 @@ internal static class MockApiHostConfiguration
             EnableSwaggerUi = ReadBoolean(configuration, "EnableSwaggerUi"),
             ManagementPermitLimit = ReadPositiveInteger(configuration, "ManagementPermitLimit", 120),
             RequireApiKey = ReadBoolean(configuration, "RequireApiKey"),
+            ApiKey = configuration[$"{MockApiOptions.SectionName}:ApiKey"],
             DashboardUsername = configuration[$"{MockApiOptions.SectionName}:DashboardUsername"],
             DashboardPasswordHash = configuration[$"{MockApiOptions.SectionName}:DashboardPasswordHash"]
         };

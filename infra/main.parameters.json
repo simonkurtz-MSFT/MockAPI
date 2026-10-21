@@ -17,6 +17,9 @@
     "dashboardPasswordHash": {
       "value": "${AZURE_DASHBOARD_PASSWORD_HASH}"
     },
+    "mockApiKey": {
+      "value": "${AZURE_MOCKAPI_KEY=}"
+    },
     "customDomains": {
       "value": "${AZURE_CUSTOM_DOMAINS=[]}"
     }

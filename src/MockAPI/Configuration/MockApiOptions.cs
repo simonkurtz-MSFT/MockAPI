@@ -39,6 +39,13 @@ public sealed class MockApiOptions
     /// <summary>Gets whether mock calls require an API key before security settings are first persisted. Defaults to true.</summary>
     public bool RequireApiKey { get; init; } = true;
 
+    /// <summary>
+    /// Gets the optional initial mock API key: 32-256 ASCII letters, digits, hyphens, or underscores.
+    /// Startup persists only its SHA-256 hash and enables protection when no security document exists.
+    /// Existing security settings take precedence, including after rotation or disabling protection.
+    /// </summary>
+    public string? ApiKey { get; init; }
+
     /// <summary>Gets the optional Basic authentication username for administrative surfaces.</summary>
     public string? DashboardUsername { get; init; }
 

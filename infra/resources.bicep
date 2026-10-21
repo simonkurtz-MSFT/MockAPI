@@ -17,6 +17,11 @@ param dashboardUsername string = ''
 @description('Optional locally derived dashboard password hash. Leave empty with dashboardUsername to disable authentication.')
 param dashboardPasswordHash string = ''
 
+@secure()
+@maxLength(256)
+@description('Optional initial mock API key (32-256 ASCII letters, digits, hyphens, or underscores). Existing persisted security settings take precedence.')
+param mockApiKey string = ''
+
 @description('Existing ingress domain bindings preserved before reprovisioning.')
 param customDomains array = []
 
@@ -68,6 +73,9 @@ var dashboardAuthenticationEnabled = !empty(dashboardUsername) && !empty(dashboa
 
 @description('Name of the Container Apps secret containing the dashboard password hash.')
 var dashboardPasswordSecretName = 'dashboard-password-hash'
+
+@description('Name of the Container Apps secret containing the initial mock API key.')
+var mockApiKeySecretName = 'mock-api-key'
 
 @description('Subscription-scoped resource ID for the built-in AcrPull role.')
 var acrPullRoleDefinitionId = subscriptionResourceId(
@@ -314,12 +322,20 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
     environmentId: managedEnvironment.id
     configuration: {
       activeRevisionsMode: 'Single'
-      secrets: dashboardAuthenticationEnabled ? [
-        {
-          name: dashboardPasswordSecretName
-          value: dashboardPasswordHash
-        }
-      ] : []
+      secrets: [
+        ...dashboardAuthenticationEnabled ? [
+          {
+            name: dashboardPasswordSecretName
+            value: dashboardPasswordHash
+          }
+        ] : []
+        ...!empty(mockApiKey) ? [
+          {
+            name: mockApiKeySecretName
+            value: mockApiKey
+          }
+        ] : []
+      ]
       ingress: {
         allowInsecure: false
         customDomains: customDomains
@@ -387,6 +403,12 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
               {
                 name: 'MockApi__DashboardPasswordHash'
                 secretRef: dashboardPasswordSecretName
+              }
+            ] : []
+            ...!empty(mockApiKey) ? [
+              {
+                name: 'MockApi__ApiKey'
+                secretRef: mockApiKeySecretName
               }
             ] : []
           ]

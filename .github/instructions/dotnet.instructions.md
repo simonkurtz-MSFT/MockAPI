@@ -26,6 +26,10 @@ applyTo: "**/*.{cs,csproj,sln,props,targets}"
   Apply configured administrator credentials to Security Settings, but permit setup when administration is anonymous.
   Keep security persistence separate from endpoint configuration, activate only after a successful save,
   and require the independent current strong security ETag for writes. Never export a key or its hash.
+- Accept an optional deployment key through `MockApi__ApiKey` (32-256 ASCII letters, digits, hyphens, or
+  underscores). Seed only a missing security document, persist its SHA-256 hash before activation, and enable
+  protection. Existing settings, rotations, and explicit opt-outs take precedence over the deployment value.
+  Invalid keys, unreadable settings, or failed persistence fail startup without exposing secrets.
 - Use cancellation tokens for asynchronous I/O and propagate them through application boundaries.
 - Use UTC timestamps through `TimeProvider` where behavior depends on time.
 - Use source-generated `System.Text.Json` contexts for application-owned request, response, and persistence types.

@@ -342,6 +342,9 @@ at 220px and align the collapse control with the first filter row when filters w
 - Create/edit form with a response/connection-abort behavior selector, optional delay, header rows, status code, reason phrase caveat, content type, and a payload editor.
 - Enable/disable toggle, edit action, delete confirmation, and endpoint duplication.
 - Stable-ID row selection with select-all for the current filtered result set and bulk enable, disable, and confirmed delete actions.
+- Provide a select-all checkbox in each API group header for that API's filtered endpoints, including
+  when collapsed. Show a mixed state for partial selection, preserve selections in other APIs and
+  endpoints hidden by filters, and keep group, row, and table-wide selection states synchronized.
 - Filters for name, method, path, status, and enabled state.
 - Immediate validation with server-authoritative errors. The dashboard prevents applying a non-empty malformed
   response body when its content type identifies JSON, while direct configuration retains raw-body semantics.
@@ -433,6 +436,13 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
 - Generate 32-byte random keys, compare SHA-256 hashes in constant time, and keep only the hash in a separate
   security document beside the configuration file or blob. Persist before atomic activation; use an independent
   strong ETag for security writes. Rotation enables protection and immediately revokes the previous key.
+- Support fully automatic initial key setup through the optional secret-backed `MockApi__ApiKey` setting
+  and secure `mockApiKey` Bicep parameter (`AZURE_MOCKAPI_KEY` in both developer CLIs). Accept 32-256 ASCII
+  letters, digits, hyphens, or underscores. If no security document exists, persist only the supplied key's
+  SHA-256 hash and enable protection before serving requests. Existing security settings always win,
+  including rotations and disabled enforcement; never overwrite malformed or inaccessible settings.
+  Invalid keys or failed persistence fail startup without exposing the secret. Empty values preserve
+  the existing setup flow. Do not provision external APIM policies or Named Values as part of this contract.
 - Keep dashboard keys in memory only and send them only to same-origin mock tests, rejecting redirects.
   Request exports include header variables or OpenAPI security requirements, never the secret or hash.
   Endpoint configuration import/export/save never reads or changes security settings.

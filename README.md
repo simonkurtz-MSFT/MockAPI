@@ -185,7 +185,7 @@ MockAPI is intentionally narrower than a general-purpose API virtualization plat
 
 ![Endpoint registry table listing Trailhead Supply examples with their methods, group-relative paths, configured responses, attempt counts, and enabled state, plus per-row test, edit, duplicate, and delete actions.](docs/images/02-endpoints.png)
 
-The endpoint registry lists every mock with its method, exact path, configured response, and live request count, and offers per-row test, edit, duplicate, and delete actions.
+The endpoint registry lists every mock with its method, exact path, configured response, and live request count, and offers per-row test, edit, duplicate, and delete actions. Use the checkbox beside an API heading to select or clear all of that API's endpoints matching the current filters, even while its group is collapsed. Partial selections show a mixed checkbox state; selections in other APIs and endpoints hidden by filters are preserved. Selected endpoints can be enabled, disabled, or deleted together.
 
 ![Per-endpoint statistics table showing request counts, request rate per minute, last observed status, total response bytes, and a plain-language explanation of each configured response.](docs/images/05-statistics.png)
 
@@ -489,6 +489,12 @@ docker compose up --detach
 ### 2.4) Deploy to Azure Container Apps
 
 The repository includes `azd` infrastructure for Azure Container Apps, Azure Container Registry, private managed-identity Blob persistence, and minimal Log Analytics retention.
+
+For automatic mock authorization, optionally set `AZURE_MOCKAPI_KEY` in the ignored environment file.
+It becomes the container's secret-backed `MockApi__ApiKey` setting, so callers can send the same value in
+`X-MockAPI-Key` without generating a key through the dashboard. Direct IaC consumers can use the secure
+`mockApiKey` Bicep parameter. The key seeds only missing security settings; existing saved keys and protection
+choices take precedence. See [deployment key setup and constraints](docs/OPERATIONS.md#mock-api-keys).
 
 Set up the Azure tools, create the ignored environment file, validate the deployment, and deploy:
 

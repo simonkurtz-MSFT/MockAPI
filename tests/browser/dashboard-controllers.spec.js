@@ -69,6 +69,15 @@ test("API security controller generates once, uses captured revisions, and ignor
   await expect(frame.locator("#settings-api-key-generate")).toHaveText("Generate key");
   await frame.locator("#settings-api-key").fill("invalid");
   await expect(frame.locator("#settings-api-key-error")).toBeVisible();
+  for (const length of [32, 36, 43, 256]) {
+    const suppliedKey = "deployment_key-" + "a".repeat(length - 15);
+    await frame.locator("#settings-api-key").fill(suppliedKey);
+    await expect(frame.locator("#settings-api-key-error")).toBeHidden();
+    expect(await frame.evaluate(() => window.security.getKey())).toBe(suppliedKey);
+  }
+  await frame.locator("#settings-api-key").fill("a".repeat(31));
+  await expect(frame.locator("#settings-api-key-error")).toBeVisible();
+  expect(await frame.evaluate(() => window.security.getKey())).toBe("");
   await frame.locator("#settings-api-key-generate").click();
   await expect(frame.locator("#settings-api-key-generate")).toBeDisabled();
   expect(await frame.evaluate(() => window.securityCalls[1].options.etag)).toBe('"0"');
@@ -593,13 +602,17 @@ test("endpoint table owns selection snapshots and releases controls and obsolete
     /^9 attempts\. Last attempt: (?!Never$).+/
   );
   await expect(frame.locator("#selection-count")).toHaveText("1");
+  await expect(frame.locator(".endpoint-group-selection")).toBeChecked();
   expect(await frame.evaluate(() => document.querySelector(".endpoint-row") === window.originalRow)).toBe(true);
   await frame.evaluate((definition) => {
     window.oldEdit = document.querySelector('.endpoint-row button[title="Edit"]');
+    window.oldGroupSelection = document.querySelector(".endpoint-group-selection");
     window.table.updateEndpoints([{ ...definition, name: "Refreshed endpoint" }]);
     window.oldEdit.click();
+    window.oldGroupSelection.click();
   }, endpoint);
   expect(await frame.evaluate(() => window.actions.length)).toBe(1);
+  await expect(frame.locator(".endpoint-group-selection")).toBeChecked();
   await expect(frame.getByRole("checkbox", { name: "Select Refreshed endpoint", exact: true })).toBeChecked();
   await frame.locator(".switch input").focus();
   await frame.evaluate(() => window.table.setPending(true));
@@ -638,6 +651,8 @@ test("endpoint table owns selection snapshots and releases controls and obsolete
   await expect(groupControl).toHaveText("Collapse all groups");
 
   await frame.evaluate(() => window.table.dispose());
+  await frame.locator(".endpoint-group-selection").click();
+  expect(await frame.evaluate(() => window.table.getSelectedEndpointIds())).toEqual([endpoint.id]);
   await groupControl.click();
   await expect(frame.locator(".endpoint-row")).toHaveCount(1);
   await frame.getByRole("button", { name: "Edit", exact: true }).click();

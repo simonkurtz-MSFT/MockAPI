@@ -11,7 +11,7 @@ namespace MockAPI.Management;
 
 /// <summary>Reports API-key enforcement without exposing the key or its hash.</summary>
 /// <param name="Enabled">Whether mock requests require a key.</param>
-/// <param name="Configured">Whether a key has been generated.</param>
+/// <param name="Configured">Whether a key has been generated or supplied during deployment.</param>
 /// <param name="ETag">The independent strong security-settings revision.</param>
 public sealed record ApiSecurityStatus(bool Enabled, bool Configured, [property: JsonPropertyName("etag")] string ETag);
 
@@ -60,7 +60,7 @@ internal sealed class ApiKeySecurity(MockApiOptions options, BlobClient? blobCli
         }
 
         var values = context.Request.Headers[HeaderName];
-        if (snapshot.KeyHash is null || values.Count != 1 || values[0] is not { Length: 43 } key)
+        if (snapshot.KeyHash is null || values.Count != 1 || values[0] is not { } key || !IsValidKey(key))
         {
             return false;
         }
@@ -71,6 +71,12 @@ internal sealed class ApiKeySecurity(MockApiOptions options, BlobClient? blobCli
 
     internal async Task LoadAsync(CancellationToken cancellationToken)
     {
+        if (!string.IsNullOrEmpty(options.ApiKey) && !IsValidKey(options.ApiKey))
+        {
+            throw new InvalidOperationException(
+                "MockApi:ApiKey must contain 32-256 ASCII letters, digits, hyphens, or underscores.");
+        }
+
         byte[]? content;
         if (options.ConfigurationBlobUri is not null)
         {
@@ -88,6 +94,7 @@ internal sealed class ApiKeySecurity(MockApiOptions options, BlobClient? blobCli
             }
             catch (RequestFailedException exception) when (exception.Status == 404)
             {
+                await InitializeAsync(cancellationToken);
                 return;
             }
         }
@@ -95,6 +102,7 @@ internal sealed class ApiKeySecurity(MockApiOptions options, BlobClient? blobCli
         {
             if (!File.Exists(_path))
             {
+                await InitializeAsync(cancellationToken);
                 return;
             }
             if (new FileInfo(_path).Length > MaximumSecurityDocumentBytes)
@@ -135,16 +143,36 @@ internal sealed class ApiKeySecurity(MockApiOptions options, BlobClient? blobCli
             var previous = Volatile.Read(ref _current);
             var hash = key is null ? previous.KeyHash : Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
             var candidate = new ApiSecurityDocument(enabled, hash, checked(previous.Revision + 1));
-            var content = JsonSerializer.SerializeToUtf8Bytes(candidate, ApiSecurityJsonContext.Default.ApiSecurityDocument);
-            await PersistAsync(content, cancellationToken);
-            // Publish only after durable replacement; failed saves never change request authorization.
-            Volatile.Write(ref _current, candidate);
+            await CommitAsync(candidate, cancellationToken);
             return new ApiKeyCreated(key ?? string.Empty, Status);
         }
         finally
         {
             _writes.Release();
         }
+    }
+
+    private static bool IsValidKey(string key) =>
+        key.Length is >= 32 and <= 256 &&
+        key.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_');
+
+    private async Task InitializeAsync(CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(options.ApiKey))
+        {
+            return;
+        }
+
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(options.ApiKey)));
+        await CommitAsync(new ApiSecurityDocument(true, hash, 1), cancellationToken);
+    }
+
+    private async Task CommitAsync(ApiSecurityDocument candidate, CancellationToken cancellationToken)
+    {
+        var content = JsonSerializer.SerializeToUtf8Bytes(candidate, ApiSecurityJsonContext.Default.ApiSecurityDocument);
+        await PersistAsync(content, cancellationToken);
+        // Publish only after durable replacement; failed saves never change request authorization.
+        Volatile.Write(ref _current, candidate);
     }
 
     private static BlobClient CreateBlobClient(MockApiOptions options)

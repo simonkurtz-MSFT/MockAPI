@@ -1195,6 +1195,14 @@ tbody tr:hover {
   display: flex;
   align-items: center;
 }
+.endpoint-group-selection-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+  min-height: 38px;
+  cursor: pointer;
+}
 .api-description-button {
   flex: 0 0 26px;
   width: 26px;
@@ -1426,7 +1434,8 @@ tbody tr:hover {
   width: 48px;
   padding-inline: 10px;
 }
-.selection-checkbox {
+.selection-checkbox,
+.endpoint-group-selection {
   width: 18px;
   height: 18px;
   min-height: 18px;

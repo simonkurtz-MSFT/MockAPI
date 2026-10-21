@@ -208,9 +208,9 @@ export function createDashboardApiSecurity({ documentRoot, api, showError, confi
 
   events.listen(input, "input", () => {
     const candidate = input.value.trim();
-    if (candidate && !/^[A-Za-z0-9_-]{43}$/.test(candidate)) {
+    if (candidate && !/^[A-Za-z0-9_-]{32,256}$/.test(candidate)) {
       key = "";
-      setKeyError("Enter a generated 43-character MockAPI key.");
+      setKeyError("Enter a 32-256 character MockAPI key using ASCII letters, digits, hyphens, or underscores.");
     } else {
       key = candidate;
       setKeyError("");

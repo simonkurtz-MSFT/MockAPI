@@ -85,7 +85,8 @@ $optionalAzureEnvironmentKeys = @(
   'AZURE_CUSTOM_DOMAIN',
   'AZURE_CUSTOM_DOMAIN_VALIDATION_METHOD',
   'AZURE_DASHBOARD_USERNAME',
-  'AZURE_DASHBOARD_PASSWORD'
+  'AZURE_DASHBOARD_PASSWORD',
+  'AZURE_MOCKAPI_KEY'
 )
 $azureEnvironmentKeys = @($requiredAzureEnvironmentKeys) + @($optionalAzureEnvironmentKeys)
 
@@ -182,6 +183,9 @@ function Get-AzureDeploymentConfiguration {
   }
   if ($hasDashboardPassword -and $configuration.AZURE_DASHBOARD_PASSWORD.Length -lt 8) {
     throw "Azure deployment setting 'AZURE_DASHBOARD_PASSWORD' must contain at least 8 characters."
+  }
+  if ($configuration.AZURE_MOCKAPI_KEY -and $configuration.AZURE_MOCKAPI_KEY -cnotmatch '\A[A-Za-z0-9_-]{32,256}\z') {
+    throw "Azure deployment setting 'AZURE_MOCKAPI_KEY' must contain 32-256 ASCII letters, digits, hyphens, or underscores."
   }
 
   return $configuration
@@ -329,7 +333,8 @@ function Set-AzdEnvironment {
   }
   foreach ($entry in @(
       @{ Key = 'AZURE_DASHBOARD_USERNAME'; Value = $dashboardUsername },
-      @{ Key = 'AZURE_DASHBOARD_PASSWORD_HASH'; Value = $dashboardPasswordHash }
+      @{ Key = 'AZURE_DASHBOARD_PASSWORD_HASH'; Value = $dashboardPasswordHash },
+      @{ Key = 'AZURE_MOCKAPI_KEY'; Value = [string] $Configuration['AZURE_MOCKAPI_KEY'] }
     )) {
     if ([string]::IsNullOrWhiteSpace($entry.Value)) {
       Invoke-Tool -Executable 'azd' -Operation "Clearing azd environment value $($entry.Key)" -Arguments @(

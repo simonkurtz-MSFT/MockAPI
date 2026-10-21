@@ -1126,7 +1126,7 @@ with open(path, "r", encoding="utf-8") as handle:
         if not match:
             sys.exit(f"Malformed environment entry at {path}:{line_number}. Expected KEY=value.")
         key, value = match.groups()
-        if key not in {"AZURE_SUBSCRIPTION_ID", "AZURE_LOCATION", "AZURE_ENV_NAME", "AZURE_CUSTOM_DOMAIN", "AZURE_CUSTOM_DOMAIN_VALIDATION_METHOD", "AZURE_DASHBOARD_USERNAME", "AZURE_DASHBOARD_PASSWORD"}:
+        if key not in {"AZURE_SUBSCRIPTION_ID", "AZURE_LOCATION", "AZURE_ENV_NAME", "AZURE_CUSTOM_DOMAIN", "AZURE_CUSTOM_DOMAIN_VALIDATION_METHOD", "AZURE_DASHBOARD_USERNAME", "AZURE_DASHBOARD_PASSWORD", "AZURE_MOCKAPI_KEY"}:
             sys.exit(f"Unknown Azure deployment key {key!r} at {path}:{line_number}.")
         if key in values:
             sys.exit(f"Duplicate Azure deployment key {key!r} at {path}:{line_number}.")
@@ -1161,6 +1161,7 @@ if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9-]{0,63}", environmentName):
 
 dashboardUsername = resolve("AZURE_DASHBOARD_USERNAME")
 dashboardPassword = resolve("AZURE_DASHBOARD_PASSWORD")
+mockApiKey = resolve("AZURE_MOCKAPI_KEY")
 domain = resolve("AZURE_CUSTOM_DOMAIN").lower()
 method = resolve("AZURE_CUSTOM_DOMAIN_VALIDATION_METHOD") or "CNAME"
 if domain and (len(domain) > 253 or not re.fullmatch(r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?", domain)):
@@ -1176,6 +1177,9 @@ if dashboardUsername:
     if len(dashboardPassword) < 8:
         fail("Azure deployment setting AZURE_DASHBOARD_PASSWORD must contain at least 8 characters.")
 
+if mockApiKey and not re.fullmatch(r"[A-Za-z0-9_-]{32,256}", mockApiKey):
+    fail("Azure deployment setting AZURE_MOCKAPI_KEY must contain 32-256 ASCII letters, digits, hyphens, or underscores.")
+
 print("AZURE_SUBSCRIPTION_ID=" + subscription)
 print("AZURE_LOCATION=" + location)
 print("AZURE_ENV_NAME=" + environmentName)
@@ -1183,6 +1187,7 @@ print("AZURE_CUSTOM_DOMAIN=" + domain)
 print("AZURE_CUSTOM_DOMAIN_VALIDATION_METHOD=" + method)
 print("AZURE_DASHBOARD_USERNAME=" + dashboardUsername)
 print("AZURE_DASHBOARD_PASSWORD=" + dashboardPassword)
+print("AZURE_MOCKAPI_KEY=" + mockApiKey)
 ' || die "The Azure settings file '$envPath' is invalid."
 }
 
@@ -1233,12 +1238,13 @@ assert_azure_infrastructure() {
 set_azd_environment() {
   # Selects or creates the azd environment and applies the required settings.
   local configuration="$1"
-  local subscription location environmentName dashboardUsername dashboardPassword
+  local subscription location environmentName dashboardUsername dashboardPassword mockApiKey
   subscription="$(printf '%s\n' "$configuration" | sed -n 's|^AZURE_SUBSCRIPTION_ID=||p')"
   location="$(printf '%s\n' "$configuration" | sed -n 's|^AZURE_LOCATION=||p')"
   environmentName="$(printf '%s\n' "$configuration" | sed -n 's|^AZURE_ENV_NAME=||p')"
   dashboardUsername="$(configuration_value "$configuration" AZURE_DASHBOARD_USERNAME)"
   dashboardPassword="$(configuration_value "$configuration" AZURE_DASHBOARD_PASSWORD)"
+  mockApiKey="$(configuration_value "$configuration" AZURE_MOCKAPI_KEY)"
 
   if ! azd env select "$environmentName" --no-prompt >/dev/null 2>&1; then
     run_tool "Creating azd environment '$environmentName'" \
@@ -1257,6 +1263,11 @@ set_azd_environment() {
   else
     run_tool 'Clearing azd environment value AZURE_DASHBOARD_USERNAME' azd env set AZURE_DASHBOARD_USERNAME= --environment "$environmentName" --no-prompt
     run_tool 'Clearing azd environment value AZURE_DASHBOARD_PASSWORD_HASH' azd env set AZURE_DASHBOARD_PASSWORD_HASH= --environment "$environmentName" --no-prompt
+  fi
+  if [[ -n "$mockApiKey" ]]; then
+    run_tool 'Setting azd environment value AZURE_MOCKAPI_KEY' azd env set AZURE_MOCKAPI_KEY "$mockApiKey" --environment "$environmentName" --no-prompt
+  else
+    run_tool 'Clearing azd environment value AZURE_MOCKAPI_KEY' azd env set AZURE_MOCKAPI_KEY= --environment "$environmentName" --no-prompt
   fi
 }
 

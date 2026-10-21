@@ -14,6 +14,8 @@ applyTo: "src/MockAPI/wwwroot/**/*.{js,html,css},tests/{frontend,browser}/**/*.j
   Provide a page-local collapse/expand-all group control for the current filtered result. Preserve
   hidden groups' state and endpoint selection, keep individual toggles, and start new groups expanded.
   Disable the bulk group control when no groups match; mixed state offers collapse-all.
+  Keep per-API selection checkboxes scoped to filtered endpoints, including collapsed groups; show
+  partial selection and synchronize with row and table-wide selection without clearing hidden selections.
   Display group-relative paths before
   the information button and operation name; retain complete paths for configuration, filtering, and requests.
 - Keep API description drafts and captured revisions in `dashboard-api-description.js`; the endpoint table owns
@@ -34,6 +36,7 @@ applyTo: "src/MockAPI/wwwroot/**/*.{js,html,css},tests/{frontend,browser}/**/*.j
   failed status checks show unknown protection rather than assuming protection is off.
   Never persist that key in browser storage or attach it to management calls, exports, or redirect targets.
   Exported requests reference caller-supplied variables; endpoint tests attach the key only after same-origin validation.
+  Accept both generated and deployment-supplied keys: 32-256 ASCII letters, digits, hyphens, or underscores.
 - Prefill editable illustrative JSON bodies and JSON request content types for POST, PUT, and PATCH in the test blade; use Trailhead inventory reservation and shipping samples for their respective built-in routes, aligned with portable exports. Samples are not schemas and do not imply business-field validation. Preserve deliberate edits and cleared fields across method changes. Never block malformed or missing bodies locally: display the backend's actual validation response. Keep request samples transient, not in endpoint configuration or browser storage.
 - Give feature controllers explicit inputs, callbacks, and disposal. Use `dashboard-dom.js` event scopes for controller-owned listeners and separate scopes for replaceable rows/charts; delegate header-row removal rather than retaining removed rows. Invalidate asynchronous completions when an editor or blade closes, reopens, or is disposed.
 - Prefer descriptive state and handler names, early returns, and named intermediate values. Avoid nested ternaries, implicit coercion tricks, dense expression chains, and large anonymous callbacks when explicit steps make the behavior easier to teach and review.

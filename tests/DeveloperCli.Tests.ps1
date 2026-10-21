@@ -1057,6 +1057,57 @@ write_color() { printf '%s\n' "$2"; }
   Assert-True ($commands -match 'az bicep build --file') 'Azure preflight must build the Bicep entry point.'
   Assert-True ($commands -match 'env set AZURE_DASHBOARD_USERNAME=') 'Empty dashboard credentials must clear the azd username value.'
   Assert-True ($commands -match 'env set AZURE_DASHBOARD_PASSWORD_HASH=') 'Empty dashboard credentials must clear the azd password hash value.'
+  Assert-True ($commands -match 'env set AZURE_MOCKAPI_KEY=') 'An empty deployment key must clear the azd bootstrap key value.'
+
+  $bashKeyConfiguration = @'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+REPOSITORY_ROOT="$PWD"
+ENVIRONMENT_FILE="$1"
+commands=()
+die() { printf '%s\n' "$1" >&2; exit 1; }
+azd() { commands+=("$*"); }
+run_tool() { shift; "$@"; }
+new_dashboard_password_hash() { printf 'test-hash'; }
+'@
+  foreach ($functionName in @('get_azure_deployment_configuration', 'configuration_value', 'set_azd_environment')) {
+    $bashKeyConfiguration += "`n" + [regex]::Match($bashCliSource, "(?ms)^$functionName\(\) \{.*?^\}").Value
+  }
+  $bashKeyConfiguration += @'
+
+configuration="$(get_azure_deployment_configuration)"
+set_azd_environment "$configuration"
+if [[ -n "$2" ]]; then
+  [[ "${commands[*]}" == *"env set AZURE_MOCKAPI_KEY $2 --environment"* ]]
+else
+  [[ "${commands[*]}" == *"env set AZURE_MOCKAPI_KEY= --environment"* ]]
+fi
+'@
+  Set-Content -LiteralPath $bashMenuTestPath -Value $bashKeyConfiguration.Replace("`r", '') -Encoding utf8NoBOM -NoNewline
+  foreach ($key in @('', ('a' * 32), ('deployment_key-' + ('b' * 49)), ('c' * 256), 'short', ('d' * 257), ('invalid!' * 4))) {
+    $keyFile = New-EnvironmentFile -Name 'deployment-key.env' -Lines @(
+      'AZURE_SUBSCRIPTION_ID=00000000-0000-0000-0000-000000000000',
+      'AZURE_LOCATION=eastus2',
+      'AZURE_ENV_NAME=mockapi-dev',
+      "AZURE_MOCKAPI_KEY=$key"
+    )
+    Copy-Item -LiteralPath $keyFile -Destination $bashEnvironmentPath
+    Clear-Content -LiteralPath $commandLog
+    $result = Invoke-CliProcess -Arguments @('-Action', 'azure-check', '-EnvironmentFile', $keyFile)
+    $bashResult = Invoke-BashCliProcess -ScriptPath ('./' + (Split-Path -Leaf $bashMenuTestPath)) -Arguments @(
+      (Split-Path -Leaf $bashEnvironmentPath), $key
+    )
+    $validKey = -not $key -or $key -cmatch '\A[A-Za-z0-9_-]{32,256}\z'
+    Assert-True (($result.ExitCode -eq 0) -eq $validKey) 'PowerShell must validate deployment key length and header-safe characters.'
+    Assert-True (($bashResult.ExitCode -eq 0) -eq $validKey) "Bash must validate and synchronize the same deployment keys: $($bashResult.Output)"
+    if ($key) {
+      Assert-True (-not $result.Output.Contains($key) -and -not $bashResult.Output.Contains($key)) 'Deployment keys must not appear in CLI output or validation errors.'
+    }
+    if ($validKey -and $key) {
+      $commands = Get-Content -LiteralPath $commandLog -Raw
+      Assert-True ($commands.Contains("env set AZURE_MOCKAPI_KEY $key")) 'The supplied deployment key must be synchronized to azd unchanged.'
+    }
+  }
 
   $dashboardPassword = 'eight888'
   $dashboardFile = New-EnvironmentFile -Name 'dashboard.env' -Lines @(

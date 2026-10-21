@@ -153,6 +153,117 @@ test("shows all operations with relative paths and sorts within alphabetical API
   expect(Math.abs(regionBounds.y - headerBounds.y)).toBeLessThanOrEqual(1);
 });
 
+test("@smoke selects and clears one API without changing other API selections", async ({ page, request }) => {
+  const endpoints = ["alpha", "zeta"].flatMap((api, groupIndex) =>
+    ["GET", "POST"].map((method, index) => ({
+      id: `00000000-0000-4000-8000-${String(groupIndex * 2 + index + 1).padStart(12, "0")}`,
+      name: `${api} ${method}`,
+      enabled: true,
+      methods: [method],
+      path: `/${api}/operation`,
+      response: { statusCode: 200, headers: {}, contentType: "text/plain", body: "ok" },
+    }))
+  );
+  await importDocument(request, { ...emptyDocument, endpoints });
+  const alpha = page.getByRole("checkbox", { name: "Select all matching endpoints in alpha", exact: true });
+  const zeta = page.getByRole("checkbox", { name: "Select all matching endpoints in zeta", exact: true });
+  const selectAll = page.locator("#select-all-endpoints");
+  const count = page.locator("#selection-count");
+  const configuration = await request.get("/__mockapi/api/configuration");
+
+  await expect(alpha).not.toBeChecked();
+  await expect(zeta).not.toBeChecked();
+  await page.getByRole("checkbox", { name: "Select zeta GET", exact: true }).check();
+  await alpha.focus();
+  await page.keyboard.press("Space");
+  await expect(alpha).toBeChecked();
+  await expect(alpha).toBeFocused();
+  await expect(zeta).toBeChecked({ indeterminate: true });
+  await expect(selectAll).toBeChecked({ indeterminate: true });
+  await expect(count).toHaveText("3");
+
+  await page.getByRole("checkbox", { name: "Select alpha GET", exact: true }).uncheck();
+  await expect(alpha).toBeChecked({ indeterminate: true });
+  await alpha.focus();
+  await page.keyboard.press("Space");
+  await expect(alpha).toBeChecked();
+  await page.keyboard.press("Space");
+  await expect(alpha).not.toBeChecked();
+  await expect(count).toHaveText("1");
+  await expect(page.getByRole("checkbox", { name: "Select zeta GET", exact: true })).toBeChecked();
+
+  await page.getByRole("button", { name: "Collapse alpha", exact: true }).click();
+  await alpha.check();
+  await expect(page.locator(".endpoint-row")).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Expand alpha", exact: true })).toBeVisible();
+  await expect(count).toHaveText("3");
+  await selectAll.check();
+  await expect(alpha).toBeChecked();
+  await expect(zeta).toBeChecked();
+  await expect(count).toHaveText("4");
+  await selectAll.uncheck();
+  await expect(alpha).not.toBeChecked();
+  await expect(zeta).not.toBeChecked();
+  await expect(count).toHaveText("0");
+
+  await zeta.check();
+  await expect(count).toHaveText("2");
+  const afterSelection = await request.get("/__mockapi/api/configuration");
+  expect(await afterSelection.json()).toEqual(await configuration.json());
+  await expectNoUnreviewedAccessibilityViolations(page, ".workspace");
+  await page.locator("#bulk-disable").click();
+  await expect(page.getByText("Disabled 2 endpoints", { exact: true })).toBeVisible();
+  const stored = await (await request.get("/__mockapi/api/endpoints")).json();
+  expect(stored.filter((endpoint) => endpoint.enabled).map((endpoint) => endpoint.id)).toEqual(
+    endpoints.filter((endpoint) => endpoint.path.startsWith("/alpha/")).map((endpoint) => endpoint.id)
+  );
+});
+
+test("per-API selection respects filters and preserves hidden selections", async ({ page, request }) => {
+  const endpoints = ["alpha", "zeta"].flatMap((api, groupIndex) =>
+    ["GET", "POST"].map((method, index) => ({
+      id: `00000000-0000-4000-8000-${String(groupIndex * 2 + index + 1).padStart(12, "0")}`,
+      name: `${api} ${method}`,
+      enabled: true,
+      methods: [method],
+      path: `/${api}/operation`,
+      response: { statusCode: 200, headers: {}, contentType: "text/plain", body: "ok" },
+    }))
+  );
+  await importDocument(request, { ...emptyDocument, endpoints });
+  const alpha = page.getByRole("checkbox", { name: "Select all matching endpoints in alpha", exact: true });
+  const zeta = page.getByRole("checkbox", { name: "Select all matching endpoints in zeta", exact: true });
+  const count = page.locator("#selection-count");
+  await page.getByRole("checkbox", { name: "Select alpha POST", exact: true }).check();
+  await page.getByRole("checkbox", { name: "Select zeta POST", exact: true }).check();
+  await page.locator("#filter-method").selectOption("GET");
+  await expect(alpha).not.toBeChecked();
+  await expect(zeta).not.toBeChecked();
+  await alpha.check();
+  await expect(count).toHaveText("3");
+  await expect(page.getByRole("checkbox", { name: "Select alpha GET", exact: true })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "Select zeta GET", exact: true })).not.toBeChecked();
+  await alpha.uncheck();
+  await expect(count).toHaveText("2");
+  await page.locator("#filter-method").selectOption("");
+  await expect(alpha).toBeChecked({ indeterminate: true });
+  await expect(zeta).toBeChecked({ indeterminate: true });
+  await expect(page.getByRole("checkbox", { name: "Select alpha POST", exact: true })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "Select zeta POST", exact: true })).toBeChecked();
+
+  await page.locator("#filter-text").fill("/alpha");
+  await alpha.check();
+  await expect(count).toHaveText("3");
+  await page.locator("#filter-text").fill("no matches");
+  await expect(page.locator(".endpoint-group-selection")).toHaveCount(0);
+  await expect(page.locator("#select-all-endpoints")).toBeDisabled();
+  await expect(count).toHaveText("3");
+  await page.locator("#filter-text").fill("");
+  await expect(alpha).toBeChecked();
+  await expect(zeta).toBeChecked({ indeterminate: true });
+  await expect(count).toHaveText("3");
+});
+
 test("@smoke collapses and expands all API groups without changing endpoint configuration or selection", async ({
   page,
   request,
@@ -391,8 +502,12 @@ test("keeps column geometry stable through group collapse and sorting, with cent
         };
       });
     const groupCaret = await page.locator(".endpoint-group-chevron").first().boundingBox();
+    const groupSelection = await page.locator(".endpoint-group-selection-control").first().boundingBox();
     expect(groupCell.paddingInlineStart).toBe("0px");
-    expect(groupCaret.x - groupCell.x).toBeLessThanOrEqual(14);
+    expect(groupSelection.x).toBe(groupCell.x);
+    expect(groupSelection.width).toBe(34);
+    expect(groupCaret.x).toBeGreaterThanOrEqual(groupSelection.x + groupSelection.width);
+    expect(groupCaret.x - (groupSelection.x + groupSelection.width)).toBeLessThanOrEqual(14);
     for (const [column, maximumWidth] of [
       [4, 80],
       [5, 80],

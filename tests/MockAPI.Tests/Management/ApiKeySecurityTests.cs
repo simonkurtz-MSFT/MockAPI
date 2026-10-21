@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Azure;
 using Azure.Core;
@@ -23,6 +24,188 @@ public sealed class ApiKeySecurityTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "mockapi-security-tests", Guid.NewGuid().ToString("N"));
     private string ConfigurationPath => Path.Combine(_directory, "mockapi.json");
+
+    [Theory]
+    [InlineData(32)]
+    [InlineData(36)]
+    [InlineData(43)]
+    [InlineData(256)]
+    public async Task DeploymentKey_AuthorizesFirstMockCallAndPersistsOnlyHash(int length)
+    {
+        var key = "deployment_key-" + new string('a', length - 15);
+        Directory.CreateDirectory(_directory);
+        var document = new MockApiConfigurationDocument
+        {
+            SchemaVersion = "1.0",
+            Endpoints = [new MockEndpointDefinition
+            {
+                Id = Guid.NewGuid(), Name = "Deployment", Enabled = true, Methods = ["GET"], Path = "/deployment",
+                Response = new() { StatusCode = 202, Headers = [], ContentType = "text/plain", Body = "ready for APIM" }
+            }]
+        };
+        await File.WriteAllTextAsync(ConfigurationPath, JsonSerializer.Serialize(document, MockApiJsonContext.Default.MockApiConfigurationDocument));
+        await using var factory = CreateFactory(apiKey: key);
+        using var client = factory.CreateClient();
+        using var missing = await client.GetAsync("/deployment");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/deployment");
+        request.Headers.Add("x-mockapi-key", key);
+        using var authorized = await client.SendAsync(request);
+        using var health = await client.GetAsync("/health/ready");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, missing.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, authorized.StatusCode);
+        Assert.Equal("ready for APIM", await authorized.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.OK, health.StatusCode);
+        var security = factory.Services.GetRequiredService<ApiKeySecurity>();
+        Assert.True(security.Status.Enabled);
+        Assert.True(security.Status.Configured);
+        Assert.Equal("\"1\"", security.Status.ETag);
+        var persisted = await File.ReadAllTextAsync(ConfigurationPath + ".security.json");
+        Assert.DoesNotContain(key, persisted, StringComparison.Ordinal);
+        Assert.Equal(
+            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key))),
+            JsonNode.Parse(persisted)!["keyHash"]!.GetValue<string>());
+
+        await using var restarted = CreateFactory();
+        using var restartedClient = restarted.CreateClient();
+        Assert.True(Authorizes(restarted.Services.GetRequiredService<ApiKeySecurity>(), key));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DeploymentKey_NeverReplacesPersistedRotationOrEnforcement(bool enabled)
+    {
+        var key = new string('a', 32);
+        var replacement = new string('b', 64);
+        using var security = new ApiKeySecurity(new MockApiOptions { ConfigurationPath = ConfigurationPath, ApiKey = key });
+        await security.LoadAsync(CancellationToken.None);
+        var rotated = (await security.UpdateAsync("\"1\"", true, true, CancellationToken.None))!;
+        await security.UpdateAsync(rotated.Status.ETag, enabled, false, CancellationToken.None);
+        var persisted = await File.ReadAllTextAsync(ConfigurationPath + ".security.json");
+
+        using var restarted = new ApiKeySecurity(new MockApiOptions { ConfigurationPath = ConfigurationPath, ApiKey = replacement });
+        await restarted.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(enabled, restarted.Status.Enabled);
+        Assert.Equal("\"3\"", restarted.Status.ETag);
+        Assert.Equal(persisted, await File.ReadAllTextAsync(ConfigurationPath + ".security.json"));
+        if (enabled)
+        {
+            Assert.True(Authorizes(restarted, rotated.Key));
+            Assert.False(Authorizes(restarted, key));
+            Assert.False(Authorizes(restarted, replacement));
+        }
+        else
+        {
+            Assert.True(restarted.Authorizes(new DefaultHttpContext()));
+        }
+    }
+
+    [Fact]
+    public async Task DeploymentKey_EnablesProtectionEvenWithBootstrapOptOut()
+    {
+        var key = new string('a', 32);
+        using var security = new ApiKeySecurity(new MockApiOptions
+        {
+            ConfigurationPath = ConfigurationPath,
+            ApiKey = key,
+            RequireApiKey = false
+        });
+
+        await security.LoadAsync(CancellationToken.None);
+
+        Assert.True(security.Status.Enabled);
+        Assert.False(security.Authorizes(new DefaultHttpContext()));
+        Assert.True(Authorizes(security, key));
+    }
+
+    [Theory]
+    [InlineData(31, 'a')]
+    [InlineData(257, 'a')]
+    [InlineData(32, ' ')]
+    [InlineData(32, '\r')]
+    [InlineData(32, ',')]
+    [InlineData(32, '\u00e9')]
+    public void InvalidDeploymentKey_FailsStartupWithoutExposingSecret(int length, char character)
+    {
+        var key = new string(character, length);
+        using var factory = CreateFactory(apiKey: key);
+
+        var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
+
+        Assert.Contains("MockApi:ApiKey", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(key, exception.Message, StringComparison.Ordinal);
+        Assert.False(File.Exists(ConfigurationPath + ".security.json"));
+    }
+
+    [Fact]
+    public async Task EmptyDeploymentKey_LeavesExistingFailClosedDefault()
+    {
+        using var security = new ApiKeySecurity(new MockApiOptions { ConfigurationPath = ConfigurationPath, ApiKey = "" });
+
+        await security.LoadAsync(CancellationToken.None);
+
+        Assert.True(security.Status.Enabled);
+        Assert.False(security.Status.Configured);
+        Assert.False(File.Exists(ConfigurationPath + ".security.json"));
+    }
+
+    [Fact]
+    public async Task DeploymentKey_FailedPersistenceNeverActivatesKey()
+    {
+        Directory.CreateDirectory(ConfigurationPath + ".security.json");
+        using var security = new ApiKeySecurity(new MockApiOptions
+        {
+            ConfigurationPath = ConfigurationPath,
+            ApiKey = new string('a', 32)
+        });
+
+        var failure = await Record.ExceptionAsync(() => security.LoadAsync(CancellationToken.None));
+
+        Assert.True(failure is IOException or UnauthorizedAccessException);
+        Assert.False(security.Status.Configured);
+        Assert.Equal("\"0\"", security.Status.ETag);
+        Assert.False(Authorizes(security, new string('a', 32)));
+    }
+
+    [Fact]
+    public async Task DeploymentKey_BlobBootstrapPersistsHashAndNeverOverwritesSavedSettings()
+    {
+        var key = new string('a', 64);
+        var options = new MockApiOptions
+        {
+            ConfigurationPath = ConfigurationPath,
+            ConfigurationBlobUri = new Uri("https://example.test/config/mockapi.json"),
+            ApiKey = key
+        };
+        var blob = new SecurityBlobClient();
+        using var security = new ApiKeySecurity(options, blob);
+
+        await security.LoadAsync(CancellationToken.None);
+
+        Assert.True(Authorizes(security, key));
+        Assert.DoesNotContain(key, Encoding.UTF8.GetString(blob.Content!), StringComparison.Ordinal);
+        Assert.False(Directory.Exists(_directory));
+        var rotated = (await security.UpdateAsync("\"1\"", true, true, CancellationToken.None))!;
+        using var restarted = new ApiKeySecurity(options, blob);
+        await restarted.LoadAsync(CancellationToken.None);
+        Assert.True(Authorizes(restarted, rotated.Key));
+        Assert.False(Authorizes(restarted, key));
+
+        blob.Content = null;
+        blob.Failure = new RequestFailedException(500, "storage failed");
+        using var unavailable = new ApiKeySecurity(options, blob);
+        await Assert.ThrowsAsync<RequestFailedException>(() => unavailable.LoadAsync(CancellationToken.None));
+        Assert.False(unavailable.Status.Configured);
+
+        blob.Failure = null;
+        blob.UploadFailure = new RequestFailedException(403, "write denied");
+        using var unwritable = new ApiKeySecurity(options, blob);
+        await Assert.ThrowsAsync<RequestFailedException>(() => unwritable.LoadAsync(CancellationToken.None));
+        Assert.False(unwritable.Status.Configured);
+        Assert.False(Authorizes(unwritable, key));
+    }
 
     [Fact]
     public async Task DefaultProtection_BlocksMockCallsButNotHealthOrDashboard()
@@ -293,7 +476,7 @@ public sealed class ApiKeySecurityTests : IDisposable
     {
         Directory.CreateDirectory(_directory);
         await File.WriteAllTextAsync(ConfigurationPath + ".security.json", """{"enabled":false,"keyHash":"invalid","revision":1}""");
-        using var factory = CreateFactory();
+        using var factory = CreateFactory(apiKey: new string('a', 32));
         Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
     }
 
@@ -311,10 +494,14 @@ public sealed class ApiKeySecurityTests : IDisposable
         Assert.DoesNotContain("keyHash", json, StringComparison.Ordinal);
     }
 
-    private WebApplicationFactory<Program> CreateFactory(bool authenticated = true) =>
+    private WebApplicationFactory<Program> CreateFactory(bool authenticated = true, string? apiKey = null) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("MockApi:ConfigurationPath", ConfigurationPath);
+            if (apiKey is not null)
+            {
+                builder.UseSetting("MockApi:ApiKey", apiKey);
+            }
             if (authenticated)
             {
                 var salt = new byte[16];
@@ -350,6 +537,7 @@ public sealed class ApiKeySecurityTests : IDisposable
     {
         internal byte[]? Content { get; set; }
         internal RequestFailedException? Failure { get; set; }
+        internal RequestFailedException? UploadFailure { get; set; }
 
         public override Task<Response<BlobDownloadStreamingResult>> DownloadStreamingAsync(
             BlobDownloadOptions? options = null, CancellationToken cancellationToken = default)
@@ -364,6 +552,7 @@ public sealed class ApiKeySecurityTests : IDisposable
         public override Task<Response<BlobContentInfo>> UploadAsync(
             BinaryData content, bool overwrite = false, CancellationToken cancellationToken = default)
         {
+            if (UploadFailure is not null) throw UploadFailure;
             Content = content.ToArray();
             return Task.FromResult(Response.FromValue(
                 BlobsModelFactory.BlobContentInfo(new ETag("test"), DateTimeOffset.UtcNow, null, null, null, null, 0),
