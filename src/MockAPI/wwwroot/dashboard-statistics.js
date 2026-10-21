@@ -71,13 +71,20 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
   const STATISTICS_VISIBLE_MINUTES = 30;
   const preferences = preferencesStore.get();
   const events = createDashboardEventScope();
-  const chartEvents = createDashboardEventScope();
   const logEvents = createDashboardEventScope();
   const { makeElement } = createDashboardDom(document, events);
   /** @type {readonly import("./dashboard-core.js").MockEndpoint[]|null} */
   let statisticsPickerEndpoints = null;
   /** @type {string|null} */
   let requestLogCache = null;
+  /** @type {Map<string, ReturnType<typeof createChartColumn>>} */
+  const chartColumns = new Map();
+  /** @type {HTMLDivElement|null} */
+  let chartTooltip = null;
+  /** @type {ReturnType<typeof createChartColumn>|null} */
+  let hoveredColumn = null;
+  /** @type {{endpointMode: boolean, body: HTMLTableSectionElement, rows: Map<string, {row: HTMLTableRowElement, targets: HTMLElement[], values: string[]}>}|null} */
+  let statisticsTable = null;
   /** @type {{
    * endpoints: readonly import("./dashboard-core.js").MockEndpoint[],
    * statistics: import("./dashboard-core.js").DashboardStatistics|null,
@@ -335,48 +342,48 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
 
   function renderStatisticsTable(endpointMode) {
     const container = elements["statistics-table-view"];
-    const table = document.createElement("table");
-    const head = document.createElement("thead");
-    const body = document.createElement("tbody");
-    const headerRow = document.createElement("tr");
-
-    if (endpointMode) {
-      for (const label of ["Endpoint", "Attempts", "Rate", "Last status", "Response bytes", "Why this response"]) {
+    if (!statisticsTable || statisticsTable.endpointMode !== endpointMode) {
+      const table = document.createElement("table");
+      const head = document.createElement("thead");
+      const body = document.createElement("tbody");
+      const headerRow = document.createElement("tr");
+      const labels = endpointMode
+        ? ["Endpoint", "Attempts", "Rate", "Last status", "Response bytes", "Why this response"]
+        : ["Measure", "Value", "Meaning"];
+      for (const label of labels) {
         const header = makeElement("th", null, label);
         header.scope = "col";
         headerRow.append(header);
-        if (["Attempts", "Rate", "Response bytes"].includes(label)) {
-          header.classList.add("numeric");
-        }
+        if (["Attempts", "Rate", "Response bytes"].includes(label)) header.classList.add("numeric");
       }
+      head.append(headerRow);
+      table.append(head, body);
+      container.replaceChildren(table);
+      statisticsTable = { endpointMode, body, rows: new Map() };
+    }
+    /** @type {{key: string, values: string[]}[]} */
+    const rows = [];
+    if (endpointMode) {
       for (const endpoint of state.endpoints) {
         const statistics = endpointStatistics(endpoint.id);
         const recent = statistics?.recentMinutes || [];
-        const row = document.createElement("tr");
-        const endpointCell = document.createElement("td");
-        endpointCell.append(
-          makeElement("strong", null, endpoint.name),
-          makeElement("small", "statistics-path", endpoint.path)
-        );
-        row.append(
-          endpointCell,
-          makeElement("td", "numeric", formatNumber(statistics?.totalRequests || 0)),
-          makeElement("td", "numeric", `${(sumRequests(recent) / 60).toFixed(1)} attempts/min`),
-          makeElement("td", "numeric", statistics?.lastStatusCode ? String(statistics.lastStatusCode) : "—"),
-          makeElement("td", "numeric", formatBytes(statistics?.responseBytes || 0)),
-          makeElement("td", "statistics-explanation", explainEndpointStatistics(endpoint, statistics))
-        );
-        body.append(row);
+        rows.push({
+          key: endpoint.id,
+          values: [
+            endpoint.name,
+            endpoint.path,
+            formatNumber(statistics?.totalRequests || 0),
+            `${(sumRequests(recent) / 60).toFixed(1)} attempts/min`,
+            statistics?.lastStatusCode ? String(statistics.lastStatusCode) : "—",
+            formatBytes(statistics?.responseBytes || 0),
+            explainEndpointStatistics(endpoint, statistics),
+          ],
+        });
       }
     } else {
-      for (const label of ["Measure", "Value", "Meaning"]) {
-        const header = makeElement("th", null, label);
-        header.scope = "col";
-        headerRow.append(header);
-      }
       const statistics = state.statistics;
       /** @type {[string, number|string, string][]} */
-      const rows = [
+      const measures = [
         ["Total attempts", statistics.totalRequests, "Every transport attempt seen by the mock dispatcher"],
         ["Matched", statistics.matchedRequests, "Transport attempts attributed to a configured endpoint"],
         ["Unmatched", statistics.unmatchedRequests, "Transport attempts that did not match an enabled endpoint"],
@@ -392,22 +399,57 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
         ["5xx responses", statistics.serverErrorResponses, "Server-error responses"],
         ["Response bytes", formatBytes(statistics.responseBytes), "Response body bytes written by matched endpoints"],
       ];
-      for (const [label, value, meaning] of rows) {
-        const row = document.createElement("tr");
-        const heading = makeElement("th", null, label);
-        heading.scope = "row";
-        row.append(heading, makeElement("td", "numeric", String(value)), makeElement("td", null, meaning));
-        body.append(row);
+      for (const [label, value, meaning] of measures) {
+        rows.push({ key: label, values: [label, String(value), meaning] });
       }
     }
 
-    head.append(headerRow);
-    table.append(head, body);
-    container.replaceChildren(table);
+    const retained = new Set(rows.map((row) => row.key));
+    for (const [key, entry] of statisticsTable.rows) {
+      if (!retained.has(key)) {
+        entry.row.remove();
+        statisticsTable.rows.delete(key);
+      }
+    }
+    for (const [index, descriptor] of rows.entries()) {
+      let entry = statisticsTable.rows.get(descriptor.key);
+      if (!entry) {
+        const row = document.createElement("tr");
+        const targets = [];
+        if (endpointMode) {
+          const cell = document.createElement("td");
+          const name = document.createElement("strong");
+          const path = makeElement("small", "statistics-path");
+          cell.append(name, path);
+          row.append(cell);
+          targets.push(name, path);
+          for (let column = 0; column < 5; column++) {
+            const value = makeElement("td", column === 4 ? "statistics-explanation" : "numeric");
+            row.append(value);
+            targets.push(value);
+          }
+        } else {
+          const heading = document.createElement("th");
+          heading.scope = "row";
+          const value = makeElement("td", "numeric");
+          const meaning = document.createElement("td");
+          row.append(heading, value, meaning);
+          targets.push(heading, value, meaning);
+        }
+        entry = { row, targets, values: [] };
+        statisticsTable.rows.set(descriptor.key, entry);
+      }
+      descriptor.values.forEach((value, column) => {
+        if (entry.values[column] !== value) entry.targets[column].textContent = value;
+      });
+      entry.values = descriptor.values;
+      if (statisticsTable.body.children[index] !== entry.row) {
+        statisticsTable.body.insertBefore(entry.row, statisticsTable.body.children[index] || null);
+      }
+    }
   }
 
   function renderStatisticsGraph(endpointMode, endpoint, statistics) {
-    chartEvents.clear();
     const recent = endpointMode ? statistics?.recentMinutes || [] : state.statistics.recentMinutes || [];
     const total = sumRequests(recent);
     elements["statistics-chart-title"].textContent = endpointMode
@@ -424,6 +466,7 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
       : `${formatNumber(state.statistics.matchedRequests)} matched and ${formatNumber(state.statistics.unmatchedRequests)} unmatched attempts have been observed.`;
 
     const chart = elements["statistics-chart"];
+    const focusedChartColumn = chart.contains(document.activeElement);
     const chartScroll = elements["statistics-chart-scroll"];
     const chartTimeline = elements["statistics-chart-timeline"];
     const wasFollowingNewest =
@@ -442,48 +485,55 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
     const requestLogBuckets = new Set(
       groupRequestsByMinute(state.statistics.recentRequests || []).map((group) => minuteBucketKey(group.minuteUtc))
     );
-    const tooltip = createStatisticsTooltip();
-    const columns = recent.map((bucket) => {
+    if (!chartTooltip) {
+      chartTooltip = createStatisticsTooltip();
+      chart.append(chartTooltip);
+    }
+    const retained = new Set(recent.map((bucket) => minuteBucketKey(bucket.minuteUtc)));
+    for (const [key, entry] of chartColumns) {
+      if (!retained.has(key)) removeChartColumn(key, entry);
+    }
+    for (const [index, bucket] of recent.entries()) {
       const bucketKey = minuteBucketKey(bucket.minuteUtc);
       const hasRequestLogBucket = bucket.requests > 0 && requestLogBuckets.has(bucketKey);
-      const column = makeElement(hasRequestLogBucket ? "button" : "i", "chart-column");
       const statusCounts = getMinuteStatusCounts(bucket);
-      column.style.height = `${(bucket.requests / maximum) * 100}%`;
-      if (bucket.requests > 0) column.classList.add("active");
+      let entry = chartColumns.get(bucketKey);
+      const restoreFocus = entry?.column === document.activeElement;
+      if (entry && entry.interactive !== hasRequestLogBucket) {
+        removeChartColumn(bucketKey, entry);
+        entry = null;
+      }
+      if (!entry) {
+        entry = createChartColumn(bucket, hasRequestLogBucket);
+        chartColumns.set(bucketKey, entry);
+      }
+      const { column } = entry;
+      entry.bucket = bucket;
+      entry.statusCounts = statusCounts;
+      const height = `${(bucket.requests / maximum) * 100}%`;
+      if (column.style.height !== height) column.style.height = height;
+      column.classList.toggle("active", bucket.requests > 0);
       if (hasRequestLogBucket) {
-        column.setAttribute("type", "button");
-        column.classList.add("interactive");
         column.setAttribute(
           "aria-label",
           `Show ${formatNumber(bucket.requests)} ${bucket.requests === 1 ? "attempt" : "attempts"} from ${formatTime(bucket.minuteUtc)} in the request log`
         );
-        chartEvents.listen(column, "click", () => revealRequestLogBucket(bucketKey));
       }
-      for (const [statusClass, count] of [
-        ["status-1xx", statusCounts.informational],
-        ["status-2xx", statusCounts.success],
-        ["status-3xx", statusCounts.redirection],
-        ["status-4xx", statusCounts.clientError],
-        ["status-5xx", statusCounts.serverError],
-        ["status-other", statusCounts.other],
-      ]) {
-        const segment = makeElement("span", statusClass);
-        segment.style.flexGrow = String(count);
+      Object.values(statusCounts).forEach((count, segmentIndex) => {
+        const segment = entry.segments[segmentIndex];
+        if (segment.style.flexGrow !== String(count)) segment.style.flexGrow = String(count);
         segment.hidden = count === 0;
-        column.append(segment);
+      });
+      if (chart.children[index] !== column) chart.insertBefore(column, chart.children[index] || chartTooltip);
+      if (restoreFocus && document.activeElement !== column) {
+        if (hasRequestLogBucket) column.focus({ preventScroll: true });
+        else chartScroll.focus({ preventScroll: true });
       }
-      chartEvents.listen(column, "pointerenter", (event) => {
-        showStatisticsTooltip(tooltip, bucket, statusCounts, event);
-      });
-      chartEvents.listen(column, "pointermove", (event) => {
-        positionStatisticsTooltip(tooltip, event);
-      });
-      chartEvents.listen(column, "pointerleave", () => {
-        tooltip.hidden = true;
-      });
-      return column;
-    });
-    chart.replaceChildren(...columns, tooltip);
+      if (hoveredColumn === entry && entry.pointer) {
+        showStatisticsTooltip(chartTooltip, bucket, statusCounts, entry.pointer);
+      }
+    }
+    if (focusedChartColumn && !chart.contains(document.activeElement)) chartScroll.focus({ preventScroll: true });
     chartScroll.dataset.initialized = "true";
     if (wasFollowingNewest) chartScroll.scrollLeft = chartScroll.scrollWidth;
     const navigationDescription = hasOlderActivity
@@ -493,6 +543,57 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
       "aria-label",
       `${elements["statistics-chart-title"].textContent}. ${formatNumber(total)} attempts over the last 60 minutes; peak ${formatNumber(maximum)} attempts in one minute. ${navigationDescription} ${chartContext}`
     );
+  }
+
+  function createChartColumn(bucket, interactive) {
+    const column = makeElement(interactive ? "button" : "i", "chart-column");
+    // Each retained column owns its listeners; removal releases them without disturbing neighboring columns.
+    const listeners = createDashboardEventScope();
+    const segments = ["status-1xx", "status-2xx", "status-3xx", "status-4xx", "status-5xx", "status-other"].map(
+      (statusClass) => makeElement("span", statusClass)
+    );
+    column.append(...segments);
+    const entry = {
+      column,
+      segments,
+      listeners,
+      interactive,
+      bucket,
+      statusCounts: getMinuteStatusCounts(bucket),
+      /** @type {PointerEvent|null} */
+      pointer: null,
+    };
+    // Read the entry's refreshed data instead of capturing the bucket from the column's first render.
+    if (interactive) {
+      column.setAttribute("type", "button");
+      column.classList.add("interactive");
+      listeners.listen(column, "click", () => revealRequestLogBucket(minuteBucketKey(entry.bucket.minuteUtc)));
+    }
+    listeners.listen(column, "pointerenter", (event) => {
+      hoveredColumn = entry;
+      entry.pointer = event;
+      showStatisticsTooltip(chartTooltip, entry.bucket, entry.statusCounts, event);
+    });
+    listeners.listen(column, "pointermove", (event) => {
+      entry.pointer = event;
+      positionStatisticsTooltip(chartTooltip, event);
+    });
+    listeners.listen(column, "pointerleave", () => {
+      hoveredColumn = null;
+      entry.pointer = null;
+      chartTooltip.hidden = true;
+    });
+    return entry;
+  }
+
+  function removeChartColumn(key, entry) {
+    entry.listeners.clear();
+    entry.column.remove();
+    chartColumns.delete(key);
+    if (hoveredColumn === entry) {
+      hoveredColumn = null;
+      chartTooltip.hidden = true;
+    }
   }
 
   function createStatisticsTooltip() {
@@ -626,7 +727,11 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
     },
     dispose() {
       events.clear();
-      chartEvents.clear();
+      for (const entry of chartColumns.values()) entry.listeners.clear();
+      chartColumns.clear();
+      hoveredColumn = null;
+      chartTooltip = null;
+      statisticsTable = null;
       logEvents.clear();
       requestLogCache = null;
       statisticsPickerEndpoints = null;

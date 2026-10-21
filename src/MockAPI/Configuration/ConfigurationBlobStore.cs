@@ -11,7 +11,7 @@ public sealed class ConfigurationBlobStore : IConfigurationStore
 {
     private readonly MockApiOptions _options;
     private readonly Func<CancellationToken, Task<ConfigurationBlobRead?>> _download;
-    private readonly Func<ReadOnlyMemory<byte>, CancellationToken, Task> _upload;
+    private readonly Func<Stream, CancellationToken, Task> _upload;
     private readonly ConfigurationPersistenceCoordinator _coordinator;
 
     /// <summary>Initializes an Azure Blob configuration store.</summary>
@@ -38,7 +38,7 @@ public sealed class ConfigurationBlobStore : IConfigurationStore
             async (content, cancellationToken) =>
             {
                 await blobClient.UploadAsync(
-                    BinaryData.FromBytes(content),
+                    content,
                     overwrite: true,
                     cancellationToken);
             })
@@ -48,7 +48,7 @@ public sealed class ConfigurationBlobStore : IConfigurationStore
     internal ConfigurationBlobStore(
         MockApiOptions options,
         Func<CancellationToken, Task<ConfigurationBlobRead?>> download,
-        Func<ReadOnlyMemory<byte>, CancellationToken, Task> upload,
+        Func<Stream, CancellationToken, Task> upload,
         Func<CancellationToken, ValueTask>? onSnapshotCaptured = null,
         Func<CancellationToken, ValueTask>? onDocumentLoaded = null)
     {
@@ -146,7 +146,8 @@ public sealed class ConfigurationBlobStore : IConfigurationStore
             {
                 try
                 {
-                    await _upload(snapshot.ExportUtf8(), saveCancellationToken);
+                    using var content = snapshot.OpenRead();
+                    await _upload(content, saveCancellationToken);
                 }
                 catch (RequestFailedException exception)
                 {

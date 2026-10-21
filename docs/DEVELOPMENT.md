@@ -61,6 +61,12 @@ pnpm run test:site
 pnpm run test:browser:smoke
 ```
 
+The site tests check that common-use card headings, descriptions, and links align across desktop
+widths and enlarged text, while narrow viewports retain naturally sized, stacked cards.
+The hero's Docker Hub version badge uses the same Shields.io source as the README and links to the
+published image. Browser tests stub the badge service and verify keyboard access and an accessible
+link name even when the image cannot load.
+
 `pnpm run validate:dependency-security` audits pnpm and direct and transitive NuGet
 dependencies. Dependency findings are warning-only: the reports remain visible,
 but builds and validation continue even when vulnerabilities are found.

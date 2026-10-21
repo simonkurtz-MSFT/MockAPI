@@ -27,6 +27,85 @@ public sealed class ApiKeySecurityTests : IDisposable
 
     [Theory]
     [InlineData(32)]
+    [InlineData(43)]
+    [InlineData(256)]
+    public async Task WarmAuthorization_DoesNotAllocateForEncodingHashingOrStoredHashDecoding(int length)
+    {
+        var key = new string('a', length);
+        using var security = new ApiKeySecurity(new MockApiOptions { ConfigurationPath = ConfigurationPath, ApiKey = key });
+        await security.LoadAsync(CancellationToken.None);
+        var context = new DefaultHttpContext();
+        context.Request.Headers[ApiKeySecurity.HeaderName] = key;
+        for (var index = 0; index < 100; index++)
+        {
+            Assert.True(security.Authorizes(context));
+        }
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var authorized = true;
+        for (var index = 0; index < 1_000; index++)
+        {
+            authorized &= security.Authorizes(context);
+        }
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.True(authorized);
+        Assert.InRange(allocated, 0, 1_024);
+    }
+
+    [Fact]
+    public async Task ParallelAuthorization_UsesIndependentScratchStorage()
+    {
+        var key = new string('a', 256);
+        using var security = new ApiKeySecurity(new MockApiOptions { ConfigurationPath = ConfigurationPath, ApiKey = key });
+        await security.LoadAsync(CancellationToken.None);
+        var valid = new DefaultHttpContext();
+        valid.Request.Headers[ApiKeySecurity.HeaderName] = key;
+        var invalid = new DefaultHttpContext();
+        invalid.Request.Headers[ApiKeySecurity.HeaderName] = new string('b', 256);
+        Assert.True(security.Authorizes(valid));
+        Assert.False(security.Authorizes(invalid));
+
+        Parallel.For(0, 5_000, index =>
+            Assert.Equal(index % 2 == 0, security.Authorizes(index % 2 == 0 ? valid : invalid)));
+    }
+
+    [Fact]
+    public async Task PersistedLowercaseHash_IsDecodedWithoutChangingStoredContract()
+    {
+        var key = new string('a', 32);
+        Directory.CreateDirectory(_directory);
+        var document = new ApiSecurityDocument(true,
+            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key))).ToLowerInvariant(), 1);
+        var content = JsonSerializer.Serialize(document, ApiSecurityJsonContext.Default.ApiSecurityDocument);
+        await File.WriteAllTextAsync(ConfigurationPath + ".security.json", content);
+        using var security = new ApiKeySecurity(new MockApiOptions { ConfigurationPath = ConfigurationPath });
+
+        await security.LoadAsync(CancellationToken.None);
+
+        Assert.True(Authorizes(security, key));
+        Assert.Equal(content, await File.ReadAllTextAsync(ConfigurationPath + ".security.json"));
+    }
+
+    [Fact]
+    public async Task FailedRotation_PreservesPreviouslyPublishedDigestAndStatus()
+    {
+        var key = new string('a', 32);
+        using var security = new ApiKeySecurity(new MockApiOptions { ConfigurationPath = ConfigurationPath, ApiKey = key });
+        await security.LoadAsync(CancellationToken.None);
+        var previous = security.Status;
+        File.Delete(ConfigurationPath + ".security.json");
+        Directory.CreateDirectory(ConfigurationPath + ".security.json");
+
+        var failure = await Record.ExceptionAsync(() => security.UpdateAsync(previous.ETag, true, true, CancellationToken.None));
+
+        Assert.True(failure is IOException or UnauthorizedAccessException);
+        Assert.Equal(previous, security.Status);
+        Assert.True(Authorizes(security, key));
+    }
+
+    [Theory]
+    [InlineData(32)]
     [InlineData(36)]
     [InlineData(43)]
     [InlineData(256)]

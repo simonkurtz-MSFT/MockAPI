@@ -36,6 +36,12 @@ public sealed class ConfigurationReadDiagnostics(ITestOutputHelper output)
         Measure("status-handler -> Stream.Null", () => CompleteSynchronously(ConfigurationReadTests.WriteStatus(statusContext, statusService)));
         Measure("native-export omitted IDs -> Stream.Null", () => CompleteSynchronously(ConfigurationReadTests.WriteExport(exportContext, exportService, null, null, true)));
         Measure("native-export empty IDs -> Stream.Null", () => CompleteSynchronously(ConfigurationReadTests.WriteExport(exportContext, exportService, [], null, true)));
+
+        var blobStore = new ConfigurationBlobStore(
+            new MockApiOptions { ConfigurationPath = "unused-diagnostic-path" },
+            _ => Task.FromResult<ConfigurationBlobRead?>(null),
+            (_, _) => Task.CompletedTask);
+        Measure("blob-save -> completed upload", () => CompleteSynchronously(blobStore.SaveAsync(state, snapshot.Revision, CancellationToken.None)));
     }
 
     private void Measure(string name, Action operation)

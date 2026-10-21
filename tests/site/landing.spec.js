@@ -13,6 +13,12 @@ test.beforeEach(async ({ page }) => {
     route.fulfill({ contentType: "application/javascript", body: "" })
   );
   await page.route(/https:\/\/(?:[^/]+\.)?(?:google-analytics|analytics\.google)\.com\//, (route) => route.abort());
+  await page.route("https://img.shields.io/**", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="137" height="20"><title>Docker Hub</title></svg>',
+    })
+  );
 });
 
 async function serveProductionSite(page, baseURL) {
@@ -155,6 +161,101 @@ test("quick starts, assets and accessibility work under the Pages repository pre
   expect(failures).toEqual([]);
 });
 
+test("Docker Hub badge links to the published image and is keyboard accessible", async ({ page }) => {
+  await page.goto("./");
+  const badge = page.getByRole("link", { name: "MockAPI on Docker Hub", exact: true });
+  await expect(badge).toHaveAttribute("href", "https://hub.docker.com/r/simonkurtzmsft/mockapi");
+  const image = badge.getByRole("img", { name: "MockAPI on Docker Hub", exact: true });
+  await expect(image).toHaveAttribute(
+    "src",
+    "https://img.shields.io/docker/v/simonkurtzmsft/mockapi?label=Docker%20Hub&logo=docker&sort=semver"
+  );
+  await expect(image).toHaveAttribute("referrerpolicy", "no-referrer");
+  expect(await image.evaluate((element) => element.complete && element.naturalWidth > 0)).toBe(true);
+  const size = await badge.boundingBox();
+  expect(size.width).toBeGreaterThanOrEqual(24);
+  expect(size.height).toBeGreaterThanOrEqual(24);
+  await page.getByRole("link", { name: "Read the documentation", exact: true }).focus();
+  await page.keyboard.press("Tab");
+  await expect(badge).toBeFocused();
+  await expect(badge).toHaveCSS("outline-style", "solid");
+});
+
+test("Docker Hub link retains an accessible name if the badge service is unavailable", async ({ page }) => {
+  await page.route("https://img.shields.io/**", (route) => route.abort());
+  await page.goto("./");
+  const badge = page.getByRole("link", { name: "MockAPI on Docker Hub", exact: true });
+  await expect(badge).toBeVisible();
+  await expect(badge).toHaveAttribute("href", "https://hub.docker.com/r/simonkurtzmsft/mockapi");
+  expect(await badge.locator("img").evaluate((image) => image.complete && image.naturalWidth === 0)).toBe(true);
+});
+
+test("example cards align headings, descriptions, and links across desktop widths and enlarged text", async ({
+  page,
+}) => {
+  await page.goto("./");
+  const cards = page.locator("#examples .card");
+  await expect(cards).toHaveCount(3);
+  for (const [width, fontSize] of [
+    [1280, "100%"],
+    [1024, "100%"],
+    [951, "100%"],
+    [1280, "200%"],
+  ]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.evaluate((size) => {
+      document.documentElement.style.fontSize = size;
+    }, fontSize);
+    const positions = await cards.evaluateAll((elements) =>
+      elements.map((card) => ({
+        top: card.getBoundingClientRect().top,
+        bottom: card.getBoundingClientRect().bottom,
+        width: card.getBoundingClientRect().width,
+        heading: card.querySelector("h3").getBoundingClientRect().top,
+        description: card.querySelector("p").getBoundingClientRect().top,
+        links: card.querySelector("a").getBoundingClientRect().top,
+      }))
+    );
+    for (const position of positions.slice(1)) {
+      for (const key of ["top", "bottom", "width", "heading", "description", "links"]) {
+        expect(Math.abs(position[key] - positions[0][key]), `${key} at ${width}px with ${fontSize} text`).toBeLessThan(
+          1
+        );
+      }
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+});
+
+test("example cards stack at natural heights on narrow viewports", async ({ page }) => {
+  await page.goto("./");
+  const cards = page.locator("#examples .card");
+  await expect(cards).toHaveCount(3);
+  for (const width of [950, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const positions = await cards.evaluateAll((elements) =>
+      elements.map((card) => ({
+        top: card.getBoundingClientRect().top,
+        bottom: card.getBoundingClientRect().bottom,
+        height: card.getBoundingClientRect().height,
+        left: card.getBoundingClientRect().left,
+        right: card.getBoundingClientRect().right,
+        linksBottom: card.querySelector("a:last-child").getBoundingClientRect().bottom,
+      }))
+    );
+    for (let index = 1; index < positions.length; index += 1) {
+      expect(positions[index].top).toBeGreaterThan(positions[index - 1].bottom);
+      expect(positions[index].left).toBe(positions[0].left);
+      expect(positions[index].right).toBe(positions[0].right);
+      expect(positions[index].height).toBeLessThan(positions[0].height);
+    }
+    for (const position of positions) {
+      expect(position.linksBottom).toBeLessThan(position.bottom);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+});
+
 test("navigation buttons share the call-to-action hover effect without underlines", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("./");
@@ -208,18 +309,29 @@ test("getting-started content stays usable on desktop and narrow screens", async
 test("features describe the small, hardened container and supported capabilities", async ({ page }) => {
   await page.goto("./");
   const features = page.getByRole("region", { name: "A small, hardened container for your mock APIs" });
-  await expect(features.locator(".card")).toHaveCount(4);
+  await expect(features.locator(".card")).toHaveCount(5);
   await expect(features.getByRole("heading", { level: 3 })).toHaveText([
     "Minimal Native AOT image",
     "Hardened by default",
     "Import, save, and export",
     "Live request view",
+    "APIM Samples integration",
   ]);
   await expect(features).toContainText("no .NET SDK, managed runtime, JIT, compiler, or debug symbols");
   await expect(features).toContainText("non-root user");
   await expect(features).toContainText("read-only root filesystem");
   await expect(features).toContainText("API key by default");
   await expect(features).toContainText("Postman, Insomnia, cURL, JMeter, OpenAPI, k6, or HTTP files");
+  const apimCard = features.getByRole("article").last();
+  await expect(apimCard).toContainText("Easily connect APIM Samples to your custom mock APIs.");
+  await expect(apimCard).toContainText("use MockAPI as the backend");
+  const apimGuide = apimCard.getByRole("link", { name: "Connect custom APIs to APIM" });
+  await expect(apimGuide).toBeVisible();
+  await expect(apimGuide).toHaveAttribute(
+    "href",
+    "https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/MANAGEMENT_API.md#live-mock-openapi-and-apim-import"
+  );
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test("footer links to Simon Kurtz's website in a protected new tab", async ({ page }) => {

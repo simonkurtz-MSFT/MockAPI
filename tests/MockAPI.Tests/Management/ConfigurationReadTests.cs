@@ -117,6 +117,27 @@ public sealed class ConfigurationReadTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NativeExport_DoesNotAllocateADocumentSizedCopy(bool emptySelection)
+    {
+        var state = CreateState("text", bodyLength: 166000, endpointCount: 25);
+        var service = new ConfigurationManagementService(state, new UnusedStore());
+        var context = new DefaultHttpContext();
+        context.Response.Body = Stream.Null;
+        Guid[]? endpointIds = emptySelection ? [] : null;
+        await WriteExport(context, service, endpointIds, null, true);
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var export = WriteExport(context, service, endpointIds, null, true);
+        Assert.True(export.IsCompletedSuccessfully);
+        await export;
+        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.InRange(allocatedBytes, 0, 64 * 1024);
+    }
+
+    [Theory]
     [InlineData("omitted")]
     [InlineData("empty")]
     public async Task GeneratedExport_AbsentOrEmptySelectionPreservesAllEndpointsAndMetadata(string selection)

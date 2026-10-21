@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Text;
+using System.Text.Unicode;
 using System.Threading.RateLimiting;
 using MockAPI.Configuration;
 
@@ -26,7 +27,7 @@ public sealed class EndpointRegistry
             return validation;
         }
 
-        var replacement = EndpointRegistrySnapshot.Create(document);
+        var replacement = EndpointRegistrySnapshot.Create(document, Current);
         Interlocked.Exchange(ref _current, replacement);
         return validation;
     }
@@ -37,16 +38,20 @@ public sealed class EndpointRegistry
 public sealed class EndpointRegistrySnapshot
 {
     private readonly FrozenDictionary<string, FrozenDictionary<string, RuntimeEndpoint>> _endpointsByMethod;
+    private readonly FrozenDictionary<Guid, RuntimeEndpoint> _endpointsById;
 
     private EndpointRegistrySnapshot(
-        FrozenDictionary<string, FrozenDictionary<string, RuntimeEndpoint>> endpointsByMethod)
+        FrozenDictionary<string, FrozenDictionary<string, RuntimeEndpoint>> endpointsByMethod,
+        FrozenDictionary<Guid, RuntimeEndpoint> endpointsById)
     {
         _endpointsByMethod = endpointsByMethod;
+        _endpointsById = endpointsById;
     }
 
     /// <summary>Gets an immutable registry containing no enabled endpoints.</summary>
     public static EndpointRegistrySnapshot Empty { get; } = new(
-        FrozenDictionary<string, FrozenDictionary<string, RuntimeEndpoint>>.Empty);
+        FrozenDictionary<string, FrozenDictionary<string, RuntimeEndpoint>>.Empty,
+        FrozenDictionary<Guid, RuntimeEndpoint>.Empty);
 
     /// <summary>Looks up an enabled endpoint by exact HTTP method and path.</summary>
     /// <param name="method">The request HTTP method, compared case-insensitively.</param>
@@ -70,10 +75,13 @@ public sealed class EndpointRegistrySnapshot
         return false;
     }
 
-    internal static EndpointRegistrySnapshot Create(MockApiConfigurationDocument document)
+    internal static EndpointRegistrySnapshot Create(
+        MockApiConfigurationDocument document,
+        EndpointRegistrySnapshot previous)
     {
         var endpointsByMethod = new Dictionary<string, Dictionary<string, RuntimeEndpoint>>(
             StringComparer.OrdinalIgnoreCase);
+        var endpointsById = new Dictionary<Guid, RuntimeEndpoint>();
 
         foreach (var definition in document.Endpoints)
         {
@@ -82,7 +90,9 @@ public sealed class EndpointRegistrySnapshot
                 continue;
             }
 
-            var endpoint = RuntimeEndpoint.Create(definition);
+            previous._endpointsById.TryGetValue(definition.Id, out var previousEndpoint);
+            var endpoint = RuntimeEndpoint.Create(definition, previousEndpoint);
+            endpointsById.Add(definition.Id, endpoint);
             foreach (var method in definition.Methods)
             {
                 if (!endpointsByMethod.TryGetValue(method, out var endpointsByPath))
@@ -99,14 +109,14 @@ public sealed class EndpointRegistrySnapshot
             pair => pair.Key,
             pair => pair.Value.ToFrozenDictionary(StringComparer.Ordinal),
             StringComparer.OrdinalIgnoreCase);
-        return new EndpointRegistrySnapshot(frozenEndpoints);
+        return new EndpointRegistrySnapshot(frozenEndpoints, endpointsById.ToFrozenDictionary());
     }
 }
 
 /// <summary>Represents the immutable, wire-ready behavior for one enabled endpoint.</summary>
 public sealed class RuntimeEndpoint
 {
-    private readonly byte[] _body;
+    private readonly ReadOnlyMemory<byte> _body;
     private readonly SlidingWindowRateLimiter? _rateLimiter;
     private readonly RuntimeSuccessResponse? _successResponse;
 
@@ -118,7 +128,7 @@ public sealed class RuntimeEndpoint
         string? reasonPhrase,
         ImmutableArray<RuntimeResponseHeader> headers,
         string? contentType,
-        byte[] body,
+        ReadOnlyMemory<byte> body,
         SlidingWindowRateLimiter? rateLimiter,
         RuntimeSuccessResponse? successResponse)
     {
@@ -172,13 +182,13 @@ public sealed class RuntimeEndpoint
             : new RuntimeResponse(StatusCode!.Value, ReasonPhrase, Headers, ContentType, Body);
     }
 
-    internal static RuntimeEndpoint Create(MockEndpointDefinition definition)
+    internal static RuntimeEndpoint Create(MockEndpointDefinition definition, RuntimeEndpoint? previous = null)
     {
         var response = definition.Response;
-        var headers = response.Headers
-            .Select(pair => new RuntimeResponseHeader(pair.Key, [.. pair.Value]))
-            .ToImmutableArray();
+        var headers = RuntimeResponseCompilation.CreateHeaders(response.Headers, previous?.Headers ?? default);
+        var body = RuntimeResponseCompilation.CreateBody(response.Body, previous?.Body);
         var rateLimit = response.RateLimit;
+        // Share only immutable wire data. Each replacement still starts with fresh rate-limit permits.
         var limiter = rateLimit is null
             ? null
             : new SlidingWindowRateLimiter(new SlidingWindowRateLimiterOptions
@@ -191,7 +201,7 @@ public sealed class RuntimeEndpoint
             });
         RuntimeSuccessResponse? successResponse = rateLimit is null
             ? null
-            : RuntimeSuccessResponse.Create(rateLimit.SuccessResponse);
+            : RuntimeSuccessResponse.Create(rateLimit.SuccessResponse, previous?._successResponse);
 
         return new RuntimeEndpoint(
             definition.Id,
@@ -201,7 +211,7 @@ public sealed class RuntimeEndpoint
             response.ReasonPhrase,
             headers,
             response.ContentType,
-            Encoding.UTF8.GetBytes(response.Body),
+            body,
             limiter,
             successResponse);
     }
@@ -216,15 +226,83 @@ internal readonly record struct RuntimeResponse(
 
 internal readonly record struct RuntimeSuccessResponse(RuntimeResponse Response)
 {
-    public static RuntimeSuccessResponse Create(MockSuccessResponseDefinition response) => new(
+    public static RuntimeSuccessResponse Create(
+        MockSuccessResponseDefinition response,
+        RuntimeSuccessResponse? previous = null) => new(
         new RuntimeResponse(
             response.StatusCode,
             response.ReasonPhrase,
-            response.Headers
-                .Select(pair => new RuntimeResponseHeader(pair.Key, [.. pair.Value]))
-                .ToImmutableArray(),
+            RuntimeResponseCompilation.CreateHeaders(response.Headers, previous?.Response.Headers ?? default),
             response.ContentType,
-            Encoding.UTF8.GetBytes(response.Body)));
+            RuntimeResponseCompilation.CreateBody(response.Body, previous?.Response.Body)));
+}
+
+internal static class RuntimeResponseCompilation
+{
+    internal static ImmutableArray<RuntimeResponseHeader> CreateHeaders(
+        Dictionary<string, string[]> headers,
+        ImmutableArray<RuntimeResponseHeader> previous)
+    {
+        if (HeadersMatch(headers, previous))
+        {
+            return previous;
+        }
+
+        return headers.Select(pair => new RuntimeResponseHeader(pair.Key, [.. pair.Value])).ToImmutableArray();
+    }
+
+    private static bool HeadersMatch(
+        Dictionary<string, string[]> headers,
+        ImmutableArray<RuntimeResponseHeader> previous)
+    {
+        if (previous.IsDefault || headers.Count != previous.Length)
+        {
+            return false;
+        }
+
+        var index = 0;
+        foreach (var header in headers)
+        {
+            var existing = previous[index++];
+            if (!string.Equals(header.Key, existing.Name, StringComparison.Ordinal) ||
+                !header.Value.AsSpan().SequenceEqual(existing.Values.AsSpan()))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    internal static ReadOnlyMemory<byte> CreateBody(string body, ReadOnlyMemory<byte>? previous)
+    {
+        if (previous is { } bytes && BodyMatches(body, bytes.Span))
+        {
+            return bytes;
+        }
+
+        return Encoding.UTF8.GetBytes(body);
+    }
+
+    private static bool BodyMatches(ReadOnlySpan<char> body, ReadOnlySpan<byte> previous)
+    {
+        // Compare the actual UTF-8 representation in bounded stack storage, including replacement fallback.
+        // Retaining the source UTF-16 string would save comparison work but increase every snapshot's resident memory.
+        Span<byte> scratch = stackalloc byte[512];
+        while (!body.IsEmpty)
+        {
+            Utf8.FromUtf16(body, scratch, out var charactersRead, out var bytesWritten, replaceInvalidSequences: true);
+            if (bytesWritten > previous.Length || !scratch[..bytesWritten].SequenceEqual(previous[..bytesWritten]))
+            {
+                return false;
+            }
+
+            body = body[charactersRead..];
+            previous = previous[bytesWritten..];
+        }
+
+        return previous.IsEmpty;
+    }
 }
 
 /// <summary>Represents one response header field and its ordered wire values.</summary>

@@ -211,7 +211,8 @@ public sealed class DashboardOptimizationTests
         // Advance the reported time on each read while retaining the real two-second timer.
         // The first idle tick stays below the heartbeat threshold; the next crosses it.
         var clock = new SteppingClock();
-        var events = new DashboardEventStream(new ConfigurationState(), new RequestStatisticsCollector(), clock);
+        // Keep the collector's minute fixed independently of the accelerated heartbeat clock.
+        var events = new DashboardEventStream(new ConfigurationState(), new RequestStatisticsCollector(new Clock()), clock);
         var pipe = new Pipe();
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var context = new DefaultHttpContext { RequestAborted = cancellation.Token };

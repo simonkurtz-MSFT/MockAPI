@@ -5,6 +5,12 @@ test.beforeEach(async ({ page }) => {
   await page.route("https://www.googletagmanager.com/**", (route) =>
     route.fulfill({ contentType: "application/javascript", body: "" })
   );
+  await page.route("https://img.shields.io/**", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="137" height="20"><title>Docker Hub</title></svg>',
+    })
+  );
 });
 
 test("uniform header, styled links and arrow controls meet contrast and keyboard requirements in both themes", async ({

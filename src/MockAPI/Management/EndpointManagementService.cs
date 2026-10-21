@@ -180,7 +180,7 @@ public sealed class EndpointManagementService(ConfigurationState state)
             return FromUpdate(update, endpoint: null);
         }
 
-        var endpoint = update.Snapshot!.GetDocument().Endpoints.Single(candidate => candidate.Id == endpointId);
+        var endpoint = update.Snapshot!.GetEndpoint(endpointId);
         return ManagementOperationResult.Applied(update.Snapshot, endpoint);
     }
 

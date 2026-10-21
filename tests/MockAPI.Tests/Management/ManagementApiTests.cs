@@ -156,7 +156,7 @@ public sealed class ManagementApiTests
 
         var streamTask = MockAPI.Management.ManagementApiEndpoints.StreamStatisticsAsync(
             context,
-            new MockAPI.Runtime.RequestStatisticsCollector());
+            new MockAPI.Management.StatisticsSnapshotCache(new MockAPI.Runtime.RequestStatisticsCollector()));
         await WaitForAsync(() => context.Response.Body.Length > 0, TimeSpan.FromSeconds(2));
         cancellation.Cancel();
         await streamTask;

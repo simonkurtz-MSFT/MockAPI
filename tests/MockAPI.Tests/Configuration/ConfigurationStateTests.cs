@@ -6,6 +6,91 @@ namespace MockAPI.Tests.Configuration;
 public sealed class ConfigurationStateTests
 {
     [Fact]
+    public void GetEndpoint_FindsIdAfterNestedResponseWithoutAdvancingDeserializationReader()
+    {
+        var id = Guid.NewGuid();
+        var bytes = System.Text.Encoding.UTF8.GetBytes($$"""
+            {
+              "schemaVersion": "1.0",
+              "endpoints": [{
+                "name": "Selected endpoint",
+                "enabled": true,
+                "path": "/selected",
+                "methods": ["GET"],
+                "response": { "statusCode": 201, "headers": { "X-Values": ["first", "second"] }, "body": "raw body" },
+                "id": "{{id}}"
+              }]
+            }
+            """);
+        var snapshot = ConfigurationStateSnapshot.CreateFromOwnedSerializedDocument(
+            bytes, null, new ConfigurationState().Current.Endpoints, 1, false);
+
+        var selected = snapshot.GetEndpoint(id);
+
+        Assert.Equal(id, selected.Id);
+        Assert.Equal("/selected", selected.Path);
+        Assert.Equal("GET", Assert.Single(selected.Methods));
+        Assert.Equal(201, selected.Response.StatusCode);
+        Assert.Equal(new[] { "first", "second" }, selected.Response.Headers["X-Values"]);
+        Assert.Equal("raw body", selected.Response.Body);
+        Assert.Throws<InvalidOperationException>(() => snapshot.GetEndpoint(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void GetEndpoint_ReturnsDetachedCanonicalDataFromCapturedRevision()
+    {
+        var state = new ConfigurationState();
+        var first = CreateEndpoint("GET", "/first", "first");
+        var selected = CreateEndpoint("POST", "/selected", " \r\n{\"raw\": true}\n") with
+        {
+            Response = new()
+            {
+                StatusCode = 201,
+                Headers = new() { ["X-Z"] = ["first", "second"], ["X-A"] = ["value"] },
+                ContentType = "application/json",
+                Body = " \r\n{\"raw\": true}\n"
+            }
+        };
+        Assert.Equal(ConfigurationUpdateStatus.Applied, state.TryReplace(CreateDocument(first, selected), 0).Status);
+        var captured = state.Current;
+        var expected = captured.GetDocument().Endpoints[1];
+        var actual = captured.GetEndpoint(selected.Id);
+        Assert.Equal(JsonSerializer.Serialize(expected, MockApiJsonContext.Default.MockEndpointDefinition),
+            JsonSerializer.Serialize(actual, MockApiJsonContext.Default.MockEndpointDefinition));
+        Assert.IsAssignableFrom<IList<string>>(actual.Methods)[0] = "DELETE";
+        actual.Response.Headers["X-Z"][0] = "mutated";
+        Assert.Equal("POST", captured.GetEndpoint(selected.Id).Methods[0]);
+        Assert.Equal("first", captured.GetEndpoint(selected.Id).Response.Headers["X-Z"][0]);
+
+        state.TryReplace(CreateDocument(first), 1);
+        Assert.Equal(selected.Id, captured.GetEndpoint(selected.Id).Id);
+        Assert.Equal(first.Id, state.Current.GetEndpoint(first.Id).Id);
+        Assert.Throws<InvalidOperationException>(() => state.Current.GetEndpoint(selected.Id));
+        Assert.Throws<InvalidOperationException>(() => new ConfigurationState().Current.GetEndpoint(first.Id));
+    }
+
+    [Fact]
+    public void GetEndpoint_DoesNotAllocateForUnrelatedLargeBodies()
+    {
+        var state = new ConfigurationState();
+        var selected = CreateEndpoint("GET", "/selected", "small");
+        var large = CreateEndpoint("GET", "/large", new string('x', 960 * 1024));
+        state.TryReplace(CreateDocument(large, selected), 0);
+        var captured = state.Current;
+        for (var index = 0; index < 5; index++)
+        {
+            captured.GetEndpoint(selected.Id);
+        }
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var result = captured.GetEndpoint(selected.Id);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(selected.Id, result.Id);
+        Assert.InRange(allocated, 0, 8_192);
+    }
+
+    [Fact]
     public void ApiDescriptions_AreDetachedAndCanonicallyOrderedAcrossImportExport()
     {
         var descriptions = new Dictionary<string, string> { ["/z"] = " Z\r\n ", ["/a"] = "A", ["/A"] = "" };
@@ -248,6 +333,84 @@ public sealed class ConfigurationStateTests
         Assert.True(evaluation.IsValid, JsonSerializer.Serialize(evaluation));
         var text = JsonSerializer.Serialize(json.RootElement);
         Assert.True(text.IndexOf("A-First", StringComparison.Ordinal) < text.IndexOf("Z-Last", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ExportUtf8_ReturnsIndependentMutableCopies()
+    {
+        var state = new ConfigurationState();
+        state.TryReplace(CreateDocument(CreateEndpoint("GET", "/detached", "body")), 0);
+        var snapshot = state.Current;
+        var first = snapshot.ExportUtf8();
+        var second = snapshot.ExportUtf8();
+
+        Assert.NotSame(first, second);
+        first[0] = 0;
+
+        Assert.Equal(second, snapshot.ExportUtf8());
+        Assert.Equal("/detached", Assert.Single(snapshot.GetDocument().Endpoints).Path);
+    }
+
+    [Fact]
+    public async Task WriteToAsync_WritesCapturedCanonicalBytesAndLeavesDestinationOpen()
+    {
+        var state = new ConfigurationState();
+        state.TryReplace(CreateDocument(CreateEndpoint("GET", "/captured", "\u00e9\r\nbody")), 0);
+        var snapshot = state.Current;
+        var expected = snapshot.ExportUtf8();
+        Assert.True(state.TryMarkPersisted(snapshot.Revision));
+        state.TryReplace(CreateDocument(CreateEndpoint("GET", "/newer", "newer")), snapshot.Revision);
+        using var destination = new MemoryStream();
+
+        await snapshot.WriteToAsync(destination, CancellationToken.None);
+
+        Assert.Equal(expected, destination.ToArray());
+        Assert.True(destination.CanWrite);
+        Assert.Equal("/newer", Assert.Single(state.Current.GetDocument().Endpoints).Path);
+    }
+
+    [Fact]
+    public async Task WriteToAsync_RejectsNullDestinationAndPropagatesCancellation()
+    {
+        var snapshot = new ConfigurationState().Current;
+        Assert.Throws<ArgumentNullException>(() => snapshot.WriteToAsync(null!, CancellationToken.None));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => snapshot.WriteToAsync(Stream.Null, cancellation.Token).AsTask());
+    }
+
+    [Fact]
+    public async Task OpenRead_ReturnsIndependentReadOnlyStreamsWithoutExposingSnapshotStorage()
+    {
+        var state = new ConfigurationState();
+        state.TryReplace(CreateDocument(CreateEndpoint("GET", "/captured", "body")), 0);
+        var snapshot = state.Current;
+        var expected = snapshot.ExportUtf8();
+        using var first = snapshot.OpenRead();
+        using var second = snapshot.OpenRead();
+
+        Assert.True(first.CanRead);
+        Assert.True(first.CanSeek);
+        Assert.False(first.CanWrite);
+        Assert.Equal(expected.Length, first.Length);
+        Assert.Equal(expected[0], first.ReadByte());
+        Assert.Equal(0, second.Position);
+        Assert.Throws<NotSupportedException>(() => first.WriteByte(0));
+        Assert.Throws<NotSupportedException>(() => first.SetLength(0));
+        var memoryStream = Assert.IsType<MemoryStream>(first);
+        Assert.False(memoryStream.TryGetBuffer(out _));
+        Assert.Throws<UnauthorizedAccessException>(() => memoryStream.GetBuffer());
+
+        first.Dispose();
+        state.TryReplace(CreateDocument(CreateEndpoint("GET", "/newer", "newer")), snapshot.Revision);
+        using var destination = new MemoryStream();
+        await second.CopyToAsync(destination);
+
+        Assert.Equal(expected, destination.ToArray());
+        Assert.Equal(expected, snapshot.ExportUtf8());
+        Assert.Equal("/newer", Assert.Single(state.Current.GetDocument().Endpoints).Path);
     }
 
     [Fact]

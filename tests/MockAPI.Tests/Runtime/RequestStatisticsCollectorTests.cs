@@ -5,6 +5,69 @@ namespace MockAPI.Tests.Runtime;
 public sealed class RequestStatisticsCollectorTests
 {
     [Fact]
+    public void EndpointCounterPopulation_HasBoundedAllocationWithoutObjectPerMinuteCounter()
+    {
+        var ids = Enumerable.Range(0, RequestStatisticsCollector.MaximumTrackedEndpoints)
+            .Select(_ => Guid.NewGuid()).ToArray();
+        var warmup = new RequestStatisticsCollector();
+        warmup.RecordMatched(ids[0], 200, 0);
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var collector = new RequestStatisticsCollector();
+        foreach (var id in ids)
+        {
+            collector.RecordMatched(id, 200, 0);
+        }
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.InRange(allocated, 0, 1_500_000);
+        Assert.Equal(ids.Length, collector.GetSnapshot().Endpoints.Length);
+    }
+
+    [Fact]
+    public void EveryStatusCounter_SurvivesConcurrentRecordingRolloverAndReset()
+    {
+        var clock = new ManualTimeProvider(DateTimeOffset.Parse("2026-01-01T00:00:00Z"));
+        var collector = new RequestStatisticsCollector(clock);
+        var endpointId = Guid.NewGuid();
+        RecordAllClasses();
+        var original = collector.GetSnapshot();
+        AssertBuckets(original, expected: 1_000);
+
+        clock.Advance(TimeSpan.FromMinutes(60));
+        AssertBuckets(collector.GetSnapshot(), expected: 0);
+        RecordAllClasses();
+        AssertBuckets(collector.GetSnapshot(), expected: 1_000);
+        AssertBuckets(original, expected: 1_000);
+
+        collector.Reset();
+        var reset = collector.GetSnapshot();
+        Assert.Empty(reset.Endpoints);
+        Assert.All(reset.RecentMinutes, bucket => Assert.Equal(default, bucket with { MinuteUtc = default }));
+        RecordAllClasses();
+        AssertBuckets(collector.GetSnapshot(), expected: 1_000);
+
+        void RecordAllClasses() => Parallel.For(0, 5_000,
+            index => collector.RecordMatched(endpointId, ((index % 5) + 1) * 100, 0));
+
+        static void AssertBuckets(RequestStatisticsSnapshot snapshot, long expected)
+        {
+            AssertSeries(snapshot.RecentMinutes);
+            AssertSeries(Assert.Single(snapshot.Endpoints).RecentMinutes);
+
+            void AssertSeries(IEnumerable<MinuteBucketSnapshot> buckets)
+            {
+                Assert.Equal(expected * 5, buckets.Sum(bucket => bucket.Requests));
+                Assert.Equal(expected, buckets.Sum(bucket => bucket.InformationalResponses));
+                Assert.Equal(expected, buckets.Sum(bucket => bucket.SuccessResponses));
+                Assert.Equal(expected, buckets.Sum(bucket => bucket.RedirectionResponses));
+                Assert.Equal(expected, buckets.Sum(bucket => bucket.ClientErrorResponses));
+                Assert.Equal(expected, buckets.Sum(bucket => bucket.ServerErrorResponses));
+            }
+        }
+    }
+
+    [Fact]
     public void Snapshot_DistinguishesOutcomesAndTracksEndpointByStableId()
     {
         var timeProvider = new ManualTimeProvider(DateTimeOffset.Parse("2026-01-01T00:00:00Z"));

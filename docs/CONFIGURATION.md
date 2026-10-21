@@ -109,6 +109,10 @@ methods remain unchanged. These are global runtime rules, not new endpoint confi
 remains independent and unchanged. Validation responses are counted against the matched endpoint without retaining
 the request content.
 
+Validation reuses bounded byte buffers and reads JSON tokens without building a document tree.
+All rented buffers are cleared before being returned to the pool, including after failed or cancelled reads.
+These are internal allocation optimizations; payload limits, accepted JSON, and error responses are unchanged.
+
 The test blade and all portable request exports provide optional illustrative JSON samples for
 `POST`, `PUT`, and `PATCH`. Trailhead inventory reservation routes use a SKU, quantity, and warehouse;
 shipping creation routes use a service, parcel weight, and line items. Other routes use a general
@@ -189,6 +193,24 @@ endpoint creation, replacement, deletion, enable/disable and bulk operations, im
 and API description edits. File persistence writes and flushes a temporary file in the same directory, then
 atomically replaces the configured path. Blob persistence uploads the complete deterministic document as one
 replacement operation. Concurrent saves are serialized and converge on the latest active revision.
+
+File saves, Blob uploads, and unfiltered native exports stream the canonical bytes of one captured
+immutable snapshot without first copying the complete document. Public snapshot exports still return
+independent byte arrays; filtered native exports and generated formats retain their existing serialization.
+
+Every applied replacement still validates the complete candidate and creates fresh runtime endpoint
+instances. For matching stable endpoint IDs, compilation reuses unchanged immutable UTF-8 response
+bodies and ordered header projections, including the pre-limit success response. Body comparison
+uses bounded stack storage rather than retaining a second UTF-16 copy. Route and metadata edits can
+reuse wire data, but status, content type, reason phrase, and delay always come from the new definition.
+Rate-limit permits are never shared between revisions: every successful configuration replacement
+starts fresh limiters, as before. Rejected or stale candidates leave the active snapshot and its
+limiter state untouched. The reuse index is owned by the snapshot, not an unbounded cross-revision cache.
+
+Single-endpoint management mutation responses deserialize only the selected endpoint from the applied
+snapshot's canonical JSON. Unrelated endpoint bodies are skipped without materialization. Returned
+data stays detached, with canonical header ordering and body text; complete candidate validation,
+atomic publication, ETags, and autosave behavior are unchanged.
 
 If automatic saving fails, changes remain active but unsaved. The dashboard displays an error and enables
 **Retry save**; the management API returns a `500` `autosave-failed` problem with the current ETag.

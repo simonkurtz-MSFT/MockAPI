@@ -662,7 +662,7 @@ test("endpoint table owns selection snapshots and releases controls and obsolete
   await expect(frame.locator(".endpoint-row")).toHaveCount(1);
 });
 
-test("statistics controller owns scope and bucket navigation and releases replaced chart listeners", async ({
+test("statistics controller retains current chart listeners and releases replaced chart listeners", async ({
   page,
   request,
 }) => {
@@ -716,12 +716,21 @@ test("statistics controller owns scope and bucket navigation and releases replac
     window.oldColumn = document.querySelector(".chart-column.interactive");
     window.originalBucket = document.querySelector(".request-log-bucket-toggle");
     window.panel.updateStatistics(window.statistics);
+    window.retainedBucket = document.querySelector(".request-log-bucket-toggle") === window.originalBucket;
     window.oldColumn.click();
   });
-  expect(
-    await frame.evaluate(() => document.querySelector(".request-log-bucket-toggle") === window.originalBucket)
-  ).toBe(true);
+  expect(await frame.evaluate(() => window.retainedBucket)).toBe(true);
+  await expect(frame.locator(".request-log-bucket-toggle")).toHaveAttribute("aria-expanded", "true");
+  await frame.locator(".request-log-bucket-toggle").click();
+  await frame.evaluate(() => {
+    window.panel.updateStatistics({
+      ...window.statistics,
+      recentMinutes: [{ ...window.statistics.recentMinutes[0], requests: 0, successResponses: 0 }],
+    });
+    window.oldColumn.click();
+  });
   await expect(frame.locator(".request-log-bucket-toggle")).toHaveAttribute("aria-expanded", "false");
+  await frame.evaluate(() => window.panel.updateStatistics(window.statistics));
   await frame.locator(".chart-column.interactive").click();
   await expect(frame.locator(".request-log-bucket-toggle")).toHaveAttribute("aria-expanded", "true");
   await expect(frame.locator(".request-log-bucket-toggle")).toBeFocused();
@@ -731,4 +740,121 @@ test("statistics controller owns scope and bucket navigation and releases replac
   await expect(frame.locator(".request-log-bucket-toggle")).toHaveAttribute("aria-expanded", "false");
   await frame.locator("#reset-statistics-scope").click();
   expect(await frame.evaluate(() => window.resets)).toEqual([endpoint.id, null]);
+});
+
+test("statistics updates retain keyed rows and sixty minute columns, focus, tooltip, and scroll", async ({
+  page,
+  request,
+}) => {
+  const frame = await createFixture(page, request);
+  const statistics = await (await request.get("/__mockapi/api/statistics")).json();
+  await frame.evaluate(
+    async ({ definition, statistics }) => {
+      const { createDashboardStatistics } = await import("/dashboard-statistics.js");
+      const { createDashboardPreferencesStore } = await import("/dashboard-preferences.js");
+      const start = Date.UTC(2026, 0, 1);
+      window.buckets = Array.from({ length: 60 }, (_, index) => ({
+        minuteUtc: new Date(start + index * 60000).toISOString(),
+        requests: index === 0 || index >= 58 ? 1 : 0,
+        successResponses: index === 0 || index >= 58 ? 1 : 0,
+      }));
+      window.statistics = {
+        ...statistics,
+        totalRequests: 3,
+        recentMinutes: window.buckets,
+        endpoints: [{ endpointId: definition.id, totalRequests: 3, recentMinutes: window.buckets }],
+        recentRequests: window.buckets.slice(58).map((bucket) => ({
+          timestampUtc: bucket.minuteUtc,
+          endpointId: definition.id,
+          method: "GET",
+          path: definition.path,
+          outcome: "response",
+          statusCode: 200,
+          responseBytes: 1,
+        })),
+      };
+      window.definition = definition;
+      window.panel = createDashboardStatistics({
+        documentRoot: document,
+        preferencesStore: createDashboardPreferencesStore({ getItem: () => null, setItem() {} }),
+        onReset() {},
+      });
+      window.panel.updateEndpoints([definition, { ...definition, id: "second", name: "Second" }]);
+      window.panel.updateStatistics(window.statistics);
+    },
+    { definition: endpoint, statistics }
+  );
+  await frame.locator("#statistics-endpoint").click();
+  await frame.locator("#statistics-table").click();
+  expect(
+    await frame.evaluate(() => {
+      const table = document.querySelector("#statistics-table-view table");
+      const row = table.tBodies[0].rows[0];
+      const name = row.querySelector("strong");
+      window.panel.updateStatistics({
+        ...window.statistics,
+        endpoints: [{ ...window.statistics.endpoints[0], totalRequests: 7 }],
+      });
+      const kept = table === document.querySelector("#statistics-table-view table") && row === table.tBodies[0].rows[0];
+      window.panel.updateEndpoints([{ ...window.definition, name: "Renamed" }]);
+      return (
+        kept &&
+        name === row.querySelector("strong") &&
+        name.textContent === "Renamed" &&
+        row.cells[1].textContent === "7" &&
+        table.tBodies[0].rows.length === 1
+      );
+    })
+  ).toBe(true);
+  await frame.locator("#statistics-overall").click();
+  expect(
+    await frame.evaluate(() => {
+      const row = document.querySelector("#statistics-table-view tbody tr");
+      window.panel.updateStatistics(window.statistics);
+      return row === document.querySelector("#statistics-table-view tbody tr");
+    })
+  ).toBe(true);
+  await frame.locator("#statistics-graph").click();
+  await frame.locator(".chart-column.interactive").first().hover();
+  expect(
+    await frame.evaluate(() => {
+      const chart = document.querySelector("#statistics-chart");
+      const columns = [...chart.querySelectorAll(".chart-column")];
+      const focus = columns[58];
+      const segment = focus.querySelector(".status-2xx");
+      const tooltip = chart.querySelector(".chart-tooltip");
+      const scroll = document.querySelector("#statistics-chart-scroll");
+      focus.focus({ preventScroll: true });
+      scroll.scrollLeft = 10;
+      const left = scroll.scrollLeft;
+      const changed = window.buckets.map((bucket, index) =>
+        index === 58 ? { ...bucket, requests: 2, successResponses: 2 } : bucket
+      );
+      window.panel.updateStatistics({ ...window.statistics, totalRequests: 4, recentMinutes: changed });
+      return (
+        [...chart.querySelectorAll(".chart-column")].every((column, index) => column === columns[index]) &&
+        segment === focus.querySelector(".status-2xx") &&
+        segment.style.flexGrow === "2" &&
+        document.activeElement === focus &&
+        scroll.scrollLeft === left &&
+        chart.querySelector(".chart-tooltip") === tooltip &&
+        tooltip.textContent.includes("2 attempts")
+      );
+    })
+  ).toBe(true);
+  expect(
+    await frame.evaluate(() => {
+      const chart = document.querySelector("#statistics-chart");
+      const kept = chart.querySelectorAll(".chart-column")[58];
+      const rolled = [
+        ...window.buckets.slice(1),
+        { ...window.buckets[59], minuteUtc: "2026-01-01T01:00:00Z", requests: 0, successResponses: 0 },
+      ];
+      window.panel.updateStatistics({ ...window.statistics, recentMinutes: rolled });
+      return (
+        chart.querySelectorAll(".chart-column").length === 60 && chart.querySelectorAll(".chart-column")[57] === kept
+      );
+    })
+  ).toBe(true);
+  await frame.evaluate(() => window.panel.dispose());
 });

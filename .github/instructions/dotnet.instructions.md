@@ -13,6 +13,7 @@ applyTo: "**/*.{cs,csproj,sln,props,targets}"
 - Map reserved management routes before the dispatcher fallback, keep management edits in a domain service, and require strong revision ETags on every management write.
 - Keep management API, dashboard, OpenAPI document, and Swagger UI exposure independently configurable. OpenAPI must describe only reserved management operations, never runtime-defined mock routes.
 - Represent the active document, revision, persistence status, and endpoint registry as one immutable configuration snapshot and publish replacements atomically.
+- Reuse only unchanged immutable response bytes and ordered headers by stable endpoint ID. Keep fresh runtime endpoints and limiter permits on every applied replacement; never retain prior registries or extra UTF-16 bodies merely for reuse.
 - Route every runtime or management configuration mutation through `ConfigurationState`; do not publish routes independently of the active document and revision.
 - Load persisted configuration before serving requests, fail startup for required malformed or invalid files, and save by replacing a flushed same-directory temporary file.
 - Capture one configuration snapshot per save and clear its dirty state only when that revision is still current.
@@ -31,13 +32,18 @@ applyTo: "**/*.{cs,csproj,sln,props,targets}"
   protection. Existing settings, rotations, and explicit opt-outs take precedence over the deployment value.
   Invalid keys, unreadable settings, or failed persistence fail startup without exposing secrets.
 - Use cancellation tokens for asynchronous I/O and propagate them through application boundaries.
+- Publish the predecoded API-key digest with its security revision and enforcement flag. Verify requests using independent bounded stack buffers, clear scratch storage, preserve constant-time comparison, and never cache plaintext request keys.
 - Use UTC timestamps through `TimeProvider` where behavior depends on time.
 - Use source-generated `System.Text.Json` contexts for application-owned request, response, and persistence types.
 - Document public C# contracts with XML documentation comments. Cover parameters, return values, exceptions, wire semantics, concurrency guarantees, and persistence behavior when they are not obvious from the signature; use `<inheritdoc/>` when a contract is inherited.
-- Do not add narration to trivial private helpers. Use implementation comments only for invariants, security decisions, protocol constraints, or reasoning the code cannot express clearly.
+- Do not add narration to trivial private helpers. Use implementation comments for reasoning the code cannot express clearly, including invariants, security decisions, protocol constraints, and performance tradeoffs. Explain pooled/shared/stack storage ownership, concurrent-use safety, retention, and cleanup where relevant; do not imply that fewer allocations guarantee lower resident memory.
 - Give every management operation a stable OpenAPI operation ID, concise summary, request-body metadata, typed success responses, and applicable problem responses. Document strong `If-Match` requirements in the operation description and test the generated document.
 - Return problem details for management API errors and avoid exposing exceptions or filesystem details.
 - Design concurrent statistics structures with bounded memory and test their rollover and contention behavior.
+- Keep dashboard deltas opt-in and absolute, with SSE sequence/base guards and full baselines after resets,
+  reconnects, or missed frames. Retain one shared frame without replay history; preserve legacy full delivery
+  and keep comparison/serialization locks off the recording path.
+- Keep minute buckets and counters contiguous value types. Access stored elements and atomic fields by reference; avoid struct copies or readonly defensive copies that bypass volatile reads or discard updates.
 - Account for every matched dispatch exactly once, including delay cancellation. Failed attempts retain the
   selected response status, or no status before response selection, and contribute zero completed bytes.
   Keep intentional connection aborts distinct and preserve logical-request retry coalescing.
