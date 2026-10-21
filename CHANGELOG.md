@@ -7,6 +7,30 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-21
+
+### Added
+
+- Opt-in `deltas=true` dashboard event streams send sequenced, absolute statistics state patches
+  after a full baseline, with full resynchronization after resets, reconnects, or missed frames.
+  Default dashboard streams, statistics GET responses, and standalone statistics streams retain
+  their existing contracts.
+
+### Changed
+
+- Configuration persistence and unfiltered native exports stream canonical snapshot bytes without
+  copying the complete document. Single-endpoint mutation responses materialize only the selected
+  endpoint, and registry compilation reuses unchanged immutable response bodies and headers while
+  preserving fresh rate-limit permits for every applied revision.
+- Request-body validation reuses cleared, bounded buffers and validates JSON without building a
+  document tree. API-key verification reuses the decoded persisted digest and clears independent
+  stack buffers without caching plaintext keys or changing authentication behavior.
+- Statistics use contiguous counters and shared bounded snapshots and SSE serialization to reduce
+  allocations without changing counting, retention, or reset semantics.
+- Dashboard statistics use delta delivery and retain rows and chart columns across updates,
+  preserving focus and timeline scroll while reducing rendering work.
+- Refined documentation-site styling and added APIM sample guidance and a Docker Hub badge.
+
 ## [1.7.0] - 2026-10-21
 
 ### Added
@@ -279,7 +303,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.7.0...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.8.0...HEAD
+[1.8.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.7.0...1.8.0
 [1.7.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.6.2...1.7.0
 [1.6.2]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.6.1...1.6.2
 [1.6.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.6.0...1.6.1

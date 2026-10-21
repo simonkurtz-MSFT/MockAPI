@@ -1,9 +1,34 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.7.0. This version decision publishes only after
+MockAPI's next stable application version is 1.8.0. This version decision publishes only after
 the quality, public-release audit, and native image validation gates below succeed.
 
-## 1.7.0 release summary
+## 1.8.0 release summary
+
+The planned release date is **2026-10-21**, with the immutable tag **`1.8.0`**.
+The [1.8.0 changelog entry](../CHANGELOG.md#180---2026-10-21) supplies the GitHub release notes.
+
+- Dashboard event streams accept `deltas=true` for sequenced, absolute statistics state patches
+  after a full baseline. Resets, reconnects, and missed frames receive full baselines.
+- Configuration streaming, immutable response reuse, buffered JSON validation, API-key verification,
+  and shared statistics snapshots and serialization reduce allocation work.
+- Dashboard statistics retain rows and chart columns across updates to preserve focus and timeline
+  scroll. The documentation site adds APIM sample guidance and refines its presentation.
+
+### Compatibility and upgrade behavior
+
+The optional statistics-delta contract is additive, so 1.8.0 is a minor release. Omitting `deltas`
+or setting it to `false` preserves the original full dashboard statistics events without SSE IDs.
+Statistics GET responses and the standalone statistics stream retain their existing contracts.
+The bundled dashboard opts into deltas and resynchronizes when its baseline is no longer valid.
+Existing saved endpoint IDs, mock routing, management writes, authentication, security persistence,
+and configuration schema (`schemaVersion: "1.0"`) remain compatible; no migration is required.
+Configuration replacements still create fresh rate-limit permits, and statistics retain their
+existing counting, bounded retention, and reset semantics. Allocation reductions do not guarantee
+lower resident memory in every environment. Keep pull examples on published image tags until
+1.8.0 image validation and publication finish.
+
+## 1.7.0 historical release summary
 
 The planned release date is **2026-10-21**, with the immutable tag **`1.7.0`**.
 The [1.7.0 changelog entry](../CHANGELOG.md#170---2026-10-21) supplies the GitHub release notes.
