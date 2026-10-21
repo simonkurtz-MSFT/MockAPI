@@ -515,11 +515,15 @@ public static class ManagementApiEndpoints
         context.Response.StatusCode = StatusCodes.Status200OK;
         context.Response.ContentType = "application/json; charset=utf-8";
         context.Response.Headers.ContentDisposition = "attachment; filename=mockapi.json";
-        var content = endpointIds is null or { Length: 0 }
-            ? snapshot.ExportUtf8()
-            : JsonSerializer.SerializeToUtf8Bytes(
-                FilterExportDocument(snapshot.GetDocument(), endpointIds),
-                MockApiJsonContext.Default.MockApiConfigurationDocument);
+        if (endpointIds is null or { Length: 0 })
+        {
+            await snapshot.WriteToAsync(context.Response.Body, context.RequestAborted);
+            return;
+        }
+
+        var content = JsonSerializer.SerializeToUtf8Bytes(
+            FilterExportDocument(snapshot.GetDocument(), endpointIds),
+            MockApiJsonContext.Default.MockApiConfigurationDocument);
         await context.Response.Body.WriteAsync(content, context.RequestAborted);
     }
 

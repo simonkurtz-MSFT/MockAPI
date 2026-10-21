@@ -154,7 +154,7 @@ public sealed class ConfigurationFileStore : IConfigurationStore
                         bufferSize: 64 * 1024,
                         FileOptions.Asynchronous | FileOptions.WriteThrough))
                     {
-                        await stream.WriteAsync(snapshot.ExportUtf8(), saveCancellationToken);
+                        await snapshot.WriteToAsync(stream, saveCancellationToken);
                         await stream.FlushAsync(saveCancellationToken);
                         stream.Flush(flushToDisk: true);
                     }

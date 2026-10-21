@@ -66,19 +66,42 @@ public sealed class ConfigurationBlobStoreTests
     }
 
     [Fact]
+    public async Task SaveAsync_DoesNotAllocateADocumentSizedUploadBuffer()
+    {
+        var state = new ConfigurationState();
+        Assert.Equal(ConfigurationUpdateStatus.Applied,
+            state.TryReplace(CreateDocument("/large", new string('x', 512 * 1024)), 0).Status);
+        var store = CreateStore(
+            _ => Task.FromResult<ConfigurationBlobRead?>(null),
+            (_, _) => Task.CompletedTask,
+            allowEmptyConfiguration: true);
+        await store.SaveAsync(state, 1, CancellationToken.None);
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var save = store.SaveAsync(state, 1, CancellationToken.None);
+        Assert.True(save.IsCompletedSuccessfully);
+        await save;
+        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.InRange(allocatedBytes, 0, 64 * 1024);
+    }
+
+    [Fact]
     public async Task SaveAsync_UploadsSnapshotAndMarksRevisionPersisted()
     {
-        ReadOnlyMemory<byte> uploaded = default;
+        using var uploaded = new MemoryStream();
+        Stream? uploadStream = null;
         var state = new ConfigurationState();
         Assert.Equal(
             ConfigurationUpdateStatus.Applied,
             state.TryReplace(CreateDocument("/saved", "saved"), expectedRevision: 0).Status);
         var store = CreateStore(
             _ => Task.FromResult<ConfigurationBlobRead?>(null),
-            (content, _) =>
+            async (content, token) =>
             {
-                uploaded = content.ToArray();
-                return Task.CompletedTask;
+                uploadStream = content;
+                Assert.False(content.CanWrite);
+                await content.CopyToAsync(uploaded, token);
             },
             allowEmptyConfiguration: true);
 
@@ -88,6 +111,49 @@ public sealed class ConfigurationBlobStoreTests
         Assert.True(result.IsCurrentRevision);
         Assert.False(state.Current.HasUnsavedChanges);
         Assert.Equal(state.Current.ExportUtf8(), uploaded.ToArray());
+        Assert.NotNull(uploadStream);
+        Assert.False(uploadStream.CanRead);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SaveAsync_FailedOrCancelledUploadDisposesStreamAndLeavesRevisionDirty(bool cancel)
+    {
+        var state = CreateDirtyState();
+        using var cancellation = new CancellationTokenSource();
+        Stream? uploadStream = null;
+        var store = CreateStore(
+            _ => Task.FromResult<ConfigurationBlobRead?>(null),
+            (content, token) =>
+            {
+                uploadStream = content;
+                if (cancel)
+                {
+                    cancellation.Cancel();
+                    return Task.FromCanceled(token);
+                }
+
+                return Task.FromException(new IOException("upload failed"));
+            },
+            allowEmptyConfiguration: true);
+
+        if (cancel)
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => store.SaveAsync(state, 1, cancellation.Token));
+        }
+        else
+        {
+            var failure = await Assert.ThrowsAsync<ConfigurationPersistenceException>(
+                () => store.SaveAsync(state, 1, cancellation.Token));
+            Assert.Equal(ConfigurationPersistenceError.IoFailure, failure.Error);
+        }
+
+        Assert.NotNull(uploadStream);
+        Assert.False(uploadStream.CanRead);
+        Assert.True(state.Current.HasUnsavedChanges);
+        Assert.Equal(1, state.Current.Revision);
     }
 
     [Fact]
@@ -221,10 +287,16 @@ public sealed class ConfigurationBlobStoreTests
     public async Task SaveAsync_PreservesDirtyStateWhenConfigurationChangesDuringUpload()
     {
         var state = CreateDirtyState();
+        var expected = state.Current.ExportUtf8();
+        using var uploaded = new MemoryStream();
         var store = new ConfigurationBlobStore(
             CreateOptions(),
             _ => Task.FromResult<ConfigurationBlobRead?>(null),
-            (_, _) => Task.CompletedTask,
+            async (content, token) =>
+            {
+                await Task.Yield();
+                await content.CopyToAsync(uploaded, token);
+            },
             onSnapshotCaptured: _ =>
             {
                 Assert.Equal(
@@ -238,6 +310,7 @@ public sealed class ConfigurationBlobStoreTests
         Assert.Equal(1, result.Revision);
         Assert.False(result.IsCurrentRevision);
         Assert.True(state.Current.HasUnsavedChanges);
+        Assert.Equal(expected, uploaded.ToArray());
     }
 
     [Fact]
@@ -266,7 +339,7 @@ public sealed class ConfigurationBlobStoreTests
 
     private static ConfigurationBlobStore CreateStore(
         Func<CancellationToken, Task<ConfigurationBlobRead?>> download,
-        Func<ReadOnlyMemory<byte>, CancellationToken, Task> upload,
+        Func<Stream, CancellationToken, Task> upload,
         bool allowEmptyConfiguration) =>
         new(
             new MockApiOptions
@@ -338,13 +411,16 @@ public sealed class ConfigurationBlobStoreTests
             return Task.FromResult(Response.FromValue(result, new TestResponse()));
         }
 
-        public override Task<Response<BlobContentInfo>> UploadAsync(
-            BinaryData content,
+        public override async Task<Response<BlobContentInfo>> UploadAsync(
+            Stream content,
             bool overwrite = false,
             CancellationToken cancellationToken = default)
         {
-            Uploaded = content.ToMemory();
-            return Task.FromResult(Response.FromValue(
+            Assert.True(overwrite);
+            using var uploaded = new MemoryStream();
+            await content.CopyToAsync(uploaded, cancellationToken);
+            Uploaded = uploaded.ToArray();
+            return Response.FromValue(
                 BlobsModelFactory.BlobContentInfo(
                     new ETag("test"),
                     DateTimeOffset.UtcNow,
@@ -353,7 +429,7 @@ public sealed class ConfigurationBlobStoreTests
                     encryptionKeySha256: null,
                     encryptionScope: null,
                     blobSequenceNumber: 0),
-                new TestResponse()));
+                new TestResponse());
         }
     }
 

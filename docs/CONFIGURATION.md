@@ -190,6 +190,10 @@ and API description edits. File persistence writes and flushes a temporary file 
 atomically replaces the configured path. Blob persistence uploads the complete deterministic document as one
 replacement operation. Concurrent saves are serialized and converge on the latest active revision.
 
+File saves, Blob uploads, and unfiltered native exports stream the canonical bytes of one captured
+immutable snapshot without first copying the complete document. Public snapshot exports still return
+independent byte arrays; filtered native exports and generated formats retain their existing serialization.
+
 If automatic saving fails, changes remain active but unsaved. The dashboard displays an error and enables
 **Retry save**; the management API returns a `500` `autosave-failed` problem with the current ETag.
 Retry persistence through **Retry save** or `POST /__mockapi/api/configuration/save` with that ETag, not by

@@ -251,6 +251,84 @@ public sealed class ConfigurationStateTests
     }
 
     [Fact]
+    public void ExportUtf8_ReturnsIndependentMutableCopies()
+    {
+        var state = new ConfigurationState();
+        state.TryReplace(CreateDocument(CreateEndpoint("GET", "/detached", "body")), 0);
+        var snapshot = state.Current;
+        var first = snapshot.ExportUtf8();
+        var second = snapshot.ExportUtf8();
+
+        Assert.NotSame(first, second);
+        first[0] = 0;
+
+        Assert.Equal(second, snapshot.ExportUtf8());
+        Assert.Equal("/detached", Assert.Single(snapshot.GetDocument().Endpoints).Path);
+    }
+
+    [Fact]
+    public async Task WriteToAsync_WritesCapturedCanonicalBytesAndLeavesDestinationOpen()
+    {
+        var state = new ConfigurationState();
+        state.TryReplace(CreateDocument(CreateEndpoint("GET", "/captured", "\u00e9\r\nbody")), 0);
+        var snapshot = state.Current;
+        var expected = snapshot.ExportUtf8();
+        Assert.True(state.TryMarkPersisted(snapshot.Revision));
+        state.TryReplace(CreateDocument(CreateEndpoint("GET", "/newer", "newer")), snapshot.Revision);
+        using var destination = new MemoryStream();
+
+        await snapshot.WriteToAsync(destination, CancellationToken.None);
+
+        Assert.Equal(expected, destination.ToArray());
+        Assert.True(destination.CanWrite);
+        Assert.Equal("/newer", Assert.Single(state.Current.GetDocument().Endpoints).Path);
+    }
+
+    [Fact]
+    public async Task WriteToAsync_RejectsNullDestinationAndPropagatesCancellation()
+    {
+        var snapshot = new ConfigurationState().Current;
+        Assert.Throws<ArgumentNullException>(() => snapshot.WriteToAsync(null!, CancellationToken.None));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => snapshot.WriteToAsync(Stream.Null, cancellation.Token).AsTask());
+    }
+
+    [Fact]
+    public async Task OpenRead_ReturnsIndependentReadOnlyStreamsWithoutExposingSnapshotStorage()
+    {
+        var state = new ConfigurationState();
+        state.TryReplace(CreateDocument(CreateEndpoint("GET", "/captured", "body")), 0);
+        var snapshot = state.Current;
+        var expected = snapshot.ExportUtf8();
+        using var first = snapshot.OpenRead();
+        using var second = snapshot.OpenRead();
+
+        Assert.True(first.CanRead);
+        Assert.True(first.CanSeek);
+        Assert.False(first.CanWrite);
+        Assert.Equal(expected.Length, first.Length);
+        Assert.Equal(expected[0], first.ReadByte());
+        Assert.Equal(0, second.Position);
+        Assert.Throws<NotSupportedException>(() => first.WriteByte(0));
+        Assert.Throws<NotSupportedException>(() => first.SetLength(0));
+        var memoryStream = Assert.IsType<MemoryStream>(first);
+        Assert.False(memoryStream.TryGetBuffer(out _));
+        Assert.Throws<UnauthorizedAccessException>(() => memoryStream.GetBuffer());
+
+        first.Dispose();
+        state.TryReplace(CreateDocument(CreateEndpoint("GET", "/newer", "newer")), snapshot.Revision);
+        using var destination = new MemoryStream();
+        await second.CopyToAsync(destination);
+
+        Assert.Equal(expected, destination.ToArray());
+        Assert.Equal(expected, snapshot.ExportUtf8());
+        Assert.Equal("/newer", Assert.Single(state.Current.GetDocument().Endpoints).Path);
+    }
+
+    [Fact]
     public void DeserializeDocument_RejectsNullAndReadsValidDocument()
     {
         var document = CreateDocument(CreateEndpoint("GET", "/deserialize", "body"));

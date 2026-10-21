@@ -233,7 +233,7 @@ public sealed class ConfigurationAutosaveTests : IDisposable
                 Assert.False(token.CanBeCanceled);
                 captured.TrySetResult();
                 await release.Task;
-                _blobBytes = content.ToArray();
+                _blobBytes = await ReadUploadAsync(content, token);
             });
         await using var factory = CreateFactory(store);
         using var client = factory.CreateClient();
@@ -278,7 +278,7 @@ public sealed class ConfigurationAutosaveTests : IDisposable
                     captured.SetResult();
                     await release.Task.WaitAsync(token);
                 }
-                uploads.Add(content.ToArray());
+                uploads.Add(await ReadUploadAsync(content, token));
             });
         var state = new ConfigurationState();
         var service = new ConfigurationManagementService(state, store);
@@ -329,12 +329,11 @@ public sealed class ConfigurationAutosaveTests : IDisposable
                 _ => Task.FromResult<ConfigurationBlobRead?>(_blobBytes is null
                     ? null
                     : new(new MemoryStream(_blobBytes), _blobBytes.Length)),
-                (content, _) =>
+                async (content, token) =>
                 {
                     _saveCount++;
                     if (_saveFails) throw new RequestFailedException(503, "private-storage-error");
-                    _blobBytes = content.ToArray();
-                    return Task.CompletedTask;
+                    _blobBytes = await ReadUploadAsync(content, token);
                 });
         }
 
@@ -345,6 +344,13 @@ public sealed class ConfigurationAutosaveTests : IDisposable
                 if (_saveFails) throw new IOException("private-storage-error");
                 Directory.CreateDirectory(path);
             });
+    }
+
+    private static async Task<byte[]> ReadUploadAsync(Stream content, CancellationToken cancellationToken)
+    {
+        using var buffer = new MemoryStream();
+        await content.CopyToAsync(buffer, cancellationToken);
+        return buffer.ToArray();
     }
 
     private WebApplicationFactory<Program> CreateFactory(IConfigurationStore store) =>
