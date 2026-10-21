@@ -12,6 +12,7 @@ public sealed class DashboardEventStream
     private readonly ConfigurationState _configuration;
     private readonly StatisticsSnapshotCache _statistics;
     private readonly TimeProvider _timeProvider;
+    private readonly StatisticsDeltaCache _deltas;
 
     /// <summary>Initializes a dashboard stream with a bounded statistics cache shared by its connections.</summary>
     /// <param name="configuration">The configuration source for invalidation events.</param>
@@ -33,13 +34,16 @@ public sealed class DashboardEventStream
         _configuration = configuration;
         _statistics = statistics;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _deltas = new StatisticsDeltaCache(statistics, _timeProvider);
     }
 
     /// <summary>Writes initial state, immediate configuration changes, and at most one statistics update every two seconds.</summary>
     /// <param name="context">The authenticated management request; disconnecting cancels all stream work.</param>
     /// <returns>A task that completes when the client disconnects.</returns>
     /// <remarks>Reconnects receive current state, not replayed history. Idle streams send keepalive comments.</remarks>
-    public async Task WriteAsync(HttpContext context)
+    public Task WriteAsync(HttpContext context) => WriteAsync(context, useDeltas: false);
+
+    internal async Task WriteAsync(HttpContext context, bool useDeltas)
     {
         var cancellation = context.RequestAborted;
         context.Response.ContentType = "text/event-stream";
@@ -48,6 +52,7 @@ public sealed class DashboardEventStream
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2), _timeProvider);
         ConfigurationStateSnapshot? observed = null;
         string? sentStatistics = null;
+        long? sentSequence = null;
         var lastWrite = _timeProvider.GetUtcNow();
         Task tick = Task.CompletedTask;
         try
@@ -67,12 +72,28 @@ public sealed class DashboardEventStream
                 if (tick.IsCompleted)
                 {
                     await tick;
-                    var json = GetStatisticsJson();
-                    if (!ReferenceEquals(sentStatistics, json))
+                    if (useDeltas)
                     {
-                        await ManagementEventWriter.WriteAsync(context, "statistics", json);
-                        sentStatistics = json;
-                        wrote = true;
+                        var frame = _deltas.GetFrame();
+                        if (sentSequence != frame.Sequence)
+                        {
+                            var canApplyDelta = frame.Delta is { } delta && delta.BaseSequence == sentSequence;
+                            await ManagementEventWriter.WriteAsync(context,
+                                canApplyDelta ? "statistics-delta" : "statistics",
+                                canApplyDelta ? frame.GetDeltaJson() : frame.GetSnapshotJson(), frame.Sequence);
+                            sentSequence = frame.Sequence;
+                            wrote = true;
+                        }
+                    }
+                    else
+                    {
+                        var json = GetStatisticsJson();
+                        if (!ReferenceEquals(sentStatistics, json))
+                        {
+                            await ManagementEventWriter.WriteAsync(context, "statistics", json);
+                            sentStatistics = json;
+                            wrote = true;
+                        }
                     }
                     tick = timer.WaitForNextTickAsync(cancellation).AsTask();
                 }

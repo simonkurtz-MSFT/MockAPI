@@ -1,5 +1,7 @@
 "use strict";
 
+import { applyStatisticsDelta } from "./dashboard-core.js?v={{ASSET_VERSION}}";
+
 /**
  * @typedef {import("./dashboard-core.js").ConfigurationStatus} ConfigurationStatus
  */
@@ -38,6 +40,7 @@
  * @param {(callback: () => void, delay: number) => ReturnType<typeof globalThis.setTimeout>} [options.schedule] Timer scheduler.
  * @param {(timer: ReturnType<typeof globalThis.setTimeout>) => void} [options.cancel] Timer cancellation.
  * @param {number} [options.pollInterval] Recovery interval in milliseconds.
+ * @param {boolean} [options.useStatisticsDeltas] Opt into sequenced interval updates; defaults to legacy full events.
  * @param {(configuration: ConfigurationStatus) => void} options.onConfiguration Status callback.
  * @param {(endpoints: readonly import("./dashboard-core.js").MockEndpoint[]) => void} options.onEndpoints Read-only endpoint snapshot callback.
  * @param {(statistics: import("./dashboard-core.js").DashboardStatistics) => void} options.onStatistics Statistics snapshot callback.
@@ -53,6 +56,7 @@ export function createDashboardSynchronizer({
   schedule = globalThis.setTimeout.bind(globalThis),
   cancel = globalThis.clearTimeout.bind(globalThis),
   pollInterval = 15000,
+  useStatisticsDeltas = false,
   onConfiguration,
   onEndpoints,
   onStatistics,
@@ -83,6 +87,11 @@ export function createDashboardSynchronizer({
   let refreshWork = null;
   let refreshAgain = false;
   let statisticsRequested = false;
+  // HTTP refreshes may be newer, but only sequenced stream frames can supply the next delta's exact base.
+  /** @type {import("./dashboard-core.js").DashboardStatistics|null} */
+  let streamStatistics = null;
+  /** @type {number|null} */
+  let streamSequence = null;
 
   const active = (epoch) => visible && !disposed && generation === epoch;
 
@@ -96,6 +105,7 @@ export function createDashboardSynchronizer({
     timer = schedule(async () => {
       timer = null;
       await synchronize();
+      if (!stream && createEventSource) await activate();
       if (!streamHealthy) schedulePoll();
     }, pollInterval);
   }
@@ -210,15 +220,30 @@ export function createDashboardSynchronizer({
     if (!createEventSource) {
       return synchronize().then(schedulePoll);
     }
-    stream = createEventSource("/dashboard/events");
+    stream = createEventSource(useStatisticsDeltas ? "/dashboard/events?deltas=true" : "/dashboard/events");
+    const connection = stream;
+    const currentConnection = () => active(epoch) && stream === connection;
+    function rejectStatisticsFrame(error) {
+      if (useStatisticsDeltas) {
+        // Retire only this stream: an authoritative management refresh must remain valid.
+        connection.close();
+        stream = null;
+        streamHealthy = false;
+        streamStatistics = null;
+        streamSequence = null;
+      }
+      fail(error, epoch);
+    }
     stream.onopen = () => {
-      if (!active(epoch)) return;
+      if (!currentConnection()) return;
       // Reconnect can reach a restarted process with the same numeric revision.
       endpointsRevision = null;
       configurationSequence++;
+      streamStatistics = null;
+      streamSequence = null;
     };
     stream.addEventListener("configuration", (event) => {
-      if (!active(epoch)) return;
+      if (!currentConnection()) return;
       try {
         configurationSequence++;
         const work = applyConfiguration(JSON.parse(event.data));
@@ -231,17 +256,46 @@ export function createDashboardSynchronizer({
       }
     });
     stream.addEventListener("statistics", (event) => {
-      if (!active(epoch)) return;
+      if (!currentConnection()) return;
       try {
         const statistics = JSON.parse(event.data);
+        if (useStatisticsDeltas) {
+          const sequence = Number(event.lastEventId);
+          if (!Number.isSafeInteger(sequence) || sequence < 1) {
+            throw new Error("Invalid dashboard statistics baseline sequence.");
+          }
+          streamStatistics = statistics;
+          streamSequence = sequence;
+        }
         statisticsSequence++;
         onStatistics(statistics);
       } catch (error) {
-        fail(error, epoch);
+        rejectStatisticsFrame(error);
       }
     });
+    if (useStatisticsDeltas) {
+      stream.addEventListener("statistics-delta", (event) => {
+        if (!currentConnection()) return;
+        try {
+          const delta = JSON.parse(event.data);
+          if (!Number.isSafeInteger(delta.sequence) || Number(event.lastEventId) !== delta.sequence) {
+            throw new Error("Invalid dashboard statistics delta sequence.");
+          }
+          if (streamSequence !== null && delta.sequence <= streamSequence) return;
+          if (!streamStatistics || delta.baseSequence !== streamSequence || delta.sequence !== streamSequence + 1) {
+            throw new Error("Dashboard statistics sequence missed; refreshing the baseline.");
+          }
+          streamStatistics = applyStatisticsDelta(streamStatistics, delta);
+          streamSequence = delta.sequence;
+          statisticsSequence++;
+          onStatistics(streamStatistics);
+        } catch (error) {
+          rejectStatisticsFrame(error);
+        }
+      });
+    }
     stream.onerror = () => {
-      if (!active(epoch)) return;
+      if (!currentConnection()) return;
       streamHealthy = false;
       fail(new Error("Dashboard event stream disconnected; retrying with polling fallback."), epoch);
     };
@@ -261,6 +315,8 @@ export function createDashboardSynchronizer({
     refreshWork = null;
     refreshAgain = false;
     statisticsRequested = false;
+    streamStatistics = null;
+    streamSequence = null;
   }
 
   async function start() {

@@ -407,6 +407,13 @@ The UI must be keyboard usable and responsive, with WCAG 2.2 AA as the design an
   delivery paths while the collector version and UTC minute are unchanged. Keep cache locks off
   recorders, retain non-transactional concurrent snapshot semantics, preserve indented GET JSON,
   and keep dashboard coalescing distinct from the standalone stream's two-second refresh.
+- Let the dashboard opt into sequenced interval state deltas after a full baseline, while retaining
+  full GET and default stream compatibility. Send absolute counter and changed-minute values,
+  replace the bounded request feed only when changed, and require full baselines after resets,
+  reconnects, or missed bases. Keep one shared current frame, not request-event replay history.
+- Retain Statistics rows by stable endpoint ID or aggregate measure and chart columns by UTC minute.
+  Bound rendering caches to the current data, dispose replaced listeners, and preserve focus,
+  timeline scroll, and immediate endpoint-history switching.
 - Retain at most 100 newest-first request summaries containing only timestamp, method, normalized path, stable endpoint ID, outcome, status, and response byte count.
 - Do not retain request or response bodies, authorization headers, cookies, or query values.
 - Treat statistics as process-local and reset them on restart in the initial release.

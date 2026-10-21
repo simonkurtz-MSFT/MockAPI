@@ -638,6 +638,7 @@ if (!createEventSource) {
   console.warn("Server-sent events are unavailable. Dashboard updates will use polling.");
 }
 dashboardSynchronizer = createDashboardSynchronizer({
+  useStatisticsDeltas: true,
   request: api,
   createEventSource,
   onConfiguration(configuration) {

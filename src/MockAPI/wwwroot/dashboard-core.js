@@ -157,6 +157,79 @@
  * @property {readonly RequestSummary[]} recentRequests At most 100 newest-first privacy-safe summaries.
  */
 
+/**
+ * @typedef {object} StatisticsDelta
+ * @property {number} baseSequence Required baseline sequence.
+ * @property {number} sequence New stream sequence.
+ * @property {string} windowStartUtc Oldest retained UTC minute.
+ * @property {Omit<DashboardStatistics, "recentMinutes"|"endpoints"|"recentRequests">} totals Absolute aggregate counters.
+ * @property {readonly MinuteStatistics[]} recentMinutes Changed aggregate buckets.
+ * @property {readonly (Omit<EndpointStatistics, "recentMinutes"> & {recentMinutes: readonly MinuteStatistics[]})[]} endpoints Changed endpoint summaries with changed buckets only.
+ * @property {readonly string[]} removedEndpointIds Removed counters.
+ * @property {readonly RequestSummary[]|null} recentRequests Replacement bounded log, or null when unchanged.
+ */
+
+/**
+ * Applies an interval state delta without modifying either input.
+ * Unchanged endpoint records and minute buckets retain their identity for incremental rendering.
+ * @param {DashboardStatistics} previous Full baseline maintained by the stream owner.
+ * @param {StatisticsDelta} delta Sequenced absolute updates; the caller verifies stream sequence continuity.
+ * @returns {DashboardStatistics} Complete current view with exactly sixty buckets per history.
+ * @throws {Error} The retention window is not a valid UTC timestamp.
+ */
+export function applyStatisticsDelta(previous, delta) {
+  const start = Date.parse(delta.windowStartUtc);
+  if (!Number.isFinite(start)) throw new Error("Invalid statistics retention window.");
+  const moved = Date.parse(previous.recentMinutes[0]?.minuteUtc) !== start;
+  let endpoints = previous.endpoints;
+  if (moved || delta.endpoints.length || delta.removedEndpointIds.length) {
+    const entries = new Map(previous.endpoints.map((endpoint) => [endpoint.endpointId, endpoint]));
+    for (const id of delta.removedEndpointIds) entries.delete(id);
+    if (moved) {
+      for (const [id, endpoint] of entries) {
+        entries.set(id, { ...endpoint, recentMinutes: mergeStatisticsMinutes(endpoint.recentMinutes, [], start) });
+      }
+    }
+    for (const endpoint of delta.endpoints) {
+      const old = entries.get(endpoint.endpointId);
+      entries.set(endpoint.endpointId, {
+        ...endpoint,
+        recentMinutes: mergeStatisticsMinutes(old?.recentMinutes || [], endpoint.recentMinutes, start),
+      });
+    }
+    endpoints = [...entries.values()].sort((left, right) => left.endpointId.localeCompare(right.endpointId));
+  }
+  return {
+    ...previous,
+    ...delta.totals,
+    recentMinutes:
+      !moved && delta.recentMinutes.length === 0
+        ? previous.recentMinutes
+        : mergeStatisticsMinutes(previous.recentMinutes, delta.recentMinutes, start),
+    endpoints,
+    recentRequests: delta.recentRequests ?? previous.recentRequests,
+  };
+}
+
+function mergeStatisticsMinutes(previous, changes, start) {
+  const buckets = new Map(previous.map((bucket) => [Date.parse(bucket.minuteUtc), bucket]));
+  for (const bucket of changes) buckets.set(Date.parse(bucket.minuteUtc), bucket);
+  return Array.from({ length: 60 }, (_, index) => {
+    const timestamp = start + index * 60_000;
+    return (
+      buckets.get(timestamp) || {
+        minuteUtc: new Date(timestamp).toISOString(),
+        requests: 0,
+        informationalResponses: 0,
+        successResponses: 0,
+        redirectionResponses: 0,
+        clientErrorResponses: 0,
+        serverErrorResponses: 0,
+      }
+    );
+  });
+}
+
 /** @typedef {{query: string, method: string, enabled: string, statusClass: string}} EndpointFilters */
 /** @typedef {"name"|"methods"|"path"|"response"|"requests"|"enabled"} EndpointSortKey */
 /** @typedef {{key: EndpointSortKey, direction: "ascending"|"descending"}} EndpointSort */

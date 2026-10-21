@@ -1207,6 +1207,11 @@ public sealed class RemainingManagementApiTests : IDisposable
         }
         var dashboardEvents = paths.GetProperty($"{BasePath}/dashboard/events").GetProperty("get");
         Assert.Equal("StreamDashboardEvents", dashboardEvents.GetProperty("operationId").GetString());
+        var deltasParameter = Assert.Single(dashboardEvents.GetProperty("parameters").EnumerateArray(),
+            parameter => parameter.GetProperty("name").GetString() == "deltas");
+        Assert.Equal("query", deltasParameter.GetProperty("in").GetString());
+        Assert.False(deltasParameter.TryGetProperty("required", out var deltasRequired) && deltasRequired.GetBoolean());
+        Assert.Contains("statistics-delta", dashboardEvents.GetProperty("description").GetString(), StringComparison.Ordinal);
         Assert.True(dashboardEvents.GetProperty("responses").GetProperty("200").GetProperty("content")
             .TryGetProperty("text/event-stream", out _));
         Assert.All(operations, operation =>

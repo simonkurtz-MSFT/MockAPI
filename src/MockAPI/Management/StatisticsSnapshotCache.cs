@@ -12,6 +12,27 @@ internal sealed class StatisticsSnapshotCache(RequestStatisticsCollector statist
     private (long Version, long Minute) _key;
     private RequestStatisticsSnapshot? _snapshot;
     private string? _compactJson;
+    private long _resetVersion;
+
+    internal (RequestStatisticsSnapshot Snapshot, long ResetVersion) GetView()
+    {
+        lock (_gate)
+        {
+            return (GetSnapshotCore(), _resetVersion);
+        }
+    }
+
+    internal string GetCompactJson(RequestStatisticsSnapshot snapshot)
+    {
+        lock (_gate)
+        {
+            if (ReferenceEquals(snapshot, _snapshot))
+            {
+                return _compactJson ??= JsonSerializer.Serialize(snapshot, CompactJsonContext.RequestStatisticsSnapshot);
+            }
+            return JsonSerializer.Serialize(snapshot, CompactJsonContext.RequestStatisticsSnapshot);
+        }
+    }
 
     internal RequestStatisticsSnapshot GetSnapshot()
     {
@@ -39,6 +60,7 @@ internal sealed class StatisticsSnapshotCache(RequestStatisticsCollector statist
             // Capture the version BEFORE reading counters: a recording/reset that finishes
             // during capture must invalidate the next read, not label a partial view as current.
             // Only readers take this gate; serialization never holds a recorder's lock.
+            _resetVersion = statistics.ResetVersion;
             _snapshot = statistics.GetSnapshot(now);
             _key = key;
             _compactJson = null;

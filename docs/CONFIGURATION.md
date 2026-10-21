@@ -207,6 +207,11 @@ Rate-limit permits are never shared between revisions: every successful configur
 starts fresh limiters, as before. Rejected or stale candidates leave the active snapshot and its
 limiter state untouched. The reuse index is owned by the snapshot, not an unbounded cross-revision cache.
 
+Single-endpoint management mutation responses deserialize only the selected endpoint from the applied
+snapshot's canonical JSON. Unrelated endpoint bodies are skipped without materialization. Returned
+data stays detached, with canonical header ordering and body text; complete candidate validation,
+atomic publication, ETags, and autosave behavior are unchanged.
+
 If automatic saving fails, changes remain active but unsaved. The dashboard displays an error and enables
 **Retry save**; the management API returns a `500` `autosave-failed` problem with the current ETag.
 Retry persistence through **Retry save** or `POST /__mockapi/api/configuration/save` with that ETag, not by

@@ -36,8 +36,10 @@ public sealed class RequestStatisticsCollector
     private long _serverErrorResponses;
     private long _responseBytes;
     private long _version;
+    private long _resetVersion;
 
     internal long Version => Interlocked.Read(ref _version);
+    internal long ResetVersion => Interlocked.Read(ref _resetVersion);
     internal DateTimeOffset UtcNow => _timeProvider.GetUtcNow();
 
     /// <summary>Initializes a request statistics collector.</summary>
@@ -206,6 +208,7 @@ public sealed class RequestStatisticsCollector
             _recentUnmatchedRequestIds.Clear();
             _recentUnmatchedRequestIdSet.Clear();
         }
+        Interlocked.Increment(ref _resetVersion);
         Interlocked.Increment(ref _version);
     }
 
@@ -244,6 +247,7 @@ public sealed class RequestStatisticsCollector
             }
         }
 
+        Interlocked.Increment(ref _resetVersion);
         Interlocked.Increment(ref _version);
         return true;
     }

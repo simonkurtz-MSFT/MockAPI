@@ -6,6 +6,91 @@ namespace MockAPI.Tests.Configuration;
 public sealed class ConfigurationStateTests
 {
     [Fact]
+    public void GetEndpoint_FindsIdAfterNestedResponseWithoutAdvancingDeserializationReader()
+    {
+        var id = Guid.NewGuid();
+        var bytes = System.Text.Encoding.UTF8.GetBytes($$"""
+            {
+              "schemaVersion": "1.0",
+              "endpoints": [{
+                "name": "Selected endpoint",
+                "enabled": true,
+                "path": "/selected",
+                "methods": ["GET"],
+                "response": { "statusCode": 201, "headers": { "X-Values": ["first", "second"] }, "body": "raw body" },
+                "id": "{{id}}"
+              }]
+            }
+            """);
+        var snapshot = ConfigurationStateSnapshot.CreateFromOwnedSerializedDocument(
+            bytes, null, new ConfigurationState().Current.Endpoints, 1, false);
+
+        var selected = snapshot.GetEndpoint(id);
+
+        Assert.Equal(id, selected.Id);
+        Assert.Equal("/selected", selected.Path);
+        Assert.Equal("GET", Assert.Single(selected.Methods));
+        Assert.Equal(201, selected.Response.StatusCode);
+        Assert.Equal(new[] { "first", "second" }, selected.Response.Headers["X-Values"]);
+        Assert.Equal("raw body", selected.Response.Body);
+        Assert.Throws<InvalidOperationException>(() => snapshot.GetEndpoint(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void GetEndpoint_ReturnsDetachedCanonicalDataFromCapturedRevision()
+    {
+        var state = new ConfigurationState();
+        var first = CreateEndpoint("GET", "/first", "first");
+        var selected = CreateEndpoint("POST", "/selected", " \r\n{\"raw\": true}\n") with
+        {
+            Response = new()
+            {
+                StatusCode = 201,
+                Headers = new() { ["X-Z"] = ["first", "second"], ["X-A"] = ["value"] },
+                ContentType = "application/json",
+                Body = " \r\n{\"raw\": true}\n"
+            }
+        };
+        Assert.Equal(ConfigurationUpdateStatus.Applied, state.TryReplace(CreateDocument(first, selected), 0).Status);
+        var captured = state.Current;
+        var expected = captured.GetDocument().Endpoints[1];
+        var actual = captured.GetEndpoint(selected.Id);
+        Assert.Equal(JsonSerializer.Serialize(expected, MockApiJsonContext.Default.MockEndpointDefinition),
+            JsonSerializer.Serialize(actual, MockApiJsonContext.Default.MockEndpointDefinition));
+        Assert.IsAssignableFrom<IList<string>>(actual.Methods)[0] = "DELETE";
+        actual.Response.Headers["X-Z"][0] = "mutated";
+        Assert.Equal("POST", captured.GetEndpoint(selected.Id).Methods[0]);
+        Assert.Equal("first", captured.GetEndpoint(selected.Id).Response.Headers["X-Z"][0]);
+
+        state.TryReplace(CreateDocument(first), 1);
+        Assert.Equal(selected.Id, captured.GetEndpoint(selected.Id).Id);
+        Assert.Equal(first.Id, state.Current.GetEndpoint(first.Id).Id);
+        Assert.Throws<InvalidOperationException>(() => state.Current.GetEndpoint(selected.Id));
+        Assert.Throws<InvalidOperationException>(() => new ConfigurationState().Current.GetEndpoint(first.Id));
+    }
+
+    [Fact]
+    public void GetEndpoint_DoesNotAllocateForUnrelatedLargeBodies()
+    {
+        var state = new ConfigurationState();
+        var selected = CreateEndpoint("GET", "/selected", "small");
+        var large = CreateEndpoint("GET", "/large", new string('x', 960 * 1024));
+        state.TryReplace(CreateDocument(large, selected), 0);
+        var captured = state.Current;
+        for (var index = 0; index < 5; index++)
+        {
+            captured.GetEndpoint(selected.Id);
+        }
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var result = captured.GetEndpoint(selected.Id);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(selected.Id, result.Id);
+        Assert.InRange(allocated, 0, 8_192);
+    }
+
+    [Fact]
     public void ApiDescriptions_AreDetachedAndCanonicallyOrderedAcrossImportExport()
     {
         var descriptions = new Dictionary<string, string> { ["/z"] = " Z\r\n ", ["/a"] = "A", ["/A"] = "" };

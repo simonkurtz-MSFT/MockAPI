@@ -263,12 +263,15 @@ test("bulk bucket controls preserve column widths through collapse, expansion, a
     window.requestLogEvents.dispatchEvent(new MessageEvent("configuration", { data: JSON.stringify(configuration) }));
   }, configuration);
 
+  let statisticsSequence = 0;
   async function publishRequests(recentRequests) {
     await page.evaluate(
-      (statistics) => {
-        window.requestLogEvents.dispatchEvent(new MessageEvent("statistics", { data: JSON.stringify(statistics) }));
+      ({ statistics, sequence }) => {
+        window.requestLogEvents.dispatchEvent(
+          new MessageEvent("statistics", { data: JSON.stringify(statistics), lastEventId: String(sequence) })
+        );
       },
-      { ...statistics, recentRequests }
+      { statistics: { ...statistics, recentRequests }, sequence: ++statisticsSequence }
     );
     await expect(page.locator("#request-log-count")).toHaveText(String(recentRequests.length));
   }

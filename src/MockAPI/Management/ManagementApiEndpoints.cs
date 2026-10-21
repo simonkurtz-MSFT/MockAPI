@@ -43,10 +43,11 @@ public static class ManagementApiEndpoints
         var statisticsCache = new StatisticsSnapshotCache(statistics);
         MapStatisticsEndpoints(group, statistics, statisticsCache);
         var dashboardEvents = new DashboardEventStream(app.Services.GetRequiredService<ConfigurationState>(), statisticsCache);
-        group.MapGet("/dashboard/events", (HttpContext context, CancellationToken _) => dashboardEvents.WriteAsync(context))
+        group.MapGet("/dashboard/events", (HttpContext context, bool? deltas, CancellationToken _) =>
+                dashboardEvents.WriteAsync(context, useDeltas: deltas is true))
             .WithName("StreamDashboardEvents")
             .WithSummary("Stream configuration changes and live statistics")
-            .WithDescription("Sends current configuration status and statistics on connect, configuration events after edits or saves, coalesced statistics events, and idle keepalive comments. Reconnect to resynchronize; no event history is retained.")
+            .WithDescription("Sends current configuration status and statistics on connect, configuration events after edits or saves, coalesced statistics events, and idle keepalive comments. Opt in with deltas=true for sequenced statistics-delta events after a full statistics baseline. Resets, reconnects, and missed bases receive a full baseline; no replay queue is retained. Default payloads remain full snapshots.")
             .Produces<string>(StatusCodes.Status200OK, "text/event-stream");
     }
 

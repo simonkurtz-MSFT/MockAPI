@@ -107,14 +107,14 @@ contract remain unchanged. No new recording locks or sharded counters are introd
 
 ## Dashboard Synchronization and Caching
 
-The dashboard opens one authenticated `GET /dashboard/events` connection. It receives a
+The dashboard opens one authenticated `GET /dashboard/events?deltas=true` connection. It receives a
 `configuration` event containing the same JSON shape as `/configuration`, followed by a
 `statistics` event containing the same shape as `/statistics`. Configuration events are
 triggered by atomic snapshot publication, including saves that clear the dirty flag without
 incrementing the revision. Invalid or conflicting writes do not publish events.
 
 Statistics are coalesced to at most one update every two seconds and serialized once per
-changed snapshot across connected dashboards. Idle statistics are not retransmitted, except
+shared interval frame across connected dashboards. Idle statistics are not retransmitted, except
 at minute boundaries to advance the rolling window. Idle streams send keepalive comments
 approximately every 16 seconds. Disable proxy buffering and allow long-lived SSE responses.
 The existing `/statistics/events` route remains available with its original behavior.
@@ -128,9 +128,11 @@ advances both aggregate and endpoint histories. The cache reads the version befo
 counters so a recording or reset completing during capture invalidates the next read.
 Snapshots retain the collector's existing concurrent, non-transactional read semantics.
 
-Only management readers acquire the cache lock. Recording never waits for serialization,
-and no per-client payload cache or replay queue is added. One snapshot and, when requested,
-one compact string are retained, replacing the previous dashboard-only string cache.
+Only management readers acquire the cache lock. Recording never waits for serialization.
+The snapshot cache retains one snapshot and, when requested, one compact string. The delta
+cache additionally retains one current interval frame, its bounded patch, and lazy serializations;
+it does not retain a chain of previous snapshots or a replay queue. A slow connection can hold
+its currently transmitting frame until the write completes.
 SSE framing writes its prefix, compact JSON, and terminator separately, avoiding a second
 full-payload string without changing the event bytes.
 
@@ -141,6 +143,46 @@ without reloading endpoints. Unsupported or failed SSE uses a 15-second completi
 poll, which stops after stream recovery. Hidden pages close the stream and abort requests;
 returning pages reconnect. Explicit mutations still refresh immediately.
 
+### Interval Statistics Deltas
+
+The optional Boolean `deltas=true` query selects interval **state patches**, not raw request-event
+replay. Omit it or set it to `false` for the original full `statistics` events without SSE IDs.
+The full `/statistics` API and standalone `/statistics/events` stream are unchanged.
+
+Opt-in statistics frames carry an SSE `id`. The initial `statistics` event contains a complete
+baseline. Subsequent `statistics-delta` JSON has these fields:
+
+| Field                | Meaning                                                                  |
+| -------------------- | ------------------------------------------------------------------------ |
+| `baseSequence`       | Sequence of the full view this patch updates                             |
+| `sequence`           | New sequence, also carried by the SSE `id`                               |
+| `windowStartUtc`     | Oldest UTC minute in the retained 60-minute window                       |
+| `totals`             | All eleven absolute aggregate counters, not increments                   |
+| `recentMinutes`      | Only changed aggregate minute buckets, with absolute counts              |
+| `endpoints`          | Changed endpoint scalar summaries with only their changed minute buckets |
+| `removedEndpointIds` | Stable IDs whose counters must be removed                                |
+| `recentRequests`     | Complete bounded replacement feed, or `null` when unchanged              |
+
+Clients discard minutes outside the window, initialize missing minutes to zero, and retain
+unchanged buckets and endpoint summaries. A newly tracked endpoint therefore needs only its
+nonzero buckets. The request feed is replaced atomically, including an empty replacement:
+logical retries can update an existing summary rather than append a new request.
+
+Successful overall or endpoint resets, reconnects, and clients missing an intermediate server
+frame receive a fresh full baseline. Clamped duplicate UTC minute identities also require a
+baseline. SSE IDs guard continuity; they do not enable `Last-Event-ID` replay. The dashboard
+ignores duplicate sequences and closes an unusable stream before recovering at the normal
+15-second polling interval. It keeps its stream baseline separate from immediate HTTP refreshes,
+and retiring a broken stream does not abort an authoritative management refresh.
+
+This reduces repeated serialization, wire traffic, and browser parsing, not the initial baseline
+or full snapshot capture. Local managed Release tests on Windows ARM64/.NET 10.0.13, with
+**256 tracked endpoints and 100 recent summaries**, measured **2,811,112 bytes** for a full
+snapshot versus **21,938 bytes** for one changed endpoint and the replacement feed:
+**99.22% smaller**. The regression test requires a sparse interval to use less than 2% of the full
+payload. Busy intervals touching every endpoint can be larger; these are not throughput,
+container-memory, or universal compression guarantees.
+
 Endpoint definitions stay only in page memory, never local storage. Administrative JSON and
 dashboard HTML use `Cache-Control: no-store`. The HTML references scripts, styles, and images with
 one SHA-256 version derived from the complete dashboard asset set. Matching versioned URLs use
@@ -150,6 +192,12 @@ proxies must not cache authenticated dashboard assets.
 
 Statistics-only updates preserve endpoint row controls and focus unless the selected sort changes
 row order. Collapsed panels and inactive statistics views are rendered when shown.
+The Statistics table retains rows by stable endpoint ID or aggregate measure and changes only
+different cell text. The graph retains UTC-keyed columns, their six status segments, and one tooltip.
+It replaces a column only when its button/non-button behavior changes, clears listeners on removed
+or replaced columns, and bounds the cache to the current minute window. Surviving focused columns,
+manual horizontal scroll, and follow-newest behavior are preserved; removed focus returns to the
+timeline. Endpoint switching still uses complete histories already held in page memory.
 The Endpoints table offers **Collapse all groups**, switching to **Expand all groups** when all API
 groups in the current filtered result are collapsed. With a mixture of expanded and collapsed groups,
 the action collapses them all. Groups hidden by filters retain their state; new API groups start
@@ -210,6 +258,43 @@ MOCKAPI_STATISTICS_DIAGNOSTICS=1 DOTNET_TieredCompilation=0 \
     --logger "console;verbosity=detailed"
 ```
 
+### Recording Contention Diagnostic
+
+The opt-in [recording diagnostic](../tests/MockAPI.Tests/Runtime/StatisticsRecordingDiagnostics.cs)
+runs five fixed-work samples of 120,000 requests with 1, 2, 4, or 8 dedicated workers. Run it
+alone because `Monitor.LockContentionCount` is process-wide. A local Windows ARM64 managed Release
+run on .NET 10.0.13, with tiered compilation disabled, produced these medians:
+
+| Workers | Matched requests/s with bounded feed | Unmatched requests/s without logical ID | Matched monitor contentions/sample |
+| ------- | ------------------------------------ | --------------------------------------- | ---------------------------------- |
+| 1       | 2.59 million                         | 6.41 million                            | 0                                  |
+| 2       | 2.85 million                         | 5.70 million                            | 18                                 |
+| 4       | 2.96 million                         | 6.00 million                            | 45                                 |
+| 8       | 2.57 million                         | 5.70 million                            | 53                                 |
+
+These paths do different work. Monitor counts do not attribute contention to one gate and do not
+measure spinning, cache-line traffic, or HTTP throughput. The probe does not isolate a bottleneck
+that justifies sharding counters or replacing synchronization, so recording locks remain unchanged.
+Use attributable profiling under a representative deployment load before such a redesign.
+
+```powershell
+pwsh -NoProfile -Command {
+    $env:MOCKAPI_RECORDING_DIAGNOSTICS = '1'
+    $env:DOTNET_TieredCompilation = '0'
+    dotnet test .\tests\MockAPI.Tests\MockAPI.Tests.csproj --no-restore `
+        --configuration Release --filter "FullyQualifiedName~StatisticsRecordingDiagnostics" `
+        --logger "console;verbosity=detailed"
+    exit $LASTEXITCODE
+}
+```
+
+```bash
+MOCKAPI_RECORDING_DIAGNOSTICS=1 DOTNET_TieredCompilation=0 \
+  dotnet test ./tests/MockAPI.Tests/MockAPI.Tests.csproj --no-restore \
+    --configuration Release --filter "FullyQualifiedName~StatisticsRecordingDiagnostics" \
+    --logger "console;verbosity=detailed"
+```
+
 ### Backend Allocation Diagnostic
 
 The opt-in [backend diagnostic](../tests/MockAPI.Tests/Runtime/BackendRefactoringDiagnostics.cs)
@@ -263,6 +348,15 @@ Configuration status reads and SSE configuration-event projections use an owned,
 API-description projection from the captured snapshot. They do not deserialize endpoint definitions
 or response bodies just to retrieve metadata. Persistence-status-only updates share this projection
 while keeping descriptions, revision, and ETag consistent.
+
+Single-endpoint mutation responses scan the captured canonical JSON and deserialize only the
+selected endpoint, skipping unrelated endpoint bodies. They still return detached, canonical data
+from the applied revision, and complete candidate validation and atomic publication are unchanged.
+The opt-in backend allocation diagnostic compares this with materializing the entire document.
+With four unrelated 960 KiB bodies and one small selected endpoint, five ten-call managed Release
+samples measured a median **7,869,780 bytes/read** for the full-document path versus
+**1,343 bytes/read** for targeted extraction. The scan remains proportional to the bytes preceding
+the selected endpoint; this does not make configuration writes allocation-free.
 
 Unfiltered native exports, including requests with omitted or empty endpoint IDs, use the snapshot's
 canonical serialized bytes without first materializing a configuration document. This removes a

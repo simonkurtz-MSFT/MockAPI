@@ -40,8 +40,8 @@ function harness({ eventSource = true, ...options } = {}) {
             path,
             close: vi.fn(),
             addEventListener: (name, listener) => listeners.set(name, listener),
-            emit: (name, data) => listeners.get(name)({ data: JSON.stringify(data) }),
-            raw: (name, data) => listeners.get(name)({ data }),
+            emit: (name, data, lastEventId = "") => listeners.get(name)({ data: JSON.stringify(data), lastEventId }),
+            raw: (name, data, lastEventId = "") => listeners.get(name)({ data, lastEventId }),
           };
           streams.push(stream);
           return stream;
@@ -76,6 +76,123 @@ function harness({ eventSource = true, ...options } = {}) {
 describe("event-driven dashboard synchronization", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
+
+  const statisticsBaseline = () => ({
+    totalRequests: 0,
+    recentMinutes: Array.from({ length: 60 }, (_, index) => ({
+      minuteUtc: new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString(),
+      requests: 0,
+    })),
+    endpoints: [],
+    recentRequests: [],
+  });
+  const statisticsDelta = (changes = {}) => ({
+    baseSequence: 1,
+    sequence: 2,
+    windowStartUtc: "2026-01-01T00:00:00Z",
+    totals: { totalRequests: 3 },
+    recentMinutes: [],
+    endpoints: [],
+    removedEndpointIds: [],
+    recentRequests: null,
+    ...changes,
+  });
+  async function connectDeltas() {
+    const h = harness({ useStatisticsDeltas: true });
+    await h.synchronizer.start();
+    const stream = h.streams[0];
+    stream.onopen();
+    stream.emit("configuration", status());
+    stream.emit("statistics", statisticsBaseline(), "1");
+    await flush();
+    return h;
+  }
+
+  it("opts into deltas, ignores duplicates, and retains a stream baseline independent from GET refreshes", async () => {
+    const h = await connectDeltas();
+    const stream = h.streams[0];
+    expect(stream.path).toBe("/dashboard/events?deltas=true");
+    await h.synchronizer.synchronize();
+    stream.emit("statistics-delta", statisticsDelta(), "2");
+    expect(h.callbacks.statistics).toHaveBeenLastCalledWith(
+      expect.objectContaining({ totalRequests: 3, recentMinutes: expect.any(Array) })
+    );
+    const calls = h.callbacks.statistics.mock.calls.length;
+    stream.emit("statistics-delta", statisticsDelta(), "2");
+    stream.emit("statistics-delta", statisticsDelta({ sequence: 1 }), "1");
+    expect(h.callbacks.statistics).toHaveBeenCalledTimes(calls);
+    stream.onopen();
+    stream.emit("statistics", statisticsBaseline(), "1");
+    stream.emit("statistics-delta", statisticsDelta(), "2");
+    expect(h.callbacks.statistics).toHaveBeenCalledTimes(calls + 2);
+    h.synchronizer.dispose();
+    stream.emit("statistics-delta", statisticsDelta({ baseSequence: 2, sequence: 3 }), "3");
+    expect(h.callbacks.statistics).toHaveBeenCalledTimes(calls + 2);
+  });
+
+  it("recovers sequence gaps without aborting a command refresh or accepting retired-stream events", async () => {
+    const h = await connectDeltas();
+    const old = h.streams[0];
+    const pending = deferred();
+    h.request.mockReturnValueOnce(pending.promise);
+    const refreshing = h.synchronizer.synchronize();
+    old.emit("statistics-delta", statisticsDelta({ baseSequence: 2, sequence: 3 }), "3");
+    expect(old.close).toHaveBeenCalledOnce();
+    expect(h.callbacks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining("missed") })
+    );
+    expect(h.streams).toHaveLength(1);
+    old.onopen();
+    old.emit("configuration", status(99));
+    old.emit("statistics", statisticsBaseline(), "99");
+    old.onerror();
+    pending.resolve(status());
+    expect(await refreshing).toEqual({ kind: "completed" });
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(h.streams).toHaveLength(2);
+    h.streams[1].onopen();
+    h.streams[1].emit("configuration", status());
+    h.streams[1].emit("statistics", statisticsBaseline(), "1");
+    await flush();
+    expect(vi.getTimerCount()).toBe(0);
+    h.synchronizer.dispose();
+  });
+
+  it.each(["", "0", "1.5", "9007199254740992"])("rejects invalid baseline sequence %s", async (id) => {
+    const h = harness({ useStatisticsDeltas: true });
+    await h.synchronizer.start();
+    h.streams[0].emit("statistics", statisticsBaseline(), id);
+    expect(h.callbacks.error).toHaveBeenCalledOnce();
+    expect(h.streams[0].close).toHaveBeenCalledOnce();
+    expect(h.callbacks.statistics).not.toHaveBeenCalled();
+    h.synchronizer.dispose();
+  });
+
+  it.each([
+    [statisticsDelta({ sequence: 2.5 }), "2.5"],
+    [statisticsDelta(), "9"],
+    [statisticsDelta({ baseSequence: 0 }), "2"],
+    [statisticsDelta({ windowStartUtc: "invalid" }), "2"],
+  ])("reports malformed or discontinuous delta frames", async (delta, id) => {
+    const h = await connectDeltas();
+    h.streams[0].emit("statistics-delta", delta, id);
+    expect(h.callbacks.error).toHaveBeenCalledOnce();
+    expect(h.streams[0].close).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(1);
+    h.synchronizer.dispose();
+  });
+
+  it("rejects deltas before a baseline and malformed JSON after a baseline", async () => {
+    const h = harness({ useStatisticsDeltas: true });
+    await h.synchronizer.start();
+    h.streams[0].emit("statistics-delta", statisticsDelta(), "2");
+    expect(h.callbacks.error).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(15000);
+    h.streams[1].emit("statistics", statisticsBaseline(), "1");
+    h.streams[1].raw("statistics-delta", "{", "2");
+    expect(h.callbacks.error).toHaveBeenCalledTimes(2);
+    h.synchronizer.dispose();
+  });
 
   it("returns explicit success and failure outcomes while retaining background recovery", async () => {
     const h = harness();

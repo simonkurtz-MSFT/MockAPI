@@ -36,10 +36,13 @@ applyTo: "**/*.{cs,csproj,sln,props,targets}"
 - Use UTC timestamps through `TimeProvider` where behavior depends on time.
 - Use source-generated `System.Text.Json` contexts for application-owned request, response, and persistence types.
 - Document public C# contracts with XML documentation comments. Cover parameters, return values, exceptions, wire semantics, concurrency guarantees, and persistence behavior when they are not obvious from the signature; use `<inheritdoc/>` when a contract is inherited.
-- Do not add narration to trivial private helpers. Use implementation comments only for invariants, security decisions, protocol constraints, or reasoning the code cannot express clearly.
+- Do not add narration to trivial private helpers. Use implementation comments for reasoning the code cannot express clearly, including invariants, security decisions, protocol constraints, and performance tradeoffs. Explain pooled/shared/stack storage ownership, concurrent-use safety, retention, and cleanup where relevant; do not imply that fewer allocations guarantee lower resident memory.
 - Give every management operation a stable OpenAPI operation ID, concise summary, request-body metadata, typed success responses, and applicable problem responses. Document strong `If-Match` requirements in the operation description and test the generated document.
 - Return problem details for management API errors and avoid exposing exceptions or filesystem details.
 - Design concurrent statistics structures with bounded memory and test their rollover and contention behavior.
+- Keep dashboard deltas opt-in and absolute, with SSE sequence/base guards and full baselines after resets,
+  reconnects, or missed frames. Retain one shared frame without replay history; preserve legacy full delivery
+  and keep comparison/serialization locks off the recording path.
 - Keep minute buckets and counters contiguous value types. Access stored elements and atomic fields by reference; avoid struct copies or readonly defensive copies that bypass volatile reads or discard updates.
 - Account for every matched dispatch exactly once, including delay cancellation. Failed attempts retain the
   selected response status, or no status before response selection, and contribute zero completed bytes.

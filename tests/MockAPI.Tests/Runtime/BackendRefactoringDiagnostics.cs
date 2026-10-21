@@ -36,6 +36,19 @@ public sealed class BackendRefactoringDiagnostics(ITestOutputHelper output)
         Measure("unchanged near-limit registry replacement", () => Assert.True(registry.TryReplace(document).IsValid));
         Measure("unchanged near-limit full configuration replacement", () =>
             Assert.Equal(ConfigurationUpdateStatus.Applied, state.TryReplace(document, state.Current.Revision).Status));
+        var selected = document.Endpoints[0] with
+        {
+            Id = Guid.NewGuid(),
+            Path = "/selected",
+            Response = new() { StatusCode = 200, Headers = [], ContentType = "text/plain", Body = "small" }
+        };
+        var selectionDocument = CompiledResponseReuseTests.CreateDocument([.. document.Endpoints, selected]);
+        Assert.Equal(ConfigurationUpdateStatus.Applied, state.TryReplace(selectionDocument, state.Current.Revision).Status);
+        var snapshot = state.Current;
+        var selectedId = selected.Id;
+        Measure("single endpoint via full document", () =>
+            GC.KeepAlive(snapshot.GetDocument().Endpoints.Single(endpoint => endpoint.Id == selectedId)));
+        Measure("single endpoint via targeted canonical read", () => GC.KeepAlive(snapshot.GetEndpoint(selectedId)));
 
         var ids = Enumerable.Range(0, RequestStatisticsCollector.MaximumTrackedEndpoints)
             .Select(_ => Guid.NewGuid()).ToArray();

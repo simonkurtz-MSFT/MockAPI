@@ -171,6 +171,48 @@ public sealed class ConfigurationStateSnapshot
     public MockApiConfigurationDocument GetDocument() =>
         DeserializeDocument(_serializedDocument);
 
+    internal MockEndpointDefinition GetEndpoint(Guid endpointId)
+    {
+        var reader = new Utf8JsonReader(_serializedDocument);
+        while (reader.Read())
+        {
+            if (reader.TokenType != JsonTokenType.PropertyName || reader.CurrentDepth != 1 ||
+                !reader.ValueTextEquals("endpoints"))
+            {
+                continue;
+            }
+
+            reader.Read();
+            while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+            {
+                if (HasEndpointId(reader, endpointId))
+                {
+                    // Deserialize from the captured canonical bytes, but do not materialize unrelated bodies.
+                    return JsonSerializer.Deserialize(ref reader, MockApiJsonContext.Default.MockEndpointDefinition)!;
+                }
+                reader.Skip();
+            }
+            break;
+        }
+
+        throw new InvalidOperationException("The captured configuration does not contain the requested endpoint.");
+    }
+
+    private static bool HasEndpointId(Utf8JsonReader reader, Guid endpointId)
+    {
+        // Probe a value copy so the caller can still deserialize from the object's opening token.
+        while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
+        {
+            if (reader.ValueTextEquals("id"))
+            {
+                reader.Read();
+                return reader.GetGuid() == endpointId;
+            }
+            reader.Skip();
+        }
+        return false;
+    }
+
     /// <summary>Copies the deterministic UTF-8 JSON representation of this snapshot.</summary>
     /// <returns>A new byte array that callers may modify without affecting this snapshot.</returns>
     public byte[] ExportUtf8() => [.. _serializedDocument];
