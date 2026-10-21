@@ -222,10 +222,12 @@ export function createDashboardSynchronizer({
     }
     stream = createEventSource(useStatisticsDeltas ? "/dashboard/events?deltas=true" : "/dashboard/events");
     const connection = stream;
+    // Recovery can replace the connection without changing the page epoch; ignore late callbacks from its predecessor.
     const currentConnection = () => active(epoch) && stream === connection;
     function rejectStatisticsFrame(error) {
       if (useStatisticsDeltas) {
         // Retire only this stream: an authoritative management refresh must remain valid.
+        // Normal recovery polling reconnects for a fresh baseline instead of immediately looping on bad frames.
         connection.close();
         stream = null;
         streamHealthy = false;
@@ -236,7 +238,8 @@ export function createDashboardSynchronizer({
     }
     stream.onopen = () => {
       if (!currentConnection()) return;
-      // Reconnect can reach a restarted process with the same numeric revision.
+      // Reconnect can reach a restarted process with the same numeric revision and restarted statistics sequence.
+      // Discard the old delta base and wait for the server's complete baseline before accepting patches.
       endpointsRevision = null;
       configurationSequence++;
       streamStatistics = null;
@@ -281,6 +284,8 @@ export function createDashboardSynchronizer({
           if (!Number.isSafeInteger(delta.sequence) || Number(event.lastEventId) !== delta.sequence) {
             throw new Error("Invalid dashboard statistics delta sequence.");
           }
+          // Ignore duplicate/older patches. Absolute values prevent double-counting, but an old patch could
+          // still roll the displayed state backward. A missing base requires recovery, never a best-effort merge.
           if (streamSequence !== null && delta.sequence <= streamSequence) return;
           if (!streamStatistics || delta.baseSequence !== streamSequence || delta.sequence !== streamSequence + 1) {
             throw new Error("Dashboard statistics sequence missed; refreshing the baseline.");

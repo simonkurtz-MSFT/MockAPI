@@ -43,6 +43,8 @@ public sealed class DashboardEventStream
     /// <remarks>Reconnects receive current state, not replayed history. Idle streams send keepalive comments.</remarks>
     public Task WriteAsync(HttpContext context) => WriteAsync(context, useDeltas: false);
 
+    // Delta delivery is opt-in; legacy clients continue receiving complete statistics events.
+    // Every connection starts from current state, irrespective of an EventSource Last-Event-ID resume hint.
     internal async Task WriteAsync(HttpContext context, bool useDeltas)
     {
         var cancellation = context.RequestAborted;
@@ -77,6 +79,8 @@ public sealed class DashboardEventStream
                         var frame = _deltas.GetFrame();
                         if (sentSequence != frame.Sequence)
                         {
+                            // A patch is valid only against the state this connection last received. First delivery,
+                            // resets, and slow clients that missed a frame get a full baseline, not a partial patch.
                             var canApplyDelta = frame.Delta is { } delta && delta.BaseSequence == sentSequence;
                             await ManagementEventWriter.WriteAsync(context,
                                 canApplyDelta ? "statistics-delta" : "statistics",

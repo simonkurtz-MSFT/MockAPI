@@ -5,6 +5,11 @@ using MockAPI.Runtime;
 
 namespace MockAPI.Management;
 
+/// <summary>Shares interval state patches instead of resending every endpoint's sixty-minute history.</summary>
+/// <remarks>
+/// This is not request-event replay: each patch compares two bounded snapshots. The cache owns only the current
+/// frame, so slow clients recover with a full baseline instead of requiring an ever-growing delivery queue.
+/// </remarks>
 internal sealed class StatisticsDeltaCache(StatisticsSnapshotCache statistics, TimeProvider clock)
 {
     private readonly object _gate = new();
@@ -14,6 +19,7 @@ internal sealed class StatisticsDeltaCache(StatisticsSnapshotCache statistics, T
 
     internal StatisticsDeltaFrame GetFrame()
     {
+        // Coalesce comparison work across clients once per interval. Request recording never takes this gate.
         lock (_gate)
         {
             var now = clock.GetUtcNow();
@@ -42,6 +48,8 @@ internal sealed class StatisticsDeltaCache(StatisticsSnapshotCache statistics, T
     }
 }
 
+// Each frame owns its captured snapshot and lazily shares its JSON across clients. Keeping serialization here
+// avoids per-client payload allocations and lets an in-flight write finish safely after the cache advances.
 internal sealed class StatisticsDeltaFrame(
     StatisticsSnapshotCache cache,
     RequestStatisticsSnapshot snapshot,
@@ -77,6 +85,12 @@ internal sealed class StatisticsDeltaFrame(
     }
 }
 
+/// <summary>Absolute state replacements that require the client's exact <see cref="BaseSequence"/>.</summary>
+/// <remarks>
+/// Aggregate totals are always included; endpoint summaries and minute buckets are sent only when changed.
+/// Omission means unchanged, not zero. The client advances every history to WindowStartUtc and fills new
+/// minutes with zeros. RecentRequests is a complete bounded replacement when present, including an empty array.
+/// </remarks>
 internal sealed record StatisticsDelta(
     long BaseSequence,
     long Sequence,
@@ -90,7 +104,6 @@ internal sealed record StatisticsDelta(
     internal static StatisticsDelta? Create(
         RequestStatisticsSnapshot previous, RequestStatisticsSnapshot current, long baseSequence, long sequence)
     {
-        // These are absolute replacements, not increments or raw events: repeated delivery must not double-count.
         // UTC-minimum clamping can produce duplicate minute identities. Send a baseline rather than an ambiguous patch.
         if (current.RecentMinutes[0].MinuteUtc == current.RecentMinutes[1].MinuteUtc ||
             previous.RecentMinutes[0].MinuteUtc == previous.RecentMinutes[1].MinuteUtc)
@@ -112,6 +125,8 @@ internal sealed record StatisticsDelta(
             }
         }
 
+        // Retry coalescing can update an existing request summary without appending a request. Replace the bounded
+        // feed on any change rather than treating it as append-only or retaining raw request events for replay.
         return new StatisticsDelta(baseSequence, sequence, current.RecentMinutes[0].MinuteUtc,
             StatisticsTotals.FromSnapshot(current), ChangedMinutes(previous.RecentMinutes, current.RecentMinutes),
             changed.ToImmutable(), [.. oldEndpoints.Keys],

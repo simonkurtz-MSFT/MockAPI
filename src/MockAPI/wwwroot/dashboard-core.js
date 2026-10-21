@@ -171,6 +171,8 @@
 
 /**
  * Applies an interval state delta without modifying either input.
+ * Values replace counters rather than incrementing them, so delivery must never add the same counts twice.
+ * Omitted endpoints/buckets remain unchanged; window movement expires old minutes even without new activity.
  * Unchanged endpoint records and minute buckets retain their identity for incremental rendering.
  * @param {DashboardStatistics} previous Full baseline maintained by the stream owner.
  * @param {StatisticsDelta} delta Sequenced absolute updates; the caller verifies stream sequence continuity.
@@ -212,8 +214,11 @@ export function applyStatisticsDelta(previous, delta) {
 }
 
 function mergeStatisticsMinutes(previous, changes, start) {
+  // Equivalent UTC timestamps can use Z or +00:00. Numeric keys preserve minute identity across both spellings.
   const buckets = new Map(previous.map((bucket) => [Date.parse(bucket.minuteUtc), bucket]));
   for (const bucket of changes) buckets.set(Date.parse(bucket.minuteUtc), bucket);
+  // Rebuild only the bounded window: old buckets expire, and omitted new minutes start at zero.
+  // Existing bucket objects remain shared because callers treat snapshot data as immutable.
   return Array.from({ length: 60 }, (_, index) => {
     const timestamp = start + index * 60_000;
     return (
