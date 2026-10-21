@@ -208,18 +208,29 @@ test("getting-started content stays usable on desktop and narrow screens", async
 test("features describe the small, hardened container and supported capabilities", async ({ page }) => {
   await page.goto("./");
   const features = page.getByRole("region", { name: "A small, hardened container for your mock APIs" });
-  await expect(features.locator(".card")).toHaveCount(4);
+  await expect(features.locator(".card")).toHaveCount(5);
   await expect(features.getByRole("heading", { level: 3 })).toHaveText([
     "Minimal Native AOT image",
     "Hardened by default",
     "Import, save, and export",
     "Live request view",
+    "APIM Samples integration",
   ]);
   await expect(features).toContainText("no .NET SDK, managed runtime, JIT, compiler, or debug symbols");
   await expect(features).toContainText("non-root user");
   await expect(features).toContainText("read-only root filesystem");
   await expect(features).toContainText("API key by default");
   await expect(features).toContainText("Postman, Insomnia, cURL, JMeter, OpenAPI, k6, or HTTP files");
+  const apimCard = features.getByRole("article").last();
+  await expect(apimCard).toContainText("Easily connect APIM Samples to your custom mock APIs.");
+  await expect(apimCard).toContainText("use MockAPI as the backend");
+  const apimGuide = apimCard.getByRole("link", { name: "Connect custom APIs to APIM" });
+  await expect(apimGuide).toBeVisible();
+  await expect(apimGuide).toHaveAttribute(
+    "href",
+    "https://github.com/simonkurtz-MSFT/MockAPI/blob/main/docs/MANAGEMENT_API.md#live-mock-openapi-and-apim-import"
+  );
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test("footer links to Simon Kurtz's website in a protected new tab", async ({ page }) => {
