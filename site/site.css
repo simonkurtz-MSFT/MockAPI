@@ -168,6 +168,17 @@ figcaption {
 .actions {
   margin-block: 2rem;
 }
+.docker-hub-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 36px;
+}
+.docker-hub-badge img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
 .button,
 .icon-button {
   display: inline-flex;
@@ -405,6 +416,23 @@ footer {
   padding-block: 1.5rem;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+@media (min-width: 951px) {
+  .example-cards {
+    row-gap: 0;
+  }
+  .example-cards > .card {
+    display: grid;
+    grid-template-rows: subgrid;
+    grid-row: span 3;
+  }
+  .example-cards > .card > p {
+    margin-top: 0;
+  }
+  .example-cards > .card > :last-child {
+    align-self: start;
+  }
 }
 
 @media (max-width: 950px) {
