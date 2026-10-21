@@ -7,6 +7,30 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-21
+
+### Added
+
+- Optional deployment-supplied mock API keys through `MockApi__ApiKey`, with matching Azure
+  infrastructure and developer CLI settings. Startup persists only the key's SHA-256 hash and
+  enables protection when no security document exists; existing security settings take precedence.
+- Dashboard controls select all filtered endpoints within an API group and collapse or expand all
+  filtered groups without changing endpoint selection or hidden groups.
+
+### Changed
+
+- Removed the 25-endpoint limit from configuration validation, JSON Schema, and bulk selections.
+  The 4 MiB configuration document limit and independent 25-group API-description limit remain.
+- Built-in examples now combine 41 Trailhead Supply endpoints across assistant, inventory, and
+  shipping APIs, with individual native sample files, HEAD-only mock health endpoints, and
+  clearly labeled HTTP and transport faults. Loading remains an explicit, revision-protected merge;
+  upgrades never automatically remove or rewrite saved endpoints.
+- Dashboard operations default to path order within each API group. Information previews provide
+  more room for descriptions and emphasize the samples' business and technical section headings.
+- Dashboard test requests and portable request exports use illustrative inventory and shipping
+  payloads for the corresponding Trailhead routes.
+- Updated onboarding documentation, screenshots, and development tooling for the Trailhead examples.
+
 ## [1.6.2] - 2026-10-15
 
 ### Added
@@ -255,7 +279,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.6.2...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.7.0...HEAD
+[1.7.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.6.2...1.7.0
 [1.6.2]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.6.1...1.6.2
 [1.6.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.6.0...1.6.1
 [1.6.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.5.2...1.6.0

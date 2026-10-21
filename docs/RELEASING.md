@@ -1,11 +1,40 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.6.2. This version decision publishes only after
+MockAPI's next stable application version is 1.7.0. This version decision publishes only after
 the quality, public-release audit, and native image validation gates below succeed.
 
-## 1.6.2 release summary
+## 1.7.0 release summary
 
-The planned release date is **2026-10-15**, with the immutable tag **`1.6.2`**.
+The planned release date is **2026-10-21**, with the immutable tag **`1.7.0`**.
+The [1.7.0 changelog entry](../CHANGELOG.md#170---2026-10-21) supplies the GitHub release notes.
+
+- Deployments can supply the initial mock API key through `MockApi__ApiKey`, including Azure
+  infrastructure and developer CLI integration. Startup persists only its SHA-256 hash before
+  enabling protection, and existing security settings take precedence.
+- Configuration and bulk selection no longer cap endpoint counts at 25. The 4 MiB document limit
+  and independent 25-group API-description limit remain.
+- Built-in examples combine 41 Trailhead Supply endpoints across assistant, inventory, and shipping
+  APIs, with standalone native sample files and corresponding illustrative request payloads.
+- Dashboard API groups support filtered group selection and bulk collapse or expansion. Operations
+  default to path order, and information previews improve sample-description readability.
+
+### Compatibility and upgrade behavior
+
+These additions are backward compatible, so 1.7.0 is a minor release. Existing saved endpoint IDs,
+mock routing, management routes, credential configuration, and configuration schema
+(`schemaVersion: "1.0"`) remain compatible; no migration is required. Documents with more than
+25 endpoints require MockAPI 1.7.0 or later because older binaries enforce the previous limit.
+The new sample files replace the former checked-in sample filenames, not the persisted instance
+filename, which remains `mockapi.json` by default. Update source-sample copy commands or paths
+when adopting the Trailhead files. Upgrading does not activate examples or rewrite saved endpoints;
+**Load examples** remains an explicit merge with conflict review before forced updates.
+The optional deployment key seeds only missing security settings and never replaces an existing
+key, rotation, or explicit protection opt-out. Existing deployments need not supply it.
+Keep pull examples on published image tags until 1.7.0 image validation and publication finish.
+
+## 1.6.2 historical release summary
+
+The release date was **2026-10-15**, with the immutable tag **`1.6.2`**.
 The [1.6.2 changelog entry](../CHANGELOG.md#162---2026-10-15) supplies the GitHub release notes.
 
 - Valid Basic credentials establish a one-time, process-scoped secure dashboard session cookie
