@@ -251,7 +251,11 @@ public sealed class CommerceSampleTests
                 await AssertResponseAsync(response, endpoint.Response, request.Method);
                 if (endpoint.Response.DelaySeconds is { } delaySeconds)
                 {
-                    Assert.True(stopwatch.Elapsed >= TimeSpan.FromSeconds(delaySeconds));
+                    // Task.Delay is timer-based; match the dispatcher test's tolerance for timer resolution.
+                    var minimumDelay = TimeSpan.FromSeconds(delaySeconds) - TimeSpan.FromMilliseconds(100);
+                    Assert.True(
+                        stopwatch.Elapsed >= minimumDelay,
+                        $"Endpoint {endpoint.Path} completed after {stopwatch.Elapsed}; expected at least {minimumDelay} for its {delaySeconds}-second delay.");
                 }
             }
         }

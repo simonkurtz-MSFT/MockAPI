@@ -68,8 +68,10 @@ Scanner execution failures and invalid reports still fail validation.
 This policy does not remediate vulnerabilities or change container-image scanning.
 
 The [development-container workflow](../.github/workflows/devcontainer.yml) exercises the exact image,
-non-root setup, tooling, and application readiness. A real Codespaces launch still needs account-level
-validation. No production credentials, Docker socket, or Azure login is needed for ordinary development.
+non-root setup, tooling, and application readiness. The readiness probe retries transient connection
+resets and unavailable responses during startup, with a five-second per-attempt timeout and a
+two-minute retry window. A real Codespaces launch still needs account-level validation.
+No production credentials, Docker socket, or Azure login is needed for ordinary development.
 
 ## Maintenance and boundaries
 
@@ -79,6 +81,8 @@ validation. No production credentials, Docker socket, or Azure login is needed f
 - The image supports Linux AMD64 and ARM64. Its SDK follows `global.json`; no extra SDK pin is introduced.
 - Setup uses `pnpm install --frozen-lockfile` and the CLI's `restore` action rather than the full
   `setup` action, which also checks for a local container engine.
+- Keep `start.sh` tracked with Git mode `100755` (executable). Post-create setup and the smoke
+  workflow invoke it directly; mode `100644` causes `Permission denied` in Linux checkouts.
 - A local Dev Containers forwarded port binds locally; Codespaces is private by default. Neither
   replaces the application's authentication requirements for a shared deployment.
 - Container release builds remain on matching native CI runners. This workspace does not prove
