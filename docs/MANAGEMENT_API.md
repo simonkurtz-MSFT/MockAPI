@@ -78,7 +78,7 @@ Both export routes accept repeated `endpointId` query parameters containing stab
 artifact to those endpoints. The dashboard applies the same rule: Export includes every endpoint when the
 selection is empty and only the selected endpoints otherwise.
 
-API description edits accept `{"path":"/ctp","description":"Contoso Theme Parks overview"}` and require the
+API description edits accept `{"path":"/inventory","description":"Trailhead Supply inventory overview"}` and require the
 editor's captured strong `If-Match` ETag. Both properties are required strings; an empty description
 clears its displayed text. Success returns `200` with the complete configuration status, including
 `apiDescriptions`. Invalid metadata returns `422` without changing any endpoints or descriptions.
@@ -129,6 +129,13 @@ proxies must not cache authenticated dashboard assets.
 
 Statistics-only updates preserve endpoint row controls and focus unless the selected sort changes
 row order. Collapsed panels and inactive statistics views are rendered when shown.
+The Endpoints table offers **Collapse all groups**, switching to **Expand all groups** when all API
+groups in the current filtered result are collapsed. With a mixture of expanded and collapsed groups,
+the action collapses them all. Groups hidden by filters retain their state; new API groups start
+expanded. The control is disabled when there are no matching groups. Individual group controls remain
+available, and endpoint selection, sorting, configuration, and persistence are unchanged.
+Group collapse state lasts for the current page, independently of the saved whole-panel collapse preference.
+
 The request log offers **Collapse all buckets**, switching to **Expand all buckets** when all
 current buckets are collapsed. New minute buckets start expanded; additional requests in an
 existing bucket retain its state. Table columns use stable widths and reserved scrollbar space,
@@ -200,6 +207,15 @@ MOCKAPI_CONFIGURATION_READ_DIAGNOSTICS=1 DOTNET_TieredCompilation=0 \
 
 ## Built-In Merge Results
 
+The example combines [Trailhead AOAI](../config/trailhead-aoai.json),
+[Trailhead inventory](../config/trailhead-inventory.json), and
+[Trailhead shipping](../config/trailhead-shipping.json): 41 definitions across three API groups.
+It does not automatically replace saved configurations. There is no endpoint-count limit for
+configuration or bulk selections. The complete candidate must still fit the 4 MiB UTF-8 document-size
+limit; an oversized merge returns `422` without changing the active configuration, even when forced.
+Bulk selections must be non-empty, unique, and reference existing endpoints; management request bodies
+remain limited to 4 MiB.
+
 A successful merge reports `added`, `updated`, `skipped`, the resulting revision, and whether a change was applied. Repeating the same merge is an idempotent `200` response with no revision increment.
 
 Missing API descriptions are added atomically with the endpoints. Existing custom or empty descriptions
@@ -257,7 +273,7 @@ In the Azure portal:
 3. For authenticated or private deployments, download the document from a trusted machine with access and upload the file instead. Keep Basic credentials out of URLs, source control, and command history; do not disable administrative authentication for import.
 4. Set **Web service URL** to `https://<mockapi-host>`, without the export route or APIM API suffix. The generated document currently uses `http://localhost:8080` in `servers`; APIM requires the actual backend URL to be supplied explicitly.
 5. Choose an API URL suffix such as `mockapi`, create the API, and verify its operations and backend setting.
-6. Call an imported operation through the gateway, for example `https://<apim-gateway>/mockapi/ctp/parks`. Supply a subscription key if required by APIM. The gateway must have network access to the MockAPI backend independently of how the specification was imported.
+6. Call an imported operation through the gateway, for example `https://<apim-gateway>/mockapi/inventory/items`. Supply a subscription key if required by APIM. The gateway must have network access to the MockAPI backend independently of how the specification was imported.
 
 For a protected export, these examples prompt for credentials rather than putting the password in the command. Replace the host placeholder and keep the downloaded artifact outside source control.
 

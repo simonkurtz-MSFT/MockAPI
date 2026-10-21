@@ -1,0 +1,263 @@
+{
+  "$schema": "../schemas/mockapi.schema.json",
+  "schemaVersion": "1.0",
+  "apiDescriptions": {
+    "/shipping": "A fictional shipping API for Trailhead Supply. Explore fixed shipping quotes, shipment creation and cancellation, tracking snapshots, and a text-only demonstration label. These static examples do not buy postage, move parcels, store shipments, or contact carriers. POST bodies are optional; supplied non-empty JSON is syntax-checked, but field values and query strings never select responses. Explicit demo-faults routes cover invalid parcels, carrier outages, rate limiting, a delayed HTTP 504, and connection failure."
+  },
+  "endpoints": [
+    {
+      "id": "b596a0d7-a814-4b09-8f3e-fc717e3df218",
+      "name": "Shipping API health",
+      "description": "Description:\nLet a fulfillment dashboard or support agent check that the Trailhead Supply shipping mock is reachable without inspecting shipments or requesting rates.\n\nTechnical implementation:\nHEAD returns a fixed 200 OK with sample headers and no response body. This is a mock endpoint subject to instance API-key protection, not a live carrier or dependency check. GET is not configured.",
+      "enabled": true,
+      "methods": ["HEAD"],
+      "path": "/shipping/health",
+      "response": {
+        "statusCode": 200,
+        "reasonPhrase": "OK",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "shipping-sample"]
+        },
+        "contentType": null,
+        "body": ""
+      }
+    },
+    {
+      "id": "1d4badd0-f004-4401-95ed-3a28477bd75c",
+      "name": "Compare shipping rates",
+      "description": "Description:\nHelp a Trailhead Supply shopper compare delivery cost and estimated arrival time when choosing between standard and express shipping at checkout.\n\nTechnical implementation:\nReturns fixed standard and express quotes in USD for a fictional 1.2 kg parcel. Query strings do not change the destination, weight, currency, or prices.",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/shipping/rates",
+      "response": {
+        "statusCode": 200,
+        "reasonPhrase": "OK",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "shipping-sample"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"parcelWeightKg\":1.2,\"currency\":\"USD\",\"quotes\":[{\"service\":\"standard\",\"amount\":7.5,\"estimatedBusinessDays\":5},{\"service\":\"express\",\"amount\":18.0,\"estimatedBusinessDays\":2}]}"
+      }
+    },
+    {
+      "id": "88e58963-dff5-4f76-ae2a-c64da1f589ba",
+      "name": "Create a sample shipment",
+      "description": "Description:\nDemonstrate preparing a paid order for dispatch by giving warehouse staff a shipment reference, tracking number, and label link.\n\nTechnical implementation:\nSimulates shipment creation with 201 Created and a resolvable Location header. Returns fixed tracking and label links regardless of body fields; no shipment, postage, or carrier booking is created.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/shipping/shipments",
+      "response": {
+        "statusCode": 201,
+        "reasonPhrase": "Created",
+        "headers": {
+          "Location": ["/shipping/shipments/shp-demo-001"],
+          "X-Mock-Source": ["MockAPI", "shipping-sample"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"id\":\"shp-demo-001\",\"status\":\"label_created\",\"service\":\"standard\",\"trackingId\":\"TRACK-DEMO-001\",\"trackingUrl\":\"/shipping/tracking/TRACK-DEMO-001\",\"labelUrl\":\"/shipping/shipments/shp-demo-001/label.txt\"}"
+      }
+    },
+    {
+      "id": "c49ea950-c300-440b-89ec-546a7b1e8797",
+      "name": "Inspect the sample shipment",
+      "description": "Description:\nLet a fulfillment dashboard or support agent review the selected delivery service and find the tracking and label details for a sample order.\n\nTechnical implementation:\nGET returns the fixed shipment. The lookup exists before creation and remains unchanged after cancellation.",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/shipping/shipments/shp-demo-001",
+      "response": {
+        "statusCode": 200,
+        "reasonPhrase": "OK",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "shipping-sample"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"id\":\"shp-demo-001\",\"status\":\"label_created\",\"service\":\"standard\",\"trackingId\":\"TRACK-DEMO-001\",\"trackingUrl\":\"/shipping/tracking/TRACK-DEMO-001\",\"labelUrl\":\"/shipping/shipments/shp-demo-001/label.txt\"}"
+      }
+    },
+    {
+      "id": "658cc6c8-2cfe-4394-9243-3b0bd19a1b68",
+      "name": "Track the sample shipment",
+      "description": "Description:\nShow a shopper that their order has a shipping label but has not yet progressed through delivery, setting expectations on the order-tracking page.\n\nTechnical implementation:\nReturns a fixed label-created tracking snapshot with a fictional timestamp. Polling does not advance the shipment; the delivered route is a separate, explicitly selected fixture.",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/shipping/tracking/TRACK-DEMO-001",
+      "response": {
+        "statusCode": 200,
+        "reasonPhrase": "OK",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "shipping-sample"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"trackingId\":\"TRACK-DEMO-001\",\"status\":\"label_created\",\"events\":[{\"status\":\"label_created\",\"timestamp\":\"2026-01-05T12:00:00Z\",\"description\":\"A demonstration shipping label was created.\"}]}"
+      }
+    },
+    {
+      "id": "4bc1a983-7a31-4e91-bfa0-928da84a4927",
+      "name": "Inspect a delivered tracking scenario",
+      "description": "Description:\nDemonstrate the completed-delivery view a shopper or support agent sees after a parcel reaches its destination, including a short journey history.\n\nTechnical implementation:\nAlways returns a separate fictional delivered tracking history. It does not represent a state change to TRACK-DEMO-001 and contains no customer address or signature.",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/shipping/tracking/TRACK-DEMO-DELIVERED",
+      "response": {
+        "statusCode": 200,
+        "reasonPhrase": "OK",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "shipping-sample"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"trackingId\":\"TRACK-DEMO-DELIVERED\",\"status\":\"delivered\",\"events\":[{\"status\":\"in_transit\",\"timestamp\":\"2026-01-05T15:00:00Z\",\"description\":\"The demonstration parcel left the sample depot.\"},{\"status\":\"delivered\",\"timestamp\":\"2026-01-07T10:00:00Z\",\"description\":\"The demonstration parcel was delivered.\"}]}"
+      }
+    },
+    {
+      "id": "254b43ef-0669-42f7-b6f9-c1ba734f93e2",
+      "name": "Download a demonstration label",
+      "description": "Description:\nDemonstrate the warehouse workflow for downloading a parcel label before packing and dispatch, using a clearly marked demonstration document.\n\nTechnical implementation:\nReturns a text-only attachment to test non-JSON download handling. This is not a PDF, barcode, postage purchase, or valid shipping label.",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/shipping/shipments/shp-demo-001/label.txt",
+      "response": {
+        "statusCode": 200,
+        "reasonPhrase": "OK",
+        "headers": {
+          "Content-Disposition": ["attachment; filename=shipping-label-demo-001.txt"],
+          "X-Mock-Source": ["MockAPI", "shipping-sample"]
+        },
+        "contentType": "text/plain; charset=utf-8",
+        "body": "MOCK SHIPPING LABEL\nShipment: shp-demo-001\nTracking: TRACK-DEMO-001\nService: standard\nNot valid for shipment.\n"
+      }
+    },
+    {
+      "id": "ee5a6440-ef48-4488-badb-fc3b5f3dd50c",
+      "name": "Cancel the sample shipment",
+      "description": "Description:\nDemonstrate withdrawing a shipment request when an order is canceled or its delivery arrangements need to be changed before dispatch.\n\nTechnical implementation:\nSimulates cancellation with 204 No Content. Nothing is canceled or deleted; repeated calls succeed and shipment, tracking, and label lookups remain unchanged.",
+      "enabled": true,
+      "methods": ["DELETE"],
+      "path": "/shipping/shipments/shp-demo-001",
+      "response": {
+        "statusCode": 204,
+        "reasonPhrase": "No Content",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "shipping-sample"]
+        },
+        "contentType": null,
+        "body": ""
+      }
+    },
+    {
+      "id": "f3ba3696-53a9-4660-826a-6c00086a7e42",
+      "name": "Shipment validation fault demo",
+      "description": "Description:\nHelp warehouse staff recognize and correct an invalid parcel weight before they can complete a shipping booking.\n\nTechnical implementation:\nAlways returns a static 422 parcel-weight error after global JSON syntax checks. No parcel or address fields are inspected; malformed JSON instead receives the runtime's 400 response.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/shipping/demo-faults/invalid-shipment",
+      "response": {
+        "statusCode": 422,
+        "reasonPhrase": "Unprocessable Entity",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "shipping-sample"]
+        },
+        "contentType": "application/problem+json; charset=utf-8",
+        "body": "{\"type\":\"about:blank\",\"title\":\"Unprocessable Entity\",\"status\":422,\"detail\":\"The sample parcel weight is invalid.\",\"errors\":{\"parcelWeightKg\":[\"Parcel weight must be greater than zero.\"]}}"
+      }
+    },
+    {
+      "id": "705fab3d-7b4b-41bb-bb8d-9ef9bdceb77a",
+      "name": "Carrier outage fault demo",
+      "description": "Description:\nExercise the fulfillment experience when a carrier cannot accept bookings, so staff see a temporary service problem rather than a successful dispatch confirmation.\n\nTechnical implementation:\nAlways returns 503 Service Unavailable with Retry-After: 15. No carrier is contacted and waiting does not change this configured failure.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/shipping/demo-faults/service-unavailable",
+      "response": {
+        "statusCode": 503,
+        "reasonPhrase": "Service Unavailable",
+        "headers": {
+          "Retry-After": ["15"],
+          "X-Mock-Source": ["MockAPI", "shipping-sample"]
+        },
+        "contentType": "application/problem+json; charset=utf-8",
+        "body": "{\"type\":\"about:blank\",\"title\":\"Service Unavailable\",\"status\":503,\"detail\":\"The sample carrier booking service is unavailable. Retry later.\"}"
+      }
+    },
+    {
+      "id": "ef802d0d-28b6-4575-8e63-3743fe645e34",
+      "name": "Look up a missing tracking number",
+      "description": "Description:\nDemonstrate helping a shopper who enters an unrecognized tracking number, prompting them to check the reference from their order confirmation.\n\nTechnical implementation:\nThe literal unknown tracking route always returns a configured 404 problem response. Other unconfigured tracking numbers receive MockAPI's ordinary unmatched response; no tracking service is queried.",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/shipping/tracking/unknown",
+      "response": {
+        "statusCode": 404,
+        "reasonPhrase": "Not Found",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "shipping-sample"]
+        },
+        "contentType": "application/problem+json; charset=utf-8",
+        "body": "{\"type\":\"about:blank\",\"title\":\"Not Found\",\"status\":404,\"detail\":\"The sample tracking number does not exist.\",\"trackingId\":\"unknown\"}"
+      }
+    },
+    {
+      "id": "e7e08d5e-76a2-4f80-9a64-4e772ff6d907",
+      "name": "Tracking rate-limit fault demo",
+      "description": "Description:\nExercise a tracking page that is refreshed too frequently, so the shopper is asked to wait briefly instead of repeatedly contacting the delivery service.\n\nTechnical implementation:\nThe first two requests in a rolling 10-second window return a fixed label-created snapshot. Further requests return 429 with Retry-After: 10. The dashboard preselects three calls; counters are process-local and tracking state never changes.",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/shipping/demo-faults/tracking-rate-limit",
+      "requestCount": 3,
+      "response": {
+        "statusCode": 429,
+        "reasonPhrase": "Too Many Requests",
+        "headers": {
+          "Retry-After": ["10"],
+          "X-Mock-Source": ["MockAPI", "shipping-sample"]
+        },
+        "contentType": "application/problem+json; charset=utf-8",
+        "body": "{\"type\":\"about:blank\",\"title\":\"Too Many Requests\",\"status\":429,\"detail\":\"The sample tracking request limit was exceeded. Retry in 10 seconds.\"}",
+        "rateLimit": {
+          "requestLimit": 2,
+          "windowSeconds": 10,
+          "successResponse": {
+            "statusCode": 200,
+            "reasonPhrase": "OK",
+            "headers": {
+              "X-Mock-Source": ["MockAPI", "shipping-sample"]
+            },
+            "contentType": "application/json; charset=utf-8",
+            "body": "{\"trackingId\":\"TRACK-DEMO-001\",\"status\":\"label_created\"}"
+          }
+        }
+      }
+    },
+    {
+      "id": "a8840357-f738-48c6-b64c-7ba36b9b4648",
+      "name": "Carrier timeout fault demo",
+      "description": "Description:\nDemonstrate the experience when a carrier takes too long to provide an update, allowing the tracking page to explain the delay and offer a later retry.\n\nTechnical implementation:\nWaits one second, then sends an explicit HTTP 504 problem response. This is a delayed server response, not a client-side timeout, DNS failure, or actual carrier request.",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/shipping/demo-faults/carrier-timeout",
+      "response": {
+        "delaySeconds": 1,
+        "statusCode": 504,
+        "reasonPhrase": "Gateway Timeout",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "shipping-sample"]
+        },
+        "contentType": "application/problem+json; charset=utf-8",
+        "body": "{\"type\":\"about:blank\",\"title\":\"Gateway Timeout\",\"status\":504,\"detail\":\"The sample carrier did not respond before the fictional gateway deadline.\"}"
+      }
+    },
+    {
+      "id": "878ec4d4-b623-4dae-abf0-5691a798d102",
+      "name": "Carrier connection fault demo",
+      "description": "Description:\nExercise an interrupted connection to the delivery service so the shopper sees a recoverable connection problem instead of an incorrect shipment status.\n\nTechnical implementation:\nImmediately aborts the accepted connection without sending an HTTP response. It approximates a transport failure but does not reproduce DNS or TLS failures and never contacts a carrier.",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/shipping/demo-faults/connection-failure",
+      "response": {
+        "behavior": "abortConnection",
+        "headers": {},
+        "contentType": null,
+        "body": ""
+      }
+    }
+  ]
+}

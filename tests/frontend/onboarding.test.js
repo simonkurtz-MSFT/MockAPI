@@ -31,6 +31,9 @@ describe("public onboarding boundaries", () => {
     expect(fs.readFileSync(path.join(output, "site.css"), "utf8")).toBe(renderSiteStyles());
     const index = fs.readFileSync(path.join(output, "index.html"), "utf8");
     expect(index).toContain(`Version ${readApplicationVersion()}`);
+    expect(index).toContain("https://github.com/simonkurtz-MSFT/MockAPI/blob/main/config/trailhead-inventory.json");
+    expect(index).toContain("https://github.com/simonkurtz-MSFT/MockAPI/blob/main/config/trailhead-shipping.json");
+    expect(index).toContain("https://github.com/simonkurtz-MSFT/MockAPI/blob/main/config/trailhead-aoai.json");
     expect(index).toContain('<time datetime="2026-09-30T15:52:05.000Z">2026-09-30 15:52:05 UTC</time>');
     expect(index).not.toMatch(/\{\{(?:VERSION|BUILD_DATE_(?:ISO|DISPLAY))\}\}/);
     const unexpected = path.join(output, "unexpected-test-fixture.txt");
@@ -66,7 +69,7 @@ describe("public onboarding boundaries", () => {
     expect(config.privileged).toBeUndefined();
     expect(config.features).toBeUndefined();
     expect(config.containerEnv.MOCKAPI_NODE_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
-    expect(read(".devcontainer/setup.sh")).not.toContain("cp config/mockapi.json");
+    expect(read(".devcontainer/setup.sh")).not.toContain("cp config/trailhead-inventory.json");
     expect(read(".devcontainer/setup.sh")).toContain('source "$NVM_DIR/nvm.sh" --no-use');
     expect(read(".devcontainer/setup.sh")).not.toContain("\r");
     expect(read(".dockerignore")).toMatch(/^\.devcontainer$/m);

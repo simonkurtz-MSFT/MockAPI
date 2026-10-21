@@ -68,16 +68,23 @@ describe("createDefaultTestRequest", () => {
     });
   });
 
-  it("provides a reservation-specific sample for the built-in reservation routes", () => {
-    for (const path of ["/ctp/reservations", "/ctp/reservations/42?include=guest"]) {
+  it("provides an inventory-specific sample for the built-in reservation routes", () => {
+    for (const path of ["/inventory/reservations", "/inventory/reservations/res-demo-001?include=guest"]) {
       const defaults = createDefaultTestRequest("POST", path);
       expect(JSON.parse(defaults.body)).toEqual({
-        parkId: "starlight-gardens",
-        attractionId: "cloud-cruiser",
-        reservationDate: "2030-06-15",
-        reservationTime: "10:30",
-        partySize: 2,
-        guest: { name: "Alex Morgan", email: "alex@example.com" },
+        sku: "SKU-1001",
+        quantity: 2,
+        warehouseId: "WH-DEMO-01",
+      });
+    }
+  });
+
+  it("provides a shipping-specific sample for the built-in shipment routes", () => {
+    for (const path of ["/shipping/shipments", "/shipping/shipments/shp-demo-001?include=tracking"]) {
+      expect(JSON.parse(createDefaultTestRequest("POST", path).body)).toEqual({
+        service: "standard",
+        parcelWeightKg: 1.2,
+        items: [{ sku: "SKU-1001", quantity: 2 }],
       });
     }
   });

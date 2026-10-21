@@ -838,9 +838,9 @@ invoke_container_showcase() {
   local configurationUrl="${baseUrl}/__mockapi/api/configuration"
   local endpointsUrl="${baseUrl}/__mockapi/api/endpoints"
   local statisticsUrl="${baseUrl}/__mockapi/api/statistics"
-  local examplePath='/ctp/attractions/cloud-cruiser/wait-times'
+  local examplePath='/shipping/demo-faults/tracking-rate-limit'
   local exampleUrl="${baseUrl}${examplePath}"
-  local endpointId='7b2d425d-75f1-4ded-a74e-503374a7e99e'
+  local endpointId='e7e08d5e-76a2-4f80-9a64-4e772ff6d907'
   local administrativeHeader='' mockHeader=''
   if [[ -n "${MOCKAPI_DASHBOARD_USERNAME:-}" && -z "${MOCKAPI_DASHBOARD_PASSWORD:-}" ]] ||
      [[ -z "${MOCKAPI_DASHBOARD_USERNAME:-}" && -n "${MOCKAPI_DASHBOARD_PASSWORD:-}" ]]; then
@@ -902,7 +902,7 @@ print(total, matched, unmatched, endpoint)
   )
 
   local rateLimitRequestCount=0 attempt
-  for attempt in 1 2 3 4 5; do
+  for attempt in 1 2 3; do
     status="$(printf '%s\n' "$mockHeader" | curl --config - --http1.1 -s --max-time 5 -D "$headersFile" -o "$bodyFile" -w '%{http_code}' "$exampleUrl" || true)"
     (( rateLimitRequestCount += 1 ))
     [[ "$status" != '401' ]] || die 'API key required. Set MOCKAPI_KEY to the key generated in dashboard Settings.'
@@ -922,13 +922,13 @@ print(total, matched, unmatched, endpoint)
   [[ "$status" == "429" ]] || die "Expected HTTP 429 from the example endpoint but received $status."
   [[ "$reasonPhrase" == "Too Many Requests" ]] || die "Expected reason phrase 'Too Many Requests' but received '$reasonPhrase'."
   [[ "$retryAfter" == "10" ]] || die "Expected Retry-After: 10 but received '$retryAfter'."
-  [[ "$contentType" == "application/json; charset=utf-8" ]] || die "Expected content type 'application/json; charset=utf-8' but received '$contentType'."
-  [[ "$body" == '{"error":"wait_times_rate_limited","message":"Take a little breather! Check back in 10 seconds."}' ]] || die "Unexpected response body: $body"
-  [[ "$mockSources" == *MockAPI* && "$mockSources" == *checked-in-example* ]] || die "Expected repeated X-Mock-Source values but received '$mockSources'."
+  [[ "$contentType" == "application/problem+json; charset=utf-8" ]] || die "Expected content type 'application/problem+json; charset=utf-8' but received '$contentType'."
+  [[ "$body" == '{"type":"about:blank","title":"Too Many Requests","status":429,"detail":"The sample tracking request limit was exceeded. Retry in 10 seconds."}' ]] || die "Unexpected response body: $body"
+  [[ "$mockSources" == *MockAPI* && "$mockSources" == *shipping-sample* ]] || die "Expected repeated X-Mock-Source values but received '$mockSources'."
 
   [[ "$(printf '%s\n' "$mockHeader" | curl --config - -s --max-time 5 -o /dev/null -w '%{http_code}' "${exampleUrl}?request=showcase" || true)" == '429' ]] || die 'Query-insensitive match assertion failed.'
   [[ "$(printf '%s\n' "$mockHeader" | curl --config - -s --max-time 5 -X POST -o /dev/null -w '%{http_code}' "$exampleUrl" || true)" == '404' ]] || die 'Unsupported method assertion failed.'
-  [[ "$(printf '%s\n' "$mockHeader" | curl --config - -s --max-time 5 -o /dev/null -w '%{http_code}' "${baseUrl}/ctp/not-configured" || true)" == '404' ]] || die 'Unmatched path assertion failed.'
+  [[ "$(printf '%s\n' "$mockHeader" | curl --config - -s --max-time 5 -o /dev/null -w '%{http_code}' "${baseUrl}/inventory/not-configured" || true)" == '404' ]] || die 'Unmatched path assertion failed.'
 
   local statsAfter
   statsAfter="$(printf '%s\n' "$administrativeHeader" | curl --config - -s --max-time 5 "$statisticsUrl")" || die "Reading statistics from '$statisticsUrl' failed."

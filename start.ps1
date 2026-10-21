@@ -1679,9 +1679,9 @@ function Invoke-ContainerShowcase {
   $configurationUri = "$baseUri/__mockapi/api/configuration"
   $endpointsUri = "$baseUri/__mockapi/api/endpoints"
   $statisticsUri = "$baseUri/__mockapi/api/statistics"
-  $examplePath = '/ctp/attractions/cloud-cruiser/wait-times'
+  $examplePath = '/shipping/demo-faults/tracking-rate-limit'
   $exampleUri = "$baseUri$examplePath"
-  $endpointId = '7b2d425d-75f1-4ded-a74e-503374a7e99e'
+  $endpointId = 'e7e08d5e-76a2-4f80-9a64-4e772ff6d907'
   $administrativeHeaders = @{}
   $mockHeaders = @{}
   if ([bool] $env:MOCKAPI_DASHBOARD_USERNAME -ne [bool] $env:MOCKAPI_DASHBOARD_PASSWORD) {
@@ -1769,7 +1769,7 @@ function Invoke-ContainerShowcase {
   $response = $null
   $rateLimitRequestCount = 0
   try {
-    for ($attempt = 1; $attempt -le 5; $attempt++) {
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
       $request = [Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::Get, $exampleUri)
       $request.Version = [Version]::new(1, 1)
       $request.VersionPolicy = [Net.Http.HttpVersionPolicy]::RequestVersionExact
@@ -1808,9 +1808,9 @@ function Invoke-ContainerShowcase {
     Add-ShowcaseCheck '429 status' ([int] $response.StatusCode -eq 429) "HTTP $([int] $response.StatusCode)"
     Add-ShowcaseCheck 'Reason phrase' ($response.ReasonPhrase -ceq 'Too Many Requests') ([string] $response.ReasonPhrase)
     Add-ShowcaseCheck 'Retry-After' ($retryAfter -eq '10') $retryAfter
-    Add-ShowcaseCheck 'Repeated headers' ($sourceValues.Contains('MockAPI') -and $sourceValues.Contains('checked-in-example')) $sourceValues
-    Add-ShowcaseCheck 'Content type' ($contentType -eq 'application/json; charset=utf-8') $contentType
-    Add-ShowcaseCheck 'Exact body' ($responseBody -ceq '{"error":"wait_times_rate_limited","message":"Take a little breather! Check back in 10 seconds."}') $responseBody
+    Add-ShowcaseCheck 'Repeated headers' ($sourceValues.Contains('MockAPI') -and $sourceValues.Contains('shipping-sample')) $sourceValues
+    Add-ShowcaseCheck 'Content type' ($contentType -eq 'application/problem+json; charset=utf-8') $contentType
+    Add-ShowcaseCheck 'Exact body' ($responseBody -ceq '{"type":"about:blank","title":"Too Many Requests","status":429,"detail":"The sample tracking request limit was exceeded. Retry in 10 seconds."}') $responseBody
   }
   catch {
     throw "Container '$ContainerName' is not responding correctly at '$exampleUri'. Run '.\start.ps1 -Action container-logs' and verify the configured port. $($_.Exception.Message)"
@@ -1826,7 +1826,7 @@ function Invoke-ContainerShowcase {
   Add-ShowcaseCheck 'Query-insensitive match' ($queryResponse.StatusCode -eq 429) "HTTP $($queryResponse.StatusCode)"
   $wrongMethod = Invoke-WebRequest -Uri $exampleUri -Method Post -Headers $mockHeaders -MaximumRedirection 0 -TimeoutSec 5 -SkipHttpErrorCheck
   Add-ShowcaseCheck 'Unsupported method' ($wrongMethod.StatusCode -eq 404) "HTTP $($wrongMethod.StatusCode)"
-  $unmatched = Invoke-WebRequest -Uri "$baseUri/ctp/not-configured" -Headers $mockHeaders -MaximumRedirection 0 -TimeoutSec 5 -SkipHttpErrorCheck
+  $unmatched = Invoke-WebRequest -Uri "$baseUri/inventory/not-configured" -Headers $mockHeaders -MaximumRedirection 0 -TimeoutSec 5 -SkipHttpErrorCheck
   Add-ShowcaseCheck 'Unmatched path' ($unmatched.StatusCode -eq 404) "HTTP $($unmatched.StatusCode)"
 
   $after = Invoke-RestMethod -Uri $statisticsUri -Headers $administrativeHeaders -TimeoutSec 5

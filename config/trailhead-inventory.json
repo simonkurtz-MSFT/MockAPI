@@ -1,0 +1,198 @@
+{
+  "$schema": "../schemas/mockapi.schema.json",
+  "schemaVersion": "1.0",
+  "apiDescriptions": {
+    "/inventory": "A fictional inventory API for Trailhead Supply. Browse two products, inspect in-stock and out-of-stock snapshots, and try reservation success, cancellation, and failure scenarios. These static examples do not change stock or store reservations. POST bodies are optional; supplied non-empty JSON is syntax-checked, but field values and query strings never select responses. Use the explicit demo-faults routes to exercise business errors and warehouse outages."
+  },
+  "endpoints": [
+    {
+      "id": "7519b5a8-6a09-4859-9722-171a9df01ff0",
+      "name": "Inventory API health",
+      "description": "Description:\nLet a storefront or fulfillment agent check that the Trailhead Supply inventory mock is reachable without inspecting stock or reserving products.\n\nTechnical implementation:\nHEAD returns a fixed 200 OK with sample headers and no response body. This is a mock endpoint subject to instance API-key protection, not a live warehouse or dependency check. GET is not configured.",
+      "enabled": true,
+      "methods": ["HEAD"],
+      "path": "/inventory/health",
+      "response": {
+        "statusCode": 200,
+        "reasonPhrase": "OK",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "inventory-sample"]
+        },
+        "contentType": null,
+        "body": ""
+      }
+    },
+    {
+      "id": "4dd49c88-4a3c-4910-b878-d98ff8089214",
+      "name": "Browse inventory",
+      "description": "Description:\nHelp a Trailhead Supply shopper browse the catalog and see which products are available before choosing an item.\n\nTechnical implementation:\nReturns two fictional products with fixed available quantities and links to their detail endpoints. Query strings do not filter or paginate this static list.",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/inventory/items",
+      "response": {
+        "statusCode": 200,
+        "reasonPhrase": "OK",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "inventory-sample"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"items\":[{\"sku\":\"SKU-1001\",\"name\":\"Trail flask\",\"quantityAvailable\":24,\"url\":\"/inventory/items/SKU-1001\"},{\"sku\":\"SKU-1002\",\"name\":\"Day pack\",\"quantityAvailable\":0,\"url\":\"/inventory/items/SKU-1002\"}]}"
+      }
+    },
+    {
+      "id": "88797a9d-6b11-4c7b-a652-cc40915030bd",
+      "name": "Inspect an in-stock product",
+      "description": "Description:\nLet a shopper or fulfillment agent check how many Trail flasks can be ordered, including the quantities already reserved at the warehouse.\n\nTechnical implementation:\nGET returns a fixed JSON stock snapshot for SKU-1001 in warehouse WH-DEMO-01. Reservation and cancellation calls never change these quantities.",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/inventory/items/SKU-1001",
+      "response": {
+        "statusCode": 200,
+        "reasonPhrase": "OK",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "inventory-sample"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"sku\":\"SKU-1001\",\"name\":\"Trail flask\",\"warehouseId\":\"WH-DEMO-01\",\"quantityOnHand\":30,\"quantityReserved\":6,\"quantityAvailable\":24,\"status\":\"in_stock\"}"
+      }
+    },
+    {
+      "id": "86bb5fbd-3d01-40a3-9094-38001dfa9a35",
+      "name": "Inspect an out-of-stock product",
+      "description": "Description:\nShow a shopper that the Day pack is a recognized product but currently unavailable, so the storefront can display an out-of-stock message rather than a missing-product page.\n\nTechnical implementation:\nReturns 200 OK for an existing product with zero available stock. Distinguish an unavailable product from a missing SKU; no live warehouse is queried.",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/inventory/items/SKU-1002",
+      "response": {
+        "statusCode": 200,
+        "reasonPhrase": "OK",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "inventory-sample"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"sku\":\"SKU-1002\",\"name\":\"Day pack\",\"warehouseId\":\"WH-DEMO-01\",\"quantityOnHand\":0,\"quantityReserved\":0,\"quantityAvailable\":0,\"status\":\"out_of_stock\"}"
+      }
+    },
+    {
+      "id": "d0ed024a-f10d-4b81-a975-5d03a2669116",
+      "name": "Look up a missing product",
+      "description": "Description:\nHelp a storefront or support agent handle a product code that Trailhead Supply does not recognize and guide the shopper back to the catalog.\n\nTechnical implementation:\nThe literal unknown SKU route always returns a configured 404 problem response. This is not a route template; other unconfigured SKU paths receive MockAPI's ordinary unmatched response.",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/inventory/items/unknown",
+      "response": {
+        "statusCode": 404,
+        "reasonPhrase": "Not Found",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "inventory-sample"]
+        },
+        "contentType": "application/problem+json; charset=utf-8",
+        "body": "{\"type\":\"about:blank\",\"title\":\"Not Found\",\"status\":404,\"detail\":\"The sample SKU does not exist.\",\"sku\":\"unknown\"}"
+      }
+    },
+    {
+      "id": "1134c585-5ad6-4403-b18b-386b276d5345",
+      "name": "Reserve inventory",
+      "description": "Description:\nDemonstrate holding two Trail flasks for a shopper during checkout so the order journey can show an inventory reservation confirmation.\n\nTechnical implementation:\nSimulates a reservation of two trail flasks with 201 Created and a resolvable Location header. Body fields are ignored; no stock is reduced and the lookup exists before this call.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/inventory/reservations",
+      "response": {
+        "statusCode": 201,
+        "reasonPhrase": "Created",
+        "headers": {
+          "Location": ["/inventory/reservations/res-demo-001"],
+          "X-Mock-Source": ["MockAPI", "inventory-sample"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"id\":\"res-demo-001\",\"sku\":\"SKU-1001\",\"quantity\":2,\"status\":\"reserved\",\"itemUrl\":\"/inventory/items/SKU-1001\"}"
+      }
+    },
+    {
+      "id": "761e5d33-1dd8-4bc4-8ba2-dc91daec7301",
+      "name": "Inspect the sample reservation",
+      "description": "Description:\nLet a checkout application or support agent review the products and quantities held for a sample order before fulfillment.\n\nTechnical implementation:\nAlways returns the same sample reservation, including before creation and after cancellation. It is a static lookup, not persisted reservation state.",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/inventory/reservations/res-demo-001",
+      "response": {
+        "statusCode": 200,
+        "reasonPhrase": "OK",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "inventory-sample"]
+        },
+        "contentType": "application/json; charset=utf-8",
+        "body": "{\"id\":\"res-demo-001\",\"sku\":\"SKU-1001\",\"quantity\":2,\"status\":\"reserved\",\"itemUrl\":\"/inventory/items/SKU-1001\"}"
+      }
+    },
+    {
+      "id": "1a9e0efb-af51-4115-a0c1-6fc584edbe4a",
+      "name": "Cancel the sample reservation",
+      "description": "Description:\nDemonstrate releasing a shopper's inventory hold when checkout is abandoned or an order is canceled.\n\nTechnical implementation:\nSimulates cancellation with 204 No Content. Nothing is deleted or released; repeated calls succeed and the reservation lookup and stock snapshots remain unchanged.",
+      "enabled": true,
+      "methods": ["DELETE"],
+      "path": "/inventory/reservations/res-demo-001",
+      "response": {
+        "statusCode": 204,
+        "reasonPhrase": "No Content",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "inventory-sample"]
+        },
+        "contentType": null,
+        "body": ""
+      }
+    },
+    {
+      "id": "7279a980-1475-4c8d-9a5f-4b339cc96c83",
+      "name": "Insufficient stock fault demo",
+      "description": "Description:\nExercise the checkout message shown when a shopper requests more Day packs than are available, allowing the shopper to reduce the quantity or choose another product.\n\nTechnical implementation:\nAlways returns 409 Conflict for a fictional request for three day packs when none are available. Request field values do not select this outcome and no stock check is performed.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/inventory/demo-faults/insufficient-stock",
+      "response": {
+        "statusCode": 409,
+        "reasonPhrase": "Conflict",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "inventory-sample"]
+        },
+        "contentType": "application/problem+json; charset=utf-8",
+        "body": "{\"type\":\"about:blank\",\"title\":\"Conflict\",\"status\":409,\"detail\":\"There is not enough sample stock to reserve this item.\",\"sku\":\"SKU-1002\",\"quantityRequested\":3,\"quantityAvailable\":0}"
+      }
+    },
+    {
+      "id": "88baaad2-4b21-4f55-8de9-838bb6bba1cc",
+      "name": "Reservation validation fault demo",
+      "description": "Description:\nDemonstrate asking a shopper to correct an invalid reservation quantity before the checkout journey can continue.\n\nTechnical implementation:\nAlways returns a static 422 quantity error after global JSON syntax checks. This route does not inspect quantity or validate business fields; malformed JSON instead receives the runtime's 400 response.",
+      "enabled": true,
+      "methods": ["POST"],
+      "path": "/inventory/demo-faults/invalid-reservation",
+      "response": {
+        "statusCode": 422,
+        "reasonPhrase": "Unprocessable Entity",
+        "headers": {
+          "X-Mock-Source": ["MockAPI", "inventory-sample"]
+        },
+        "contentType": "application/problem+json; charset=utf-8",
+        "body": "{\"type\":\"about:blank\",\"title\":\"Unprocessable Entity\",\"status\":422,\"detail\":\"The sample reservation quantity is invalid.\",\"errors\":{\"quantity\":[\"Quantity must be a positive whole number.\"]}}"
+      }
+    },
+    {
+      "id": "25675691-3056-45bd-b5da-271e0184b5e9",
+      "name": "Warehouse outage fault demo",
+      "description": "Description:\nExercise a temporary warehouse outage so the storefront can explain that stock information is unavailable instead of incorrectly reporting products as sold out.\n\nTechnical implementation:\nAlways returns 503 Service Unavailable with Retry-After: 30. Use it for outage and retry handling; waiting does not restore the fictional warehouse.",
+      "enabled": true,
+      "methods": ["GET"],
+      "path": "/inventory/demo-faults/warehouse-unavailable",
+      "response": {
+        "statusCode": 503,
+        "reasonPhrase": "Service Unavailable",
+        "headers": {
+          "Retry-After": ["30"],
+          "X-Mock-Source": ["MockAPI", "inventory-sample"]
+        },
+        "contentType": "application/problem+json; charset=utf-8",
+        "body": "{\"type\":\"about:blank\",\"title\":\"Service Unavailable\",\"status\":503,\"detail\":\"The sample warehouse service is unavailable. Retry later.\"}"
+      }
+    }
+  ]
+}

@@ -115,7 +115,17 @@ Avoid a separate Node.js runtime or frontend server. A small static dashboard ke
 
 ## 6. Configuration Contract
 
-The future configuration asset should be `config/mockapi.json`, with its JSON Schema in `schemas/mockapi.schema.json`. The schema should use JSON Schema Draft 2020-12 and the configuration should reference it through `$schema`.
+The checked-in Trailhead Supply samples are `config/trailhead-aoai.json`,
+`config/trailhead-inventory.json`, and `config/trailhead-shipping.json`, with their JSON Schema in
+`schemas/mockapi.schema.json`. Copy all three into the container build stage and embed them unchanged
+in the application. Compose the built-in **Load examples** configuration from all three documents,
+without duplicating definitions: 41 endpoints across `/aoai`, `/inventory`, and `/shipping`. Each sample API
+has one HEAD-only `/<api>/health` mock returning an empty 200; inspection calls use GET only.
+These static health mocks retain instance API-key protection and do not replace public `/health/` probes.
+Embedding a sample does
+not activate it or seed persisted configuration. Sample filenames are independent of the persisted
+instance filename, which remains `mockapi.json` by default. The schema should use JSON Schema Draft
+2020-12 and the configuration should reference it through `$schema`.
 
 ### Document shape
 
@@ -125,7 +135,7 @@ The future configuration asset should be `config/mockapi.json`, with its JSON Sc
   "schemaVersion": "1.0",
   "endpoints": [
     {
-      "id": "7b2d425d-75f1-4ded-a74e-503374a7e99e",
+      "id": "e7e08d5e-76a2-4f80-9a64-4e772ff6d907",
       "name": "Rate limited response",
       "enabled": true,
       "methods": ["GET"],
@@ -149,7 +159,7 @@ The future configuration asset should be `config/mockapi.json`, with its JSON Sc
 ### Schema constraints
 
 - `schemaVersion` and `endpoints` are required.
-- - Optional `apiDescriptions` maps case-sensitive first-segment paths (for example, `/ctp`) to
+- - Optional `apiDescriptions` maps case-sensitive first-segment paths (for example, `/inventory`) to
     freeform descriptions of at most 4,000 characters. Limit metadata to 25 groups and keys to 2,048
     characters; keys use `/` or one absolute segment without whitespace, controls, query/fragment
     delimiters, or backslashes. Reserved management and health group names are rejected.
@@ -161,6 +171,10 @@ The future configuration asset should be `config/mockapi.json`, with its JSON Sc
 - `id` is a UUID and remains stable across edits/import/export.
 - `name` is non-empty and limited to 200 characters.
 - `description` is optional freeform text limited to 4,000 characters.
+- Trailhead sample descriptions use two labeled plain-text sections in that existing field:
+  `Description:` followed by `Technical implementation:`, separated by a blank line.
+  Render those standalone heading lines in bold in information previews, without interpreting HTML or Markdown.
+  Keep the business scenario above the mock behavior and limitations; custom descriptions remain freeform.
 - `methods` is a non-empty unique array of at most 8 valid HTTP method tokens.
 - `path` is limited to 2,048 characters, starts with `/`, and cannot target a reserved route.
 - `requestCount` is optional, defaults to 1 in the dashboard test blade, and accepts integers from 1 through 5.
@@ -172,7 +186,7 @@ The future configuration asset should be `config/mockapi.json`, with its JSON Sc
 - Reject controlled or hop-by-hop headers, including `Connection`, `Content-Length`, `Date`, `Host`, `Server`, `Transfer-Encoding`, and `Upgrade`. The server owns protocol framing and default headers.
 - `contentType` is optional but required by validation when a non-empty body is present unless a documented default is applied.
 - `body` is a raw string limited to 1 MiB when UTF-8 encoded. JSON payloads are stored as JSON text so exact response bytes and invalid-JSON test cases remain possible.
-- Limit a configuration document to 4 MiB when UTF-8 encoded and 25 endpoint definitions.
+- Limit a configuration document to 4 MiB when UTF-8 encoded, without an endpoint-count limit.
 - Limit each endpoint to 64 configured response headers, each individual header value to 8 KiB when UTF-8 encoded, and all configured header names and values for an endpoint to 32 KiB when UTF-8 encoded.
 - Reject oversized management requests before parsing where possible, and enforce the same limits during startup loading, validation, import, runtime editing, export, and save so no path can activate an invalid document.
 
@@ -298,11 +312,11 @@ at 220px and align the collapse control with the first filter row when filters w
   opens on hover and keyboard focus, closes when the pointer leaves the button (including for the
   preview itself), and dismisses with Escape. Activating the button
   opens a keyboard-accessible editor with the captured revision; stale writes cannot overwrite live edits.
-- The built-in `/ctp` API description spells out **Contoso Theme Parks** and introduces a cohesive
-  fictional park visit with static attraction, reservation, and wait-time fixtures. Clearly labeled
-  `/ctp/demo-faults/` routes preserve HTTP and transport-failure demonstrations. Retain the original
-  seven example IDs and add resolvable attraction and reservation lookups; existing configurations
-  migrate through the normal conflict-preview and explicit-force merge, not a silent rewrite.
+- The built-in Trailhead Supply example composes the `/aoai`, `/inventory`, and `/shipping` APIs from their
+  checked-in native documents. Descriptions explain static assistant answers, stock, reservations, shipping, and tracking;
+  clearly labeled demo-faults routes cover HTTP and transport failures. Preserve stable endpoint IDs
+  and resolvable resource links. Merge changes only after normal revision and conflict checks, never
+  rewrite or delete existing saved endpoints automatically.
 - Keep description drafts independent of live updates, restore focus after editing, and cover save/reload,
   native import/export, metadata preservation, merge defaults, stale writes, and accessible editing.
 - Dense endpoint table with name, methods, path, status, enabled state, request count, and actions.
@@ -311,6 +325,10 @@ at 220px and align the collapse control with the first filter row when filters w
 - Show every filtered endpoint without paging in a vertically scrollable table with sticky headers.
   Keep API groups alphabetical and default operations to ascending path order within each group.
   Header clicks sort operations within expanded groups, never reorder API groups.
+- Offer **Collapse all groups** above the endpoint table, switching to **Expand all groups** when all
+  filtered API groups are collapsed. Apply it only to the current filtered groups, preserving hidden
+  groups' state and endpoint selection. Keep individual toggles, start new groups expanded, and disable
+  the bulk group control when no groups match. Collapse state is page-local and never changes configuration.
 - Display each supported HTTP method in its own bordered badge to keep adjacent method names visually distinct.
 - Show endpoint descriptions behind the same information button before each endpoint name, not inline.
   Preserve original casing and whitespace in both previews; treat all preview content as inert text.
@@ -518,7 +536,7 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
 
 ### Developer CLI example showcase
 
-- Add a dedicated developer CLI action and interactive-menu entry that exercises the running built-in example at `/ctp/attractions/cloud-cruiser/wait-times`; keep the existing container smoke test fast and separate.
+- Add a dedicated developer CLI action and interactive-menu entry that exercises the running built-in example at `/shipping/demo-faults/tracking-rate-limit`; keep the existing container smoke test fast and separate.
 - Do not silently import or replace the active configuration. Detect when the example endpoint is unavailable and explain how to load the built-in example from the dashboard before rerunning the showcase.
 - Treat the expected HTTP `429` response as a successful assertion rather than a native-command failure.
 - Verify the HTTP/1.1 reason phrase, `Retry-After: 10`, both `X-Mock-Source` values, JSON content type, and exact `{"error":"wait_times_rate_limited","message":"Take a little breather! Check back in 10 seconds."}` response body.
@@ -638,7 +656,7 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
 - [x] One multi-platform image index provides functionally equivalent `linux/amd64` and `linux/arm64` images.
 - [x] The application passes local native container checks with a `0.5` CPU and `256 MiB` limit; deployment examples start with a `0.25` CPU and `128 MiB` request.
 - [x] The root filesystem can be read-only with `/data` as the sole writable application mount.
-- [x] The developer CLI can non-destructively showcase the loaded `/ctp/attractions/cloud-cruiser/wait-times` example by verifying its status, reason phrase, repeated headers, content type, exact body, query-insensitive matching, negative `404` cases, and statistics deltas with clear pass/fail output.
+- [x] The developer CLI can non-destructively showcase the loaded `/shipping/demo-faults/tracking-rate-limit` example by verifying its status, reason phrase, repeated headers, content type, exact body, query-insensitive matching, negative `404` cases, and statistics deltas with clear pass/fail output.
 - [x] Dependabot covers NuGet, Docker, and GitHub Actions, with an eight-day cooldown applied to every update ecosystem.
 - [x] Local and CI dependency validation enforces an eight-day minimum release age for NuGet, Docker, GitHub Actions, and frontend/Playwright packages, with only explicit version-scoped, expiring emergency exceptions.
 - [x] GitHub pull-request automation builds and tests containers without registry credentials.
@@ -663,7 +681,7 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
 - Ship both `linux/amd64` and `linux/arm64` images under one multi-platform image index.
 - Use WSLC as the local container CLI; perform unsupported cross-platform, image-index, read-only-root, SBOM, and vulnerability checks in CI.
 - Start deployment guidance at a `0.25` CPU and `128 MiB` memory request with a `0.5` CPU and `256 MiB` memory limit, then tune only from measured runtime evidence.
-- Limit configuration documents to 4 MiB and 25 endpoints; each endpoint permits a 200-character name, at most 8 methods, a 2,048-character path, a 1 MiB UTF-8 response body, 64 response headers, 8 KiB per UTF-8 header value, and 32 KiB of combined UTF-8 header names and values.
+- Limit configuration documents to 4 MiB with no endpoint-count limit; each endpoint permits a 200-character name, at most 8 methods, a 2,048-character path, a 1 MiB UTF-8 response body, 64 response headers, 8 KiB per UTF-8 header value, and 32 KiB of combined UTF-8 header names and values.
 - Retain recent-rate statistics in 60 one-minute buckets for a 60-minute rolling window.
 - Assign workflow-created or workflow-reused issues to `simonkurtz-MSFT`; do not use the personal `simonua` handle for this repository.
 - Require every newly selected dependency version to be at least seven complete days old in local and CI workflows; exceptions must be security- or build-blocker-specific, reviewed, version-scoped, and temporary.

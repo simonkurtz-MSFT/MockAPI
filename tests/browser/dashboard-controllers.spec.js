@@ -609,7 +609,37 @@ test("endpoint table owns selection snapshots and releases controls and obsolete
   await frame.getByRole("button", { name: "Edit", exact: true }).click();
   expect(await frame.evaluate(() => window.actions.length)).toBe(2);
 
+  const groupControl = frame.locator("#endpoint-toggle-groups");
+  await groupControl.click();
+  await expect(frame.locator(".endpoint-row")).toHaveCount(0);
+  await expect(groupControl).toHaveText("Expand all groups");
+  await frame.evaluate((definition) => {
+    window.table.updateEndpoints([
+      { ...definition, name: "Refreshed endpoint" },
+      { ...definition, id: "cb11041d-1ba5-4c93-86a4-6570adfc282e", name: "New group", path: "/new-group/route" },
+    ]);
+  }, endpoint);
+  await expect(frame.locator(".endpoint-row")).toHaveCount(1);
+  await expect(frame.locator(".endpoint-row")).toContainText("New group");
+  await expect(groupControl).toHaveText("Collapse all groups");
+  await groupControl.click();
+  await expect(frame.locator(".endpoint-row")).toHaveCount(0);
+  await frame.evaluate(() => window.table.updateStatistics({ endpoints: [] }));
+  await expect(frame.locator(".endpoint-row")).toHaveCount(0);
+  await expect(groupControl).toHaveText("Expand all groups");
+  await groupControl.click();
+  await expect(frame.locator(".endpoint-row")).toHaveCount(2);
+  await expect(frame.getByRole("checkbox", { name: "Select Refreshed endpoint", exact: true })).toBeChecked();
+  await frame.evaluate(
+    (definition) => window.table.updateEndpoints([{ ...definition, name: "Refreshed endpoint" }]),
+    endpoint
+  );
+  await expect(frame.locator(".endpoint-row")).toHaveCount(1);
+  await expect(groupControl).toHaveText("Collapse all groups");
+
   await frame.evaluate(() => window.table.dispose());
+  await groupControl.click();
+  await expect(frame.locator(".endpoint-row")).toHaveCount(1);
   await frame.getByRole("button", { name: "Edit", exact: true }).click();
   await frame.locator("#bulk-enable").click();
   await frame.locator("#filter-text").fill("does not match");

@@ -32,7 +32,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="..\..\config\mockapi.json" LogicalName="MockAPI.BuiltIns.example.json" />
+    <EmbeddedResource Include="..\..\config\trailhead-aoai.json" LogicalName="MockAPI.BuiltIns.trailhead-aoai.json" />
+    <EmbeddedResource Include="..\..\config\trailhead-inventory.json" LogicalName="MockAPI.BuiltIns.trailhead-inventory.json" />
+    <EmbeddedResource Include="..\..\config\trailhead-shipping.json" LogicalName="MockAPI.BuiltIns.trailhead-shipping.json" />
     <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
     <Content Remove="**\*.security.json;**\*.security.json.*.tmp" />
   </ItemGroup>

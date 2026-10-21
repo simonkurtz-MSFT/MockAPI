@@ -294,7 +294,7 @@ test("uses spare viewport height for Endpoints and Request log without growing S
 test("fits populated endpoint rows within the wide-screen endpoint column", async ({ page }) => {
   await page.setViewportSize({ width: 1760, height: 900 });
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator(".endpoint-row")).toHaveCount(16);
+  await expect(page.locator(".endpoint-row")).toHaveCount(41);
   await expect(page.locator("html")).toHaveAttribute("data-dashboard-layout", "columns");
 
   const dimensions = await page.locator(".table-wrap").evaluate((element) => ({
@@ -385,7 +385,7 @@ test("keeps expanded endpoint and request log heights stable with keyboard-scrol
   expect(emptyLog.height).toBeGreaterThanOrEqual(400);
   expect(Math.abs(emptyEndpoints.y + emptyEndpoints.height - emptyLog.y - emptyLog.height)).toBeLessThanOrEqual(1);
 
-  const endpoints = Array.from({ length: 25 }, (_, index) => ({
+  const endpoints = Array.from({ length: 50 }, (_, index) => ({
     id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
     name: `Scroll endpoint ${String(index + 1).padStart(2, "0")}`,
     enabled: true,
@@ -394,12 +394,12 @@ test("keeps expanded endpoint and request log heights stable with keyboard-scrol
     response: { statusCode: 200, headers: {}, contentType: "text/plain", body: "ok" },
   }));
   await importDocument(request, { ...emptyDocument, endpoints });
-  await expect(page.locator("#endpoint-count")).toHaveText("25");
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(25);
+  await expect(page.locator("#endpoint-count")).toHaveText("50");
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(50);
   for (const endpoint of endpoints) {
     expect((await request.get(endpoint.path)).status()).toBe(200);
   }
-  await expect(page.locator("#request-log-count")).toHaveText("25");
+  await expect(page.locator("#request-log-count")).toHaveText("50");
   expect((await endpointsPanel.boundingBox()).height).toBe(emptyEndpoints.height);
   expect((await logPanel.boundingBox()).height).toBe(emptyLog.height);
   for (const [panel, selector] of [
@@ -552,6 +552,16 @@ test("reflows without page overflow", async ({ page }) => {
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
     .toBe(true);
+  const groupControl = page.locator("#endpoint-toggle-groups");
+  const panelBounds = await page.locator(".workspace").boundingBox();
+  const controlBounds = await groupControl.boundingBox();
+  expect(controlBounds.x).toBeGreaterThanOrEqual(panelBounds.x);
+  expect(controlBounds.x + controlBounds.width).toBeLessThanOrEqual(panelBounds.x + panelBounds.width);
+  await groupControl.click();
+  await expect(groupControl).toHaveText("Expand all groups");
+  expect((await groupControl.boundingBox()).width).toBe(controlBounds.width);
+  await groupControl.click();
+  await expect(groupControl).toHaveText("Collapse all groups");
   await page.getByRole("button", { name: "Test" }).first().click();
   const bladeWidth = await page.locator("#test-blade").evaluate((element) => element.getBoundingClientRect().width);
   const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);

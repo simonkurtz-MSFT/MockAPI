@@ -20,10 +20,11 @@ public sealed class ConfigurationReadDiagnostics(ITestOutputHelper output)
             return;
         }
 
-        var state = ConfigurationReadTests.CreateState("text", bodyLength: 166000, endpointCount: ConfigurationLimits.MaximumEndpoints);
+        const int baselineEndpointCount = 25;
+        var state = ConfigurationReadTests.CreateState("text", bodyLength: 166000, endpointCount: baselineEndpointCount);
         var snapshot = state.Current;
         var size = snapshot.ExportUtf8().Length;
-        output.WriteLine($"Runtime={Environment.Version}; endpoints={ConfigurationLimits.MaximumEndpoints}; documentBytes={size}; limitBytes={ConfigurationLimits.MaximumDocumentBytes}");
+        output.WriteLine($"Runtime={Environment.Version}; endpoints={baselineEndpointCount}; documentBytes={size}; limitBytes={ConfigurationLimits.MaximumDocumentBytes}");
         var statusService = new EndpointManagementService(state);
         var exportService = new ConfigurationManagementService(state, new ConfigurationReadTests.UnusedStore());
         var statusContext = new DefaultHttpContext();

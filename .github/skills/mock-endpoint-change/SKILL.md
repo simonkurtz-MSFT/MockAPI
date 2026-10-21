@@ -31,8 +31,12 @@ Use this skill when a change affects what an endpoint definition means or how it
 ## Required Evidence
 
 - Checked-in examples validate against the schema.
-- The `/ctp` Contoso Theme Parks examples retain stable IDs, resolve advertised lookup and redirect
-  links, document static reservation behavior, and migrate older examples only after explicit conflict review.
+- The Trailhead Supply AOAI, inventory, and shipping examples retain stable IDs, resolve advertised resource
+  links, and document static business behavior. Their combined built-in example preserves unrelated
+  endpoints and metadata, includes all 41 sample endpoints without an endpoint-count cap, enforces document-size limits atomically,
+  and changes conflicts only after explicit review.
+- Each sample API has one HEAD-only `/<api>/health` mock returning an empty 200; inspection calls are GET-only.
+  Sample health mocks retain instance API-key protection and are separate from public application health probes.
 - Application-generated configuration validates against the schema and round-trips deterministically.
 - Semantic conflicts produce actionable errors and leave the active snapshot unchanged.
 - A runtime-created or edited endpoint is invocable immediately without process restart.

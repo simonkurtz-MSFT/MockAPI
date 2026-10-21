@@ -116,7 +116,7 @@ text in light and dark themes. `DROP` uses a neutral badge for connection aborts
 uses system highlight colors. The displayed code remains readable without relying on color alone.
 
 Path appears immediately after the selection checkbox, before the information button and operation
-name. It omits the API group prefix: `/ctp/parks` appears as `/parks` under `ctp/`, and `/ctp` appears
+name. It omits the API group prefix: `/inventory/items` appears as `/items` under `inventory/`, and `/inventory` appears
 as `/`. Hovering the path shows its full configured value. Editing, filtering, exports, and endpoint
 tests continue to use the full path; the shorter display does not change routing.
 

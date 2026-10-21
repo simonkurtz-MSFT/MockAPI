@@ -58,8 +58,8 @@ test("uses the consolidated Statistics reset control for overall and endpoint sc
   await page.getByRole("button", { name: "Load examples" }).first().click();
   await page
     .getByLabel("Endpoint statistics")
-    .selectOption({ label: "Check Cloud Cruiser wait times · /ctp/attractions/cloud-cruiser/wait-times" });
-  expect((await request.get("/ctp/attractions/cloud-cruiser/wait-times")).status()).toBe(200);
+    .selectOption({ label: "Tracking rate-limit fault demo · /shipping/demo-faults/tracking-rate-limit" });
+  expect((await request.get("/shipping/demo-faults/tracking-rate-limit")).status()).toBe(200);
   await expect(page.locator("#metric-total")).toHaveText("1");
   const endpointId = await page.getByLabel("Endpoint statistics").inputValue();
   await page.getByRole("button", { name: "Reset endpoint", exact: true }).click();
@@ -88,10 +88,10 @@ test("uses the consolidated Statistics reset control for overall and endpoint sc
 
 test("shows only configured endpoint requests without retaining query values", async ({ page, request }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(16);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(41);
   await request.post("/__mockapi/api/statistics/reset");
 
-  const matchedResponse = await request.get("/ctp/parks?token=private-value");
+  const matchedResponse = await request.get("/inventory/items?token=private-value");
   expect(matchedResponse.status()).toBe(200);
   const unmatchedResponse = await request.get("/missing-latest?token=private-value");
   expect(unmatchedResponse.status()).toBe(404);
@@ -118,7 +118,7 @@ test("shows only configured endpoint requests without retaining query values", a
   await expect(rows.nth(0)).toBeHidden();
   await bucketToggle.click();
   await expect(rows.nth(0)).toBeVisible();
-  await expect(rows.nth(0)).toContainText("/ctp/parks");
+  await expect(rows.nth(0)).toContainText("/inventory/items");
   await expect(rows.nth(0).locator(".request-log-result")).toHaveClass(/status-2xx/);
   await expect(rows.nth(0).locator(".request-log-result")).toHaveCSS("text-align", "center");
   await expect(page.locator("#metric-unmatched")).toHaveText("1");
@@ -137,8 +137,8 @@ test.describe("request log time zone", () => {
     }) => {
       await expect(page.locator(".request-log-empty")).toHaveAttribute("colspan", "6");
       await page.getByRole("button", { name: "Load examples" }).first().click();
-      await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(16);
-      expect((await request.get("/ctp/parks")).status()).toBe(200);
+      await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(41);
+      expect((await request.get("/inventory/items")).status()).toBe(200);
       const entryTime = page.locator(".request-log-entry time").first();
       const bucketTime = page.locator(".request-log-bucket time").first();
       await expect(entryTime).toHaveCount(1);
@@ -201,7 +201,7 @@ test.describe("request log time zone", () => {
       await setting.selectOption("local");
       await expectNoUnreviewedAccessibilityViolations(page, "#settings-dialog");
       await page.getByRole("button", { name: "Close settings", exact: true }).click();
-      expect((await request.get("/ctp/parks")).status()).toBe(200);
+      expect((await request.get("/inventory/items")).status()).toBe(200);
       await expect(page.locator(".request-log-entry")).toHaveCount(2);
       const times = await page.locator(".request-log-entry time").evaluateAll((elements) => {
         const formatter = new Intl.DateTimeFormat(undefined, { dateStyle: "short", timeStyle: "short" });
@@ -218,9 +218,9 @@ test.describe("request log time zone", () => {
 
 test("collapses request log buckets and opens them from statistics columns", async ({ page, request }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(16);
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(41);
   await request.post("/__mockapi/api/statistics/reset");
-  const response = await request.get("/ctp/parks");
+  const response = await request.get("/inventory/items");
   expect(response.status()).toBe(200);
 
   const bucketToggle = page.locator(".request-log-bucket-toggle");
@@ -360,24 +360,24 @@ test("bulk bucket controls preserve column widths through collapse, expansion, a
 test("shows grounded endpoint statistics as a graph and table", async ({ page, request }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
   await expect(
-    page.locator("#endpoint-rows").getByRole("row", { name: /Check Cloud Cruiser wait times/ })
+    page.locator("#endpoint-rows").getByRole("row", { name: /Tracking rate-limit fault demo/ })
   ).toBeVisible();
   await request.post("/__mockapi/api/statistics/reset");
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const response = await request.get("/ctp/attractions/cloud-cruiser/wait-times");
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await request.get("/shipping/demo-faults/tracking-rate-limit");
     expect(response.status()).toBe(200);
   }
-  const limitedResponse = await request.get("/ctp/attractions/cloud-cruiser/wait-times");
+  const limitedResponse = await request.get("/shipping/demo-faults/tracking-rate-limit");
   expect(limitedResponse.status()).toBe(429);
 
   await page.getByRole("button", { name: "By endpoint" }).click();
   await page
     .getByLabel("Endpoint statistics")
-    .selectOption({ label: "Check Cloud Cruiser wait times · /ctp/attractions/cloud-cruiser/wait-times" });
-  await expect(page.locator("#statistics-chart-title")).toHaveText("Check Cloud Cruiser wait times attempt activity");
+    .selectOption({ label: "Tracking rate-limit fault demo · /shipping/demo-faults/tracking-rate-limit" });
+  await expect(page.locator("#statistics-chart-title")).toHaveText("Tracking rate-limit fault demo attempt activity");
   await expect(page.locator("#statistics-chart")).toHaveAttribute(
     "aria-label",
-    /The first 4 requests within 10 seconds return HTTP 200; later requests return HTTP 429\./
+    /The first 2 requests within 10 seconds return HTTP 200; later requests return HTTP 429\./
   );
   const chartScroll = page.getByRole("region", { name: /Attempt activity timeline/ });
   const chartViewport = await chartScroll.evaluate((element) => ({
@@ -395,15 +395,15 @@ test("shows grounded endpoint statistics as a graph and table", async ({ page, r
     .evaluateAll((items) => new Set(items.map((item) => item.offsetTop)).size);
   expect(responseStatusLegendRowCount).toBe(1);
   const activeColumn = page.locator("#statistics-chart .chart-column.active").last();
-  await expect(activeColumn.locator(".status-2xx")).toHaveCSS("flex-grow", "4");
+  await expect(activeColumn.locator(".status-2xx")).toHaveCSS("flex-grow", "2");
   await expect(activeColumn.locator(".status-4xx")).toHaveCSS("flex-grow", "1");
   await expect(activeColumn.locator(".status-2xx")).toHaveCSS("background-color", /rgb\((22, 114, 58|114, 214, 154)\)/);
   await expect(activeColumn.locator(".status-4xx")).toHaveCSS("background-color", /rgb\((189, 30, 44|255, 138, 150)\)/);
   await activeColumn.hover();
   const tooltip = page.locator(".chart-tooltip");
   await expect(tooltip).toBeVisible();
-  await expect(tooltip.locator(".chart-tooltip-heading")).toContainText("5 attempts");
-  await expect(tooltip.locator(".chart-tooltip-row")).toHaveText(["1xx0", "2xx4", "3xx0", "4xx1", "5xx0", "Other0"]);
+  await expect(tooltip.locator(".chart-tooltip-heading")).toContainText("3 attempts");
+  await expect(tooltip.locator(".chart-tooltip-row")).toHaveText(["1xx0", "2xx2", "3xx0", "4xx1", "5xx0", "Other0"]);
   await expect(tooltip.locator(".status-2xx")).toHaveCSS("background-color", /rgb\((22, 114, 58|114, 214, 154)\)/);
   await expect(tooltip.locator(".status-4xx")).toHaveCSS("background-color", /rgb\((189, 30, 44|255, 138, 150)\)/);
 
@@ -423,12 +423,12 @@ test("shows grounded endpoint statistics as a graph and table", async ({ page, r
   await expect(statisticsTable.getByRole("columnheader", { name: "Attempts" })).toBeVisible();
   const statisticsRow = page
     .locator("#statistics-table-view tbody tr")
-    .filter({ hasText: "Check Cloud Cruiser wait times" });
-  await expect(statisticsRow).toContainText("5");
+    .filter({ hasText: "Tracking rate-limit fault demo" });
+  await expect(statisticsRow).toContainText("3");
   await expect(statisticsRow).toContainText("attempts/min");
   await page
     .locator(".request-log-entry")
-    .filter({ hasText: "/ctp/attractions/cloud-cruiser/wait-times" })
+    .filter({ hasText: "/shipping/demo-faults/tracking-rate-limit" })
     .filter({ has: page.locator(".status-4xx") })
     .hover();
   await expectNoUnreviewedAccessibilityViolations(page);

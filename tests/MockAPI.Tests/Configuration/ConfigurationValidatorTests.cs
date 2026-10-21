@@ -18,16 +18,17 @@ public sealed class ConfigurationValidatorTests
     }
 
     [Theory]
-    [InlineData(ConfigurationLimits.MaximumEndpoints, true)]
-    [InlineData(ConfigurationLimits.MaximumEndpoints + 1, false)]
-    public void Validate_EnforcesEndpointCountLimit(int endpointCount, bool expectedIsValid)
+    [InlineData(0)]
+    [InlineData(51)]
+    [InlineData(1000)]
+    public void Validate_AcceptsEndpointCountsWithinDocumentSizeLimit(int endpointCount)
     {
         var document = CreateDocument(Enumerable.Range(1, endpointCount).Select(CreateEndpoint).ToArray());
 
         var result = ConfigurationValidator.Validate(document);
 
-        Assert.Equal(expectedIsValid, result.IsValid);
-        Assert.Equal(!expectedIsValid, HasError(result, "endpoints", "maximumItems"));
+        Assert.True(result.IsValid);
+        Assert.Empty(result.Errors);
     }
 
     [Theory]

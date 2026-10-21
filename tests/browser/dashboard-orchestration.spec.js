@@ -277,13 +277,13 @@ test("keeps the viewport fixed when live status updates rerender a focused endpo
 }) => {
   await request.post("/__mockapi/api/statistics/reset");
   await page.getByRole("button", { name: "Load examples" }).first().click();
-  const row = page.locator("#endpoint-rows").getByRole("row", { name: /Discover the parks/ });
+  const row = page.locator("#endpoint-rows").getByRole("row", { name: /Browse inventory/ });
   const testButton = row.getByRole("button", { name: "Test" });
   await page.evaluate(() => window.scrollTo(0, 0));
   await testButton.evaluate((button) => button.focus({ preventScroll: true }));
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 
-  await request.get("/ctp/parks");
+  await request.get("/inventory/items");
   await expect(row.locator("td").nth(5)).toHaveText("1");
   await expect(testButton).toBeFocused();
   expect(await page.evaluate(() => window.scrollY)).toBe(0);

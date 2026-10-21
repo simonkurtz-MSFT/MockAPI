@@ -37,15 +37,6 @@ public static class ConfigurationValidator
             AddError(errors, "schemaVersion", "const", "Schema version must be '1.0'.");
         }
 
-        if (document.Endpoints.Count > ConfigurationLimits.MaximumEndpoints)
-        {
-            AddError(
-                errors,
-                "endpoints",
-                "maximumItems",
-                $"A configuration can contain at most {ConfigurationLimits.MaximumEndpoints} endpoints.");
-        }
-
         var endpointIds = new HashSet<Guid>();
         var activeRoutes = new HashSet<(string Method, string Path)>();
 
@@ -80,10 +71,10 @@ public static class ConfigurationValidator
             return;
         }
 
-        if (descriptions.Count > ConfigurationLimits.MaximumEndpoints)
+        if (descriptions.Count > ConfigurationLimits.MaximumApiDescriptions)
         {
             AddError(errors, "apiDescriptions", "maximumProperties",
-                $"A configuration can contain at most {ConfigurationLimits.MaximumEndpoints} API descriptions.");
+                $"A configuration can contain at most {ConfigurationLimits.MaximumApiDescriptions} API descriptions.");
         }
 
         foreach (var (groupPath, description) in descriptions)
@@ -92,7 +83,7 @@ public static class ConfigurationValidator
             if (!IsApiGroupPath(groupPath))
             {
                 AddError(errors, path, "format",
-                    "API paths must be '/' or one absolute, non-reserved path segment, such as '/ctp'.");
+                    "API paths must be '/' or one absolute, non-reserved path segment, such as '/inventory'.");
             }
 
             if (description is null || description.Length > ConfigurationLimits.MaximumDescriptionLength)

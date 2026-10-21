@@ -861,14 +861,14 @@ public static class ManagementApiEndpoints
             return;
         }
 
-        if (request.EndpointIds is not { Count: > 0 and <= ConfigurationLimits.MaximumEndpoints })
+        if (request.EndpointIds is not { Count: > 0 })
         {
             await WriteProblemAsync(
                 context,
                 StatusCodes.Status400BadRequest,
                 "invalid-bulk-selection",
                 "Invalid bulk selection",
-                $"Select between 1 and {ConfigurationLimits.MaximumEndpoints} endpoints.",
+                "Select at least one endpoint.",
                 service.Current);
             return;
         }
@@ -1036,10 +1036,43 @@ public static class ManagementApiEndpoints
         where T : class =>
         JsonSerializer.Deserialize(json, typeInfo) ?? throw new JsonException("A JSON request body is required.");
 
-    internal static Stream OpenBuiltInConfiguration(string name) =>
-        typeof(ManagementApiEndpoints).Assembly.GetManifestResourceStream(
+    internal static Stream OpenBuiltInConfiguration(string name)
+    {
+        if (name != "example")
+        {
+            throw new InvalidOperationException(
+                $"The built-in {name} configuration is unavailable.");
+        }
+
+        var aoai = ReadBuiltInResource("trailhead-aoai");
+        var inventory = ReadBuiltInResource("trailhead-inventory");
+        var shipping = ReadBuiltInResource("trailhead-shipping");
+        var document = inventory with
+        {
+            ApiDescriptions = (aoai.ApiDescriptions ?? [])
+                .Concat(inventory.ApiDescriptions ?? [])
+                .Concat(shipping.ApiDescriptions ?? [])
+                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
+            Endpoints = [.. aoai.Endpoints, .. inventory.Endpoints, .. shipping.Endpoints]
+        };
+        if (!ConfigurationValidator.Validate(document).IsValid)
+        {
+            throw new InvalidOperationException("The built-in Trailhead configuration failed validation.");
+        }
+
+        return new MemoryStream(
+            JsonSerializer.SerializeToUtf8Bytes(document, MockApiJsonContext.Default.MockApiConfigurationDocument),
+            writable: false);
+    }
+
+    private static MockApiConfigurationDocument ReadBuiltInResource(string name)
+    {
+        using var resource = typeof(ManagementApiEndpoints).Assembly.GetManifestResourceStream(
             $"MockAPI.BuiltIns.{name}.json") ?? throw new InvalidOperationException(
                 $"The built-in {name} configuration is unavailable.");
+        return JsonSerializer.Deserialize(resource, MockApiJsonContext.Default.MockApiConfigurationDocument)
+            ?? throw new InvalidOperationException($"The built-in {name} configuration could not be read.");
+    }
 
     internal static async Task<MockApiConfigurationDocument> ReadBuiltInConfigurationAsync(
         Stream resource,

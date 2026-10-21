@@ -1108,6 +1108,9 @@ textarea {
   min-height: 32px;
   padding-block: 5px;
 }
+#endpoint-toggle-groups {
+  min-width: 180px;
+}
 .bulk-actions .bulk-delete:not(:disabled) {
   border-color: var(--cp-danger);
   color: var(--cp-danger);
@@ -1220,7 +1223,7 @@ tbody tr:hover {
   inset: auto;
   margin: 0;
   width: min(360px, calc(100vw - 32px));
-  max-height: min(320px, 50vh);
+  max-height: min(400px, 60vh);
   overflow: auto;
   padding: 14px;
   border: 1px solid var(--cp-border);

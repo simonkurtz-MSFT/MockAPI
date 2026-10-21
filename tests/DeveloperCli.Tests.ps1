@@ -661,7 +661,7 @@ try {
   }
   foreach ($requiredBashContract in @(
       '/__mockapi/api/configuration', '/__mockapi/api/endpoints',
-      '/__mockapi/api/statistics', '/ctp/attractions/cloud-cruiser/wait-times',
+      '/__mockapi/api/statistics', '/shipping/demo-faults/tracking-rate-limit',
       'build --pull --tag', 'image tag', 'MockApi__DashboardUsername=',
       'MockApi__DashboardPasswordHash=', 'publish mockapi --environment',
       'az bicep build', 'should_process'
@@ -704,6 +704,15 @@ try {
   Assert-True ($bashCliSource -match '--build-arg "NUGET_SOURCE=\$containerBuildNuGetSource"') 'Bash container builds must pass the resolved NuGet source to the Dockerfile.'
   Assert-True ($dockerfileSource -match 'ARG NUGET_SOURCE=https://api\.nuget\.org/v3/index\.json') 'Dockerfile must retain a portable public NuGet fallback.'
   Assert-True ($dockerfileSource -match 'dotnet restore .* --source "\$NUGET_SOURCE"') 'Dockerfile restore must use the selected NuGet source.'
+  $sampleCopies = [regex]::Match(
+    $dockerfileSource, '(?m)^COPY (?<sources>config/[^\r\n]+) config/\r?$'
+  ).Groups['sources'].Value -split '\s+'
+  $developmentWorkflow = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github\workflows\devcontainer.yml') -Raw
+  foreach ($sample in Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'config') -Filter 'trailhead-*.json' -File) {
+    $samplePath = "config/$($sample.Name)"
+    Assert-True ($sampleCopies -ccontains $samplePath) "Dockerfile must copy the $($sample.Name) sample into the build stage."
+    Assert-True ($developmentWorkflow.Contains("`"$samplePath`"")) "Development container validation must run when $($sample.Name) changes."
+  }
   Assert-True ($dockerfileSource -match 'FROM mcr\.microsoft\.com/dotnet/sdk:10\.[^\s]+-aot@sha256:[0-9a-f]{64} AS build') 'Container compilation must use the pinned native AOT SDK.'
   foreach ($command in @('restore', 'publish')) {
     Assert-True ($dockerfileSource -match "dotnet $command [^\r\n]*-p:PublishAot=true") "Container $command must enable Native AOT."
@@ -721,16 +730,16 @@ try {
   Assert-True ($cliSource -match 'Removing dashboard assets makes only a very small difference') 'Container guidance must state that removing dashboard assets has minimal size impact.'
   Assert-True ($cliSource -match 'MockApi__EnableDashboard=false to disable the dashboard') 'Container guidance must identify the runtime dashboard switch.'
   Assert-True ($dockerfileSource -notmatch 'MockApi__EnableDashboard=false') 'Dockerfile must not disable the dashboard by default.'
-  Assert-True ($cliSource -match 'for \(\$attempt = 1; \$attempt -le 5; \$attempt\+\+\)') 'PowerShell showcase must make five requests before asserting HTTP 429.'
+  Assert-True ($cliSource -match 'for \(\$attempt = 1; \$attempt -le 3; \$attempt\+\+\)') 'PowerShell showcase must make up to three requests before asserting HTTP 429.'
   Assert-True (([regex]::Matches($cliSource, '\.TryGetValues\(')).Count -ge 2) 'PowerShell showcase must read optional response headers without throwing.'
-  Assert-True ($bashCliSource -match 'for attempt in 1 2 3 4 5') 'Bash showcase must make five requests before asserting HTTP 429.'
+  Assert-True ($bashCliSource -match 'for attempt in 1 2 3; do') 'Bash showcase must make up to three requests before asserting HTTP 429.'
   Assert-True ($cliSource -match '\$retryAfter -eq ''10''') 'PowerShell showcase must assert the checked-in Retry-After value.'
   Assert-True ($bashCliSource -match '\$retryAfter" == "10') 'Bash showcase must assert the checked-in Retry-After value.'
-  $example = Get-Content -LiteralPath (Join-Path $repositoryRoot 'config\mockapi.json') -Raw | ConvertFrom-Json
-  $waitTimes = $example.endpoints | Where-Object { $_.path -eq '/ctp/attractions/cloud-cruiser/wait-times' }
+  $example = Get-Content -LiteralPath (Join-Path $repositoryRoot 'config\trailhead-shipping.json') -Raw | ConvertFrom-Json
+  $tracking = $example.endpoints | Where-Object { $_.path -eq '/shipping/demo-faults/tracking-rate-limit' }
   foreach ($source in @($cliSource, $bashCliSource)) {
-    Assert-True ($source.Contains($waitTimes.path)) 'Both showcases must use the Contoso Theme Parks wait-times route.'
-    Assert-True ($source.Contains($waitTimes.response.body)) 'Both showcases must assert the exact configured wait-times error body.'
+    Assert-True ($source.Contains($tracking.path)) 'Both showcases must use the Trailhead shipping rate-limit route.'
+    Assert-True ($source.Contains($tracking.response.body)) 'Both showcases must assert the exact configured tracking error body.'
   }
   Assert-True ($cliSource.Contains('[string] $_.path -ceq $examplePath')) 'PowerShell showcase must detect older routes even when the stable ID exists.'
   Assert-True ($bashCliSource.Contains('entry.get("path") == os.environ["MOCKAPI_EXAMPLE_PATH"]')) 'Bash showcase must detect older routes even when the stable ID exists.'

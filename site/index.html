@@ -76,7 +76,7 @@
     <meta property="og:image" content="https://mockapi.simondoescloud.com/dashboard.png" />
     <meta
       property="og:image:alt"
-      content="MockAPI dashboard with 16 Contoso Theme Parks example endpoints, request statistics, and a populated request log."
+      content="MockAPI dashboard with 23 Trailhead Supply inventory and shipping example endpoints, request statistics, and a populated request log."
     />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="MockAPI | Open-Source, Self-Hosted Mock API Server" />
@@ -87,7 +87,7 @@
     <meta name="twitter:image" content="https://mockapi.simondoescloud.com/dashboard.png" />
     <meta
       name="twitter:image:alt"
-      content="MockAPI dashboard with 16 Contoso Theme Parks example endpoints, request statistics, and a populated request log."
+      content="MockAPI dashboard with 23 Trailhead Supply inventory and shipping example endpoints, request statistics, and a populated request log."
     />
     <script type="application/ld+json">
       {
@@ -214,7 +214,7 @@
                 src="./dashboard.webp"
                 width="1905"
                 height="1500"
-                alt="MockAPI dashboard with 16 Contoso Theme Parks example endpoints, request statistics, and a populated request log."
+                alt="MockAPI dashboard with 23 Trailhead Supply inventory and shipping example endpoints, request statistics, and a populated request log."
               />
             </a>
             <figcaption>
@@ -239,14 +239,15 @@
               <img
                 src="./dashboard-endpoints.webp"
                 width="915"
-                height="1235"
-                alt="Sixteen Contoso Theme Parks endpoints under /ctp showing HTTP methods, paths, response codes, attempt counts, and editing controls."
+                height="1833"
+                alt="Twenty-three Trailhead Supply endpoints under /inventory and /shipping showing HTTP methods, paths, response codes, attempt counts, and editing controls."
               />
             </a>
             <figcaption>
               <strong>Example endpoints.</strong>
-              Success responses, redirects, rate limiting, server errors, and connection aborts, with controls to test
-              and edit each definition.
+              This capture shows the inventory and shipping subset; Load examples also includes the AI assistant.
+              Inventory, reservations, shipping, tracking, rate limiting, server errors, and connection aborts, with
+              controls to test and edit each definition.
             </figcaption>
           </figure>
           <figure
@@ -265,13 +266,13 @@
               <img
                 src="./dashboard-request-log.webp"
                 width="915"
-                height="811"
-                alt="Contoso Theme Parks request log with a 16-request sample and recent HTTP 200, 429, and 500 outcomes."
+                height="807"
+                alt="Trailhead Supply request log with a 25-request sample and recent HTTP 200, 429, and 504 outcomes."
               />
             </a>
             <figcaption>
               <strong>Request log.</strong>
-              Recent entries from a 16-request sample, with UTC timestamps by default, methods, paths, HTTP outcomes,
+              Recent entries from a 25-request sample, with UTC timestamps by default, methods, paths, HTTP outcomes,
               transport attempts, and response byte counts. Choose local time in Settings if preferred.
             </figcaption>
           </figure>
@@ -379,8 +380,8 @@ cd MockAPI</code></pre>
             </li>
             <li>
               Press the play button for
-              <code>/ctp/parks</code>
-              (Contoso Theme Parks).
+              <code>/inventory/items</code>
+              (Trailhead Supply inventory).
             </li>
             <li>Changes are saved automatically to your configured writable file, volume, or Azure Blob Storage.</li>
           </ol>
@@ -400,9 +401,17 @@ cd MockAPI</code></pre>
               Configure responses for an upstream API that is not yet available. Requests match an exact HTTP method and
               path, so your application can call the same routes during development.
             </p>
-            <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/config/mockapi.json">
-              Explore the built-in examples
-            </a>
+            <div class="sample-links">
+              <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/config/trailhead-inventory.json">
+                Explore inventory examples
+              </a>
+              <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/config/trailhead-shipping.json">
+                Explore shipping examples
+              </a>
+              <a href="https://github.com/simonkurtz-MSFT/MockAPI/blob/main/config/trailhead-aoai.json">
+                Explore AI assistant examples
+              </a>
+            </div>
           </article>
           <article class="card">
             <h3>Exercise retry behavior</h3>

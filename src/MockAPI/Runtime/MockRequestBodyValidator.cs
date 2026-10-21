@@ -10,13 +10,17 @@ internal static class MockRequestBodyValidator
     internal const int MaximumBodyBytes = 1024 * 1024;
     internal const string SampleJsonBody =
         "{\"id\":\"sample-item-001\",\"name\":\"Example item\",\"status\":\"active\",\"quantity\":2,\"tags\":[\"sample\",\"dashboard\"],\"metadata\":{\"source\":\"MockAPI dashboard\"}}";
-    internal const string ReservationSampleJsonBody =
-        "{\"parkId\":\"starlight-gardens\",\"attractionId\":\"cloud-cruiser\",\"reservationDate\":\"2030-06-15\",\"reservationTime\":\"10:30\",\"partySize\":2,\"guest\":{\"name\":\"Alex Morgan\",\"email\":\"alex@example.com\"}}";
+    internal const string InventorySampleJsonBody =
+        "{\"sku\":\"SKU-1001\",\"quantity\":2,\"warehouseId\":\"WH-DEMO-01\"}";
+    internal const string ShippingSampleJsonBody =
+        "{\"service\":\"standard\",\"parcelWeightKg\":1.2,\"items\":[{\"sku\":\"SKU-1001\",\"quantity\":2}]}";
 
-    internal static string GetSampleJsonBody(string path) =>
-        path is "/ctp/reservations" or "/ctp/reservations/42"
-            ? ReservationSampleJsonBody
-            : SampleJsonBody;
+    internal static string GetSampleJsonBody(string path) => path switch
+    {
+        "/inventory/reservations" or "/inventory/reservations/res-demo-001" => InventorySampleJsonBody,
+        "/shipping/shipments" or "/shipping/shipments/shp-demo-001" => ShippingSampleJsonBody,
+        _ => SampleJsonBody
+    };
 
     internal static bool HasSampleRequestBody(string method) =>
         HttpMethods.IsPost(method) || HttpMethods.IsPut(method) || HttpMethods.IsPatch(method);

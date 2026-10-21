@@ -5,8 +5,8 @@ public static class ConfigurationLimits
 {
     /// <summary>Gets the maximum serialized UTF-8 size of a configuration document, in bytes.</summary>
     public const int MaximumDocumentBytes = 4 * 1024 * 1024;
-    /// <summary>Gets the maximum number of endpoint definitions in a configuration document.</summary>
-    public const int MaximumEndpoints = 25;
+    /// <summary>Gets the maximum number of API group descriptions in a configuration document.</summary>
+    public const int MaximumApiDescriptions = 25;
     /// <summary>Gets the maximum endpoint name length, in UTF-16 characters.</summary>
     public const int MaximumNameLength = 200;
     /// <summary>Gets the maximum endpoint description length, in UTF-16 characters.</summary>

@@ -81,11 +81,11 @@ public sealed class ConfigurationExportServiceTests
         Assert.Contains("request.body, requestOptions", k6);
     }
 
-    [Fact]
-    public void Exports_UseReservationSampleForReservationEndpointsAcrossAllFormats()
+    [Theory]
+    [InlineData("/inventory/reservations", "{\"sku\":\"SKU-1001\",\"quantity\":2,\"warehouseId\":\"WH-DEMO-01\"}")]
+    [InlineData("/shipping/shipments", "{\"service\":\"standard\",\"parcelWeightKg\":1.2,\"items\":[{\"sku\":\"SKU-1001\",\"quantity\":2}]}")]
+    public void Exports_UseTrailheadSamplesAcrossAllFormats(string path, string sample)
     {
-        const string sample =
-            "{\"parkId\":\"starlight-gardens\",\"attractionId\":\"cloud-cruiser\",\"reservationDate\":\"2030-06-15\",\"reservationTime\":\"10:30\",\"partySize\":2,\"guest\":{\"name\":\"Alex Morgan\",\"email\":\"alex@example.com\"}}";
         var document = new MockApiConfigurationDocument
         {
             SchemaVersion = "1.0",
@@ -94,10 +94,10 @@ public sealed class ConfigurationExportServiceTests
                 new MockEndpointDefinition
                 {
                     Id = Guid.NewGuid(),
-                    Name = "Reserve a ride",
+                    Name = "Trailhead request",
                     Enabled = true,
                     Methods = ["POST"],
-                    Path = "/ctp/reservations",
+                    Path = path,
                     Response = new() { StatusCode = 201, Headers = [], Body = "{}" }
                 }
             ]
@@ -116,7 +116,7 @@ public sealed class ConfigurationExportServiceTests
         var openApi = JsonNode.Parse(ExportText("openapi"))!;
         Assert.True(JsonNode.DeepEquals(
             JsonNode.Parse(sample),
-            openApi["paths"]!["/ctp/reservations"]!["post"]!["requestBody"]!
+            openApi["paths"]![path]!["post"]!["requestBody"]!
                 ["content"]!["application/json"]!["example"]));
         Assert.Contains($"--data-raw '{sample}'", ExportText("curl"));
         Assert.Contains(sample, ExportText("http"));

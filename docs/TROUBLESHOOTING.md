@@ -19,6 +19,12 @@ not undo the change, so do not repeat the original mutation. Containers must mou
 
 An identical example is skipped, so repeated loading may correctly report no changes. A changed stable ID or method/path collision returns a conflict preview and makes no changes. Review the named endpoints and choose **Force update** only when the checked-in built-in version should win. Unrelated endpoints are preserved.
 
+The Trailhead AOAI, inventory, and shipping example contains 41 endpoint definitions. There is no
+endpoint-count limit, but a merged configuration that exceeds 4 MiB when UTF-8 encoded returns `422`;
+force does not bypass size or other validation. Review the returned errors and export a backup before
+reducing oversized response bodies or importing a selected sample file.
+The rejected merge leaves the complete active configuration unchanged.
+
 ## Endpoint Returns 404
 
 Check that the endpoint is enabled and that the HTTP method and path match exactly. Paths are case-sensitive; query strings do not affect matching. Runtime-defined routes cannot use `/`, `/__mockapi`, `/health`, or application-owned descendants.
@@ -37,8 +43,8 @@ HTTP reason phrases are transmitted only by HTTP/1.1. HTTP/2 and HTTP/3 omit the
 
 The local container is recreated when the `mockapi:dev` image ID changes. The named data volume is retained. WSLC `2.9.3.0` may warn that swap cannot be limited separately; the configured memory limit remains active.
 
-The example showcase tests `/ctp/attractions/cloud-cruiser/wait-times`. If older examples or local edits
-conflict with the built-in Contoso Theme Parks configuration, review **Load examples** in the dashboard,
+The example showcase tests `/shipping/demo-faults/tracking-rate-limit`. If older examples or local edits
+conflict with the built-in Trailhead Supply configuration, review **Load examples** in the dashboard,
 confirm the desired updates, and rerun:
 
 ```powershell

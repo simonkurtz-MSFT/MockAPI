@@ -117,7 +117,8 @@ IDs and configuration documents remain compatible; no migration is required.
 The release date was **2026-10-13**, with the immutable tag **`1.4.3`**.
 The [1.4.3 changelog entry](../CHANGELOG.md#143---2026-10-13) supplies the GitHub release notes.
 
-- The Contoso Theme Parks example configuration has additional endpoints and clearer descriptions.
+- The built-in example configuration gained additional endpoints and clearer descriptions.
+  That sample has since been replaced by Trailhead Supply.
 - Dashboard layout and endpoint testing interactions are refined.
 
 ### Compatibility and upgrade behavior

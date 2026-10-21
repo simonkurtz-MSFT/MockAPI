@@ -72,6 +72,7 @@ export function createDashboardEndpointTable({
     "endpoint-rows": "tbody",
     "endpoint-table-region": "div",
     "endpoint-toggle": "button",
+    "endpoint-toggle-groups": "button",
     "filter-enabled": "select",
     "filter-method": "select",
     "filter-status": "select",
@@ -145,6 +146,23 @@ export function createDashboardEndpointTable({
     }));
   }
 
+  function updateEndpointGroupControl(groups) {
+    const allCollapsed = groups.length > 0 && groups.every((group) => state.collapsedEndpointGroups.has(group.key));
+    const control = elements["endpoint-toggle-groups"];
+    control.disabled = groups.length === 0;
+    control.textContent = allCollapsed ? "Expand all groups" : "Collapse all groups";
+  }
+
+  function toggleAllEndpointGroups() {
+    const groups = currentEndpointGroups();
+    const collapse = groups.some((group) => !state.collapsedEndpointGroups.has(group.key));
+    for (const group of groups) {
+      if (collapse) state.collapsedEndpointGroups.add(group.key);
+      else state.collapsedEndpointGroups.delete(group.key);
+    }
+    renderEndpoints();
+  }
+
   function updateBulkSelection(visible) {
     const availableIds = new Set(state.endpoints.map((endpoint) => endpoint.id));
     for (const endpointId of state.selectedEndpointIds) {
@@ -172,6 +190,7 @@ export function createDashboardEndpointTable({
     const groups = currentEndpointGroups();
     const filtered = groups.flatMap((group) => group.endpoints);
 
+    updateEndpointGroupControl(groups);
     elements["endpoint-count"].textContent = String(filtered.length);
     rowEvents.clear();
     elements["endpoint-rows"].replaceChildren();
@@ -264,7 +283,15 @@ export function createDashboardEndpointTable({
     tooltip.setAttribute("role", "tooltip");
     tooltip.setAttribute("popover", "manual");
     // Configuration is untrusted text, never HTML or executable JavaScript.
-    tooltip.append(makeElement("strong", null, title), makeElement("p", null, description));
+    const paragraph = makeElement("p");
+    for (const line of description.split(/(\r?\n)/)) {
+      if (line === "Description:" || line === "Technical implementation:") {
+        paragraph.append(makeElement("strong", null, line));
+      } else {
+        paragraph.append(document.createTextNode(line));
+      }
+    }
+    tooltip.append(makeElement("strong", null, title), paragraph);
     if (detail) tooltip.append(makeElement("small", "api-description-detail", detail));
     tooltip.append(makeElement("small", null, "Click the information button to edit."));
     info.setAttribute("aria-describedby", tooltip.id);
@@ -435,6 +462,7 @@ export function createDashboardEndpointTable({
   events.listen(elements["bulk-enable"], "click", () => onBulkOperation("enable", [...state.selectedEndpointIds]));
   events.listen(elements["bulk-disable"], "click", () => onBulkOperation("disable", [...state.selectedEndpointIds]));
   events.listen(elements["bulk-delete"], "click", () => onBulkDelete([...state.selectedEndpointIds]));
+  events.listen(elements["endpoint-toggle-groups"], "click", toggleAllEndpointGroups);
   for (const filter of [
     elements["filter-text"],
     elements["filter-method"],

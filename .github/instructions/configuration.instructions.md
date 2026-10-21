@@ -10,6 +10,9 @@ applyTo: "{config,schemas}/**/*.json"
 - Reject unknown properties unless a versioned compatibility decision deliberately permits them.
 - Keep endpoint IDs stable UUIDs and method arrays non-empty and unique.
 - Keep endpoint descriptions optional freeform text bounded to 4,000 characters and preserve their whitespace through round trips.
+- For Trailhead sample endpoints, use two labeled plain-text sections in the existing `description`:
+  `Description:` first and `Technical implementation:` second, separated by a blank line.
+  Explain the business scenario before the mock's HTTP behavior and limitations; do not require this format for custom endpoints.
 - Keep optional `apiDescriptions` keyed by case-sensitive first-segment paths, independent of endpoint membership.
   Bound metadata to 25 groups and 4,000 characters per description; preserve whitespace and ordinal key ordering.
   Endpoint deletion never removes metadata. Built-in merges add missing descriptions atomically but preserve
@@ -22,12 +25,23 @@ applyTo: "{config,schemas}/**/*.json"
 - Keep rolling-window rate limits optional, restricted to terminal `429` responses, and configured with a `2xx` pre-limit response.
 - Reject control characters and server-controlled or hop-by-hop headers.
 - Keep response bodies as raw strings; do not normalize JSON-shaped payload text.
-- Apply practical, tested limits to documents, endpoints, methods, headers, and bodies.
+- Apply practical, tested size limits to documents and endpoint fields, methods, headers, and bodies.
+  Do not impose an endpoint-count limit on configuration documents, merges, or bulk selections.
 - Keep schema validation and semantic validation distinct. The semantic layer owns cross-record method/path conflicts and reserved-route checks.
 - Keep serialization deterministic and verify generated configuration against the checked-in schema.
-- Keep the built-in example document as a checked-in, schema-valid embedded resource. Expose it read-only and activate it only through the normal validated, ETag-protected merge path.
-- Keep the built-in example cohesive under `/ctp` (Contoso Theme Parks), with fictional park, attraction,
-  reservation, and wait-time fixtures and clearly labeled `/ctp/demo-faults/` routes. Explain static behavior
-  and make advertised links resolvable. Preserve the original seven example IDs when changing their routes
-  so previously loaded examples require the normal reviewed conflict/force merge instead of duplication.
+- Copy all three Trailhead sample files (AOAI, inventory, and shipping) into the container build stage
+  and embed them unchanged in the application. Keep development-container path filters and packaging
+  tests aligned with the sample catalog. Embedding a sample must not activate it or seed persisted data.
+- Compose the built-in example from all three checked-in, schema-valid `trailhead-aoai.json`,
+  `trailhead-inventory.json`, and `trailhead-shipping.json` embedded resources (41 endpoints).
+  Keep those files as the single source of definitions.
+  Expose the combined example read-only and activate it only through the validated, ETag-protected merge path.
+- Keep the Trailhead Supply examples cohesive under `/aoai`, `/inventory`, and `/shipping`, with assistant, stock, reservation,
+  shipment, tracking, and clearly labeled demo-faults fixtures. Explain static behavior, preserve stable IDs,
+  and reserve sample HEAD support for one HEAD-only `/<api>/health` endpoint per API, returning an empty 200.
+  Inspection endpoints use GET only; sample health routes retain mock API-key protection
+  and do not replace the public application health probes.
+  Make advertised links resolvable. Never automatically delete or rewrite existing saved endpoints.
+  Apply the document-size limit and all semantic validation to the complete merge, including unrelated endpoints.
+  Keep the independent API-description limit at 25 groups.
 - Any contract change must update the schema, models, source-generated JSON metadata, examples, management API/dashboard behavior, documentation, and tests together. Use the `mock-endpoint-change` skill.
