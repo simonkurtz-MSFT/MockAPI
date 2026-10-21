@@ -69,7 +69,8 @@ public sealed class ConfigurationState
         ArgumentNullException.ThrowIfNull(candidate);
         ArgumentOutOfRangeException.ThrowIfNegative(expectedRevision);
 
-        if (Current.Revision != expectedRevision)
+        var observed = Current;
+        if (observed.Revision != expectedRevision)
         {
             return ConfigurationUpdateResult.RevisionConflict();
         }
@@ -81,7 +82,7 @@ public sealed class ConfigurationState
             return ConfigurationUpdateResult.ValidationFailed(validation);
         }
 
-        var endpoints = EndpointRegistrySnapshot.Create(canonicalDocument);
+        var endpoints = EndpointRegistrySnapshot.Create(canonicalDocument, observed.Endpoints);
         _beforeWriteLock?.Invoke();
         lock (_writeGate)
         {

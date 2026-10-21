@@ -84,6 +84,11 @@ Use one ASP.NET Core application and one deployable container.
 
 A catch-all dispatcher is preferred over adding conventional ASP.NET endpoints after startup. Configuration mutations build and validate a replacement snapshot, then swap it atomically so in-flight requests continue against a consistent prior snapshot.
 
+Compilation may share unchanged immutable response bytes and ordered headers by stable endpoint ID
+with the prior snapshot, but never shares mutable rate limiters. Every applied configuration
+replacement retains the existing fresh-permit behavior, including replacements that only edit
+metadata. Reuse remains snapshot-owned and does not retain a chain of prior registries.
+
 ### Suggested project boundaries
 
 Keep a single deployable web project, but separate responsibilities in code:
@@ -396,6 +401,8 @@ The UI must be keyboard usable and responsive, with WCAG 2.2 AA as the design an
   status, including rate-limit success responses. Intentional connection aborts remain a distinct outcome.
 - Attribute attempts by stable endpoint ID, not path, so edits do not corrupt identity.
 - Use atomic counters for totals and a bounded ring buffer of 60 one-minute buckets, retaining 60 minutes of recent rate data.
+- Store minute buckets and packed atomic counters contiguously as value types. Read and update
+  the stored counters by reference, preserving volatile access, rollover, saturation, and reset semantics.
 - Share one immutable statistics snapshot and lazy compact SSE serialization across management
   delivery paths while the collector version and UTC minute are unchanged. Keep cache locks off
   recorders, retain non-transactional concurrent snapshot semantics, preserve indented GET JSON,
@@ -440,6 +447,8 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
 - Generate 32-byte random keys, compare SHA-256 hashes in constant time, and keep only the hash in a separate
   security document beside the configuration file or blob. Persist before atomic activation; use an independent
   strong ETag for security writes. Rotation enables protection and immediately revokes the previous key.
+- Decode the persisted digest once per published security state. Use independently owned bounded
+  stack storage for request verification, clear it before return, and preserve constant-time comparison.
 - Support fully automatic initial key setup through the optional secret-backed `MockApi__ApiKey` setting
   and secure `mockApiKey` Bicep parameter (`AZURE_MOCKAPI_KEY` in both developer CLIs). Accept 32-256 ASCII
   letters, digits, hyphens, or underscores. If no security document exists, persist only the supplied key's

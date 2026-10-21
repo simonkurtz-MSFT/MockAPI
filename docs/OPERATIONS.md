@@ -99,6 +99,11 @@ configuration volume or private Blob container. Endpoint import/export/save neve
 document restores the fail-closed default unless a deployment key seeds it again; otherwise generate a
 replacement key as an administrator.
 
+The hexadecimal digest is decoded once when security state is loaded or successfully committed,
+and published together with its revision and enforcement setting. Request verification uses
+independent bounded stack buffers, compares hashes in constant time, and clears its scratch storage
+before returning. It does not cache plaintext request keys or change the persisted security format.
+
 For a deliberately unauthenticated local fixture, set `MockApi__RequireApiKey=false` before the first security
 document is saved. Persisted security settings take precedence over this bootstrap setting. Operators can also
 explicitly disable enforcement in Settings after confirming the exposure warning. Do not opt a shared or

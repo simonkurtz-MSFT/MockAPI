@@ -99,6 +99,12 @@ classes. If writing fails after response selection, statistics retain the select
 the success status of a rate-limited endpoint, with zero completed bytes. Intentional connection aborts
 remain separate `aborted` outcomes. Existing logical-request retry coalescing applies to failures too.
 
+Rolling statistics use contiguous value-type buckets with six packed atomic counters per minute,
+avoiding separate heap objects for every bucket and counter. Recording, snapshot reads, and reset
+operate on the stored counters by reference. This changes storage only: the 60-minute history,
+counter saturation, bounded endpoint tracking, concurrent non-transactional snapshots, and JSON
+contract remain unchanged. No new recording locks or sharded counters are introduced.
+
 ## Dashboard Synchronization and Caching
 
 The dashboard opens one authenticated `GET /dashboard/events` connection. It receives a
@@ -201,6 +207,53 @@ pwsh -NoProfile -Command {
 MOCKAPI_STATISTICS_DIAGNOSTICS=1 DOTNET_TieredCompilation=0 \
   dotnet test ./tests/MockAPI.Tests/MockAPI.Tests.csproj --no-restore \
     --configuration Release --filter "FullyQualifiedName~StatisticsDeliveryDiagnostics" \
+    --logger "console;verbosity=detailed"
+```
+
+### Backend Allocation Diagnostic
+
+The opt-in [backend diagnostic](../tests/MockAPI.Tests/Runtime/BackendRefactoringDiagnostics.cs)
+measures repeated unchanged configuration replacement, population of all 256 tracked endpoint
+counters, and valid and invalid API-key verification. Regression tests separately enforce compiled
+body/header reuse, independent limiter permits, bounded population allocations, and allocation-free
+warmed key verification with minimum, generated-length, and maximum-length keys.
+
+Local Windows ARM64 managed Release measurements on .NET 10.0.13, with tiered compilation disabled,
+produced these medians of five samples after ten warmups:
+
+| Operation                                              | Allocated bytes/call before | Allocated bytes/call after |
+| ------------------------------------------------------ | --------------------------- | -------------------------- |
+| Full replacement, four unchanged 960 KiB bodies        | 10,394,519                  | 6,045,249                  |
+| Populate 256 endpoint counters                         | 3,513,888                   | 858,784                    |
+| Verify a valid 43-character key, existing HTTP context | 216                         | 0                          |
+| Verify an invalid 43-character key, existing context   | 216                         | 0                          |
+
+Configuration and population samples contain ten operations; authentication samples contain 1,000.
+Fixture documents, endpoint IDs, keys, and HTTP contexts are created outside measurement. Full
+configuration replacement still clones, validates, and serializes the complete document. Serializer
+pooling and GC introduce allocation variation; response-data reuse saves body/header recompilation,
+not those required document operations. The stable-ID index adds bounded per-snapshot bookkeeping,
+and authentication retains one decoded digest alongside the persisted hexadecimal representation.
+
+These are allocation measurements, not retained-heap, RSS, contention, HTTP-throughput, or Native AOT
+results. Counter synchronization is unchanged; do not infer parallel throughput gains from the
+smaller object graph. The diagnostic also reports elapsed-time samples.
+
+```powershell
+pwsh -NoProfile -Command {
+    $env:MOCKAPI_BACKEND_DIAGNOSTICS = '1'
+    $env:DOTNET_TieredCompilation = '0'
+    dotnet test .\tests\MockAPI.Tests\MockAPI.Tests.csproj --no-restore `
+        --configuration Release --filter "FullyQualifiedName~BackendRefactoringDiagnostics" `
+        --logger "console;verbosity=detailed"
+    exit $LASTEXITCODE
+}
+```
+
+```bash
+MOCKAPI_BACKEND_DIAGNOSTICS=1 DOTNET_TieredCompilation=0 \
+  dotnet test ./tests/MockAPI.Tests/MockAPI.Tests.csproj --no-restore \
+    --configuration Release --filter "FullyQualifiedName~BackendRefactoringDiagnostics" \
     --logger "console;verbosity=detailed"
 ```
 

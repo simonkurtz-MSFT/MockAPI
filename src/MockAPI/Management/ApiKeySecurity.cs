@@ -38,7 +38,7 @@ internal sealed class ApiKeySecurity(MockApiOptions options, BlobClient? blobCli
     internal const string HeaderName = "X-MockAPI-Key";
     private const int MaximumSecurityDocumentBytes = 4096;
     private readonly SemaphoreSlim _writes = new(1, 1);
-    private ApiSecurityDocument _current = new(options.RequireApiKey, null, 0);
+    private ApiSecuritySnapshot _current = new(new ApiSecurityDocument(options.RequireApiKey, null, 0));
     private readonly string _path = options.ConfigurationPath + ".security.json";
     private readonly BlobClient? _blobClient = blobClient ?? (options.ConfigurationBlobUri is null ? null : CreateBlobClient(options));
 
@@ -46,7 +46,7 @@ internal sealed class ApiKeySecurity(MockApiOptions options, BlobClient? blobCli
     {
         get
         {
-            var snapshot = Volatile.Read(ref _current);
+            var snapshot = Volatile.Read(ref _current).Document;
             return new(snapshot.Enabled, snapshot.KeyHash is not null, $"\"{snapshot.Revision}\"");
         }
     }
@@ -54,7 +54,7 @@ internal sealed class ApiKeySecurity(MockApiOptions options, BlobClient? blobCli
     internal bool Authorizes(HttpContext context)
     {
         var snapshot = Volatile.Read(ref _current);
-        if (!snapshot.Enabled)
+        if (!snapshot.Document.Enabled)
         {
             return true;
         }
@@ -65,8 +65,20 @@ internal sealed class ApiKeySecurity(MockApiOptions options, BlobClient? blobCli
             return false;
         }
 
-        var suppliedHash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
-        return CryptographicOperations.FixedTimeEquals(suppliedHash, Convert.FromHexString(snapshot.KeyHash));
+        // Each call owns its stack buffers; concurrent requests never share plaintext or hash scratch storage.
+        Span<byte> encodedKey = stackalloc byte[256];
+        Span<byte> suppliedHash = stackalloc byte[SHA256.HashSizeInBytes];
+        try
+        {
+            var written = Encoding.UTF8.GetBytes(key.AsSpan(), encodedKey);
+            SHA256.HashData(encodedKey[..written], suppliedHash);
+            return CryptographicOperations.FixedTimeEquals(suppliedHash, snapshot.KeyHash);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(encodedKey);
+            CryptographicOperations.ZeroMemory(suppliedHash);
+        }
     }
 
     internal async Task LoadAsync(CancellationToken cancellationToken)
@@ -120,7 +132,7 @@ internal sealed class ApiKeySecurity(MockApiOptions options, BlobClient? blobCli
             throw new InvalidOperationException("API security settings contain an invalid revision or key hash.");
         }
 
-        Volatile.Write(ref _current, document);
+        Volatile.Write(ref _current, new ApiSecuritySnapshot(document));
     }
 
     internal async Task<ApiKeyCreated?> UpdateAsync(
@@ -140,7 +152,7 @@ internal sealed class ApiKeySecurity(MockApiOptions options, BlobClient? blobCli
             var key = rotate
                 ? Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
                 : null;
-            var previous = Volatile.Read(ref _current);
+            var previous = Volatile.Read(ref _current).Document;
             var hash = key is null ? previous.KeyHash : Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
             var candidate = new ApiSecurityDocument(enabled, hash, checked(previous.Revision + 1));
             await CommitAsync(candidate, cancellationToken);
@@ -152,9 +164,23 @@ internal sealed class ApiKeySecurity(MockApiOptions options, BlobClient? blobCli
         }
     }
 
-    private static bool IsValidKey(string key) =>
-        key.Length is >= 32 and <= 256 &&
-        key.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_');
+    private static bool IsValidKey(string key)
+    {
+        if (key.Length is < 32 or > 256)
+        {
+            return false;
+        }
+
+        foreach (var character in key)
+        {
+            if (!char.IsAsciiLetterOrDigit(character) && character is not '-' and not '_')
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     private async Task InitializeAsync(CancellationToken cancellationToken)
     {
@@ -169,10 +195,19 @@ internal sealed class ApiKeySecurity(MockApiOptions options, BlobClient? blobCli
 
     private async Task CommitAsync(ApiSecurityDocument candidate, CancellationToken cancellationToken)
     {
+        var replacement = new ApiSecuritySnapshot(candidate);
         var content = JsonSerializer.SerializeToUtf8Bytes(candidate, ApiSecurityJsonContext.Default.ApiSecurityDocument);
         await PersistAsync(content, cancellationToken);
         // Publish only after durable replacement; failed saves never change request authorization.
-        Volatile.Write(ref _current, candidate);
+        Volatile.Write(ref _current, replacement);
+    }
+
+    private sealed class ApiSecuritySnapshot(ApiSecurityDocument document)
+    {
+        internal ApiSecurityDocument Document { get; } = document;
+
+        // Decode once, publishing the digest together with its revision and enforcement flag.
+        internal byte[]? KeyHash { get; } = document.KeyHash is { } hash ? Convert.FromHexString(hash) : null;
     }
 
     private static BlobClient CreateBlobClient(MockApiOptions options)

@@ -198,6 +198,15 @@ File saves, Blob uploads, and unfiltered native exports stream the canonical byt
 immutable snapshot without first copying the complete document. Public snapshot exports still return
 independent byte arrays; filtered native exports and generated formats retain their existing serialization.
 
+Every applied replacement still validates the complete candidate and creates fresh runtime endpoint
+instances. For matching stable endpoint IDs, compilation reuses unchanged immutable UTF-8 response
+bodies and ordered header projections, including the pre-limit success response. Body comparison
+uses bounded stack storage rather than retaining a second UTF-16 copy. Route and metadata edits can
+reuse wire data, but status, content type, reason phrase, and delay always come from the new definition.
+Rate-limit permits are never shared between revisions: every successful configuration replacement
+starts fresh limiters, as before. Rejected or stale candidates leave the active snapshot and its
+limiter state untouched. The reuse index is owned by the snapshot, not an unbounded cross-revision cache.
+
 If automatic saving fails, changes remain active but unsaved. The dashboard displays an error and enables
 **Retry save**; the management API returns a `500` `autosave-failed` problem with the current ETag.
 Retry persistence through **Retry save** or `POST /__mockapi/api/configuration/save` with that ETag, not by

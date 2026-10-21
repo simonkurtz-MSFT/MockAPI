@@ -464,9 +464,8 @@ public sealed class RequestStatisticsCollector
     private sealed class MinuteBucketSeries
     {
         private const int BucketCount = 60;
-        private readonly MinuteBucket[] _buckets = Enumerable.Range(0, BucketCount)
-            .Select(_ => new MinuteBucket())
-            .ToArray();
+        // Inline the six packed atomic counters per bucket instead of allocating an object for every counter.
+        private readonly MinuteBucket[] _buckets = new MinuteBucket[BucketCount];
 
         public void Record(DateTimeOffset timestamp, int? statusCode = null)
         {
@@ -481,7 +480,8 @@ public sealed class RequestStatisticsCollector
             for (var offset = BucketCount - 1; offset >= 0; offset--)
             {
                 var minute = currentMinute - offset;
-                var bucket = _buckets[GetBucketIndex(minute)];
+                // Read the stored struct by reference: copying it would bypass the counters' volatile reads.
+                ref var bucket = ref _buckets[GetBucketIndex(minute)];
                 builder.Add(new MinuteBucketSnapshot(
                     DateTimeOffset.FromUnixTimeSeconds(Math.Max(
                         (long)minute * 60,
@@ -499,9 +499,9 @@ public sealed class RequestStatisticsCollector
 
         public void Reset()
         {
-            foreach (var bucket in _buckets)
+            for (var index = 0; index < _buckets.Length; index++)
             {
-                bucket.Reset();
+                _buckets[index].Reset();
             }
         }
 
@@ -511,14 +511,14 @@ public sealed class RequestStatisticsCollector
         private static int GetBucketIndex(int minute) => Math.Abs(minute % BucketCount);
     }
 
-    private sealed class MinuteBucket
+    private struct MinuteBucket
     {
-        private readonly MinuteCounter _requests = new();
-        private readonly MinuteCounter _informationalResponses = new();
-        private readonly MinuteCounter _successResponses = new();
-        private readonly MinuteCounter _redirectionResponses = new();
-        private readonly MinuteCounter _clientErrorResponses = new();
-        private readonly MinuteCounter _serverErrorResponses = new();
+        private MinuteCounter _requests;
+        private MinuteCounter _informationalResponses;
+        private MinuteCounter _successResponses;
+        private MinuteCounter _redirectionResponses;
+        private MinuteCounter _clientErrorResponses;
+        private MinuteCounter _serverErrorResponses;
 
         public void Record(int minute, int? statusCode)
         {
@@ -566,7 +566,7 @@ public sealed class RequestStatisticsCollector
         }
     }
 
-    private sealed class MinuteCounter
+    private struct MinuteCounter
     {
         private long _state;
 
