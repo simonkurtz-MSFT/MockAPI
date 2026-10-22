@@ -269,7 +269,7 @@ test("@smoke collapses and expands all API groups without changing endpoint conf
   request,
 }) => {
   const control = page.locator("#endpoint-toggle-groups");
-  await expect(control).toHaveText("Collapse all groups");
+  await expect(control).toHaveAccessibleName("Collapse all groups");
   await expect(control).toBeDisabled();
   await page.getByRole("button", { name: "Load examples" }).first().click();
   const rows = page.locator("#endpoint-rows .endpoint-row");
@@ -278,10 +278,19 @@ test("@smoke collapses and expands all API groups without changing endpoint conf
   await expect(control).toBeEnabled();
   await rows.first().locator(".selection-checkbox").check();
   const configuration = await request.get("/__mockapi/api/configuration");
+  const pathSort = page.locator('[data-sort-key="path"]');
+  const pathHeader = page.locator("th").filter({ has: pathSort });
+  await pathSort.click();
+  await expect(pathHeader).toHaveAttribute("aria-sort", "descending");
+  await expect(page.locator('.endpoint-group-toggle[aria-expanded="true"]')).toHaveCount(3);
 
   await control.focus();
   await page.keyboard.press("Enter");
-  await expect(control).toHaveText("Expand all groups");
+  await expect(control).toHaveAccessibleName("Expand all groups");
+  await expect(control).toHaveAttribute("title", "Expand all groups");
+  await expect(control).toHaveAttribute("aria-expanded", "false");
+  await expect(control.locator(".endpoint-group-chevron")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+  await expect(pathHeader).toHaveAttribute("aria-sort", "descending");
   await expect(control).toBeFocused();
   await expect(rows).toHaveCount(0);
   await expect(groups).toHaveCount(3);
@@ -292,24 +301,30 @@ test("@smoke collapses and expands all API groups without changing endpoint conf
 
   await page.keyboard.press("Space");
   await expect(rows).toHaveCount(41);
-  await expect(control).toHaveText("Collapse all groups");
+  await expect(control).toHaveAccessibleName("Collapse all groups");
+  await expect(control).toHaveAttribute("title", "Collapse all groups");
+  await expect(control).toHaveAttribute("aria-expanded", "true");
+  await expect(control.locator(".endpoint-group-chevron")).toHaveCSS("transform", "matrix(0, 1, -1, 0, 0, 0)");
   await expect(control).toBeFocused();
+  await pathSort.click();
+  await expect(pathHeader).toHaveAttribute("aria-sort", "ascending");
+  await expect(page.locator('.endpoint-group-toggle[aria-expanded="true"]')).toHaveCount(3);
   await expect(rows.locator(".selection-checkbox:checked")).toHaveCount(1);
   await page.getByRole("button", { name: "Collapse inventory", exact: true }).click();
-  await expect(control).toHaveText("Collapse all groups");
+  await expect(control).toHaveAccessibleName("Collapse all groups");
   await expect(rows).toHaveCount(30);
   await control.click();
   await expect(rows).toHaveCount(0);
-  await expect(control).toHaveText("Expand all groups");
+  await expect(control).toHaveAccessibleName("Expand all groups");
   await page.getByRole("button", { name: "Expand aoai", exact: true }).click();
   await expect(rows).toHaveCount(16);
-  await expect(control).toHaveText("Collapse all groups");
+  await expect(control).toHaveAccessibleName("Collapse all groups");
   await control.click();
   await expect(rows).toHaveCount(0);
   await page.getByRole("button", { name: "Collapse endpoints", exact: true }).click();
   await expect(control).toBeHidden();
   await page.getByRole("button", { name: "Expand endpoints", exact: true }).click();
-  await expect(control).toHaveText("Expand all groups");
+  await expect(control).toHaveAccessibleName("Expand all groups");
   await control.click();
   await expect(rows).toHaveCount(41);
   await expect(rows.locator(".selection-checkbox:checked")).toHaveCount(1);
@@ -329,10 +344,10 @@ test("bulk API group collapse applies to filtered groups and preserves hidden gr
   await expect(rows).toHaveCount(11);
   await control.click();
   await expect(rows).toHaveCount(0);
-  await expect(control).toHaveText("Expand all groups");
+  await expect(control).toHaveAccessibleName("Expand all groups");
   await filter.fill("");
   await expect(rows).toHaveCount(30);
-  await expect(control).toHaveText("Collapse all groups");
+  await expect(control).toHaveAccessibleName("Collapse all groups");
   await expect(page.getByRole("button", { name: "Expand inventory", exact: true })).toBeVisible();
   await filter.fill("no matching API group");
   await expect(page.locator(".endpoint-group-toggle")).toHaveCount(0);

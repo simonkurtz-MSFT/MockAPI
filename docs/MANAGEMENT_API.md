@@ -198,7 +198,9 @@ It replaces a column only when its button/non-button behavior changes, clears li
 or replaced columns, and bounds the cache to the current minute window. Surviving focused columns,
 manual horizontal scroll, and follow-newest behavior are preserved; removed focus returns to the
 timeline. Endpoint switching still uses complete histories already held in page memory.
-The Endpoints table offers **Collapse all groups**, switching to **Expand all groups** when all API
+The Endpoints table offers an icon-only chevron before the Path header, vertically aligned with
+the API-group chevrons. It is separate from Path sorting, with an accessible name and tooltip of
+**Collapse all groups**, switching to **Expand all groups** when all API
 groups in the current filtered result are collapsed. With a mixture of expanded and collapsed groups,
 the action collapses them all. Groups hidden by filters retain their state; new API groups start
 expanded. The control is disabled when there are no matching groups. Individual group controls remain

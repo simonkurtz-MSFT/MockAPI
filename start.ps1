@@ -28,7 +28,7 @@ param(
     'menu', 'help', 'check', 'setup', 'dependencies-update', 'pnpm-update', 'restore', 'format', 'lint', 'build', 'run', 'run-tutorial', 'site-preview', 'test', 'coverage',
     'publish', 'validate', 'container-engine-wslc', 'container-engine-docker', 'container-build', 'container-run', 'container-test',
     'container-showcase', 'container-logs', 'container-status', 'container-stop',
-    'container-remove', 'azure-setup', 'azure-check', 'azure-up', 'azure-import', 'azure-push', 'azure-deploy', 'azure-down',
+    'container-remove', 'azure-setup', 'azure-check', 'azure-up', 'azure-import', 'azure-push', 'azure-deploy', 'azure-down', 'azure-generate-key',
     'pathway-azure-initial', 'pathway-azure-update', 'all')]
   [string] $Action = 'menu',
 
@@ -89,6 +89,57 @@ $optionalAzureEnvironmentKeys = @(
   'AZURE_MOCKAPI_KEY'
 )
 $azureEnvironmentKeys = @($requiredAzureEnvironmentKeys) + @($optionalAzureEnvironmentKeys)
+
+function Invoke-AzureGenerateKey {
+  $path = if ([IO.Path]::IsPathRooted($EnvironmentFile)) {
+    [IO.Path]::GetFullPath($EnvironmentFile)
+  }
+  else {
+    [IO.Path]::GetFullPath((Join-Path $repositoryRoot $EnvironmentFile))
+  }
+  if (-not $PSCmdlet.ShouldProcess($path, 'Generate and save AZURE_MOCKAPI_KEY')) {
+    return
+  }
+  if ([IO.Path]::GetFileName($path) -ieq '.env.example') {
+    throw 'The placeholder-only .env.example must not contain secrets.'
+  }
+  if (-not [IO.File]::Exists($path)) {
+    throw 'Environment file not found. Copy .env.example to your local environment file first.'
+  }
+  $content = [IO.File]::ReadAllText($path)
+  $entries = [regex]::Matches($content, '(?m)^[ \t]*AZURE_MOCKAPI_KEY=([^\r\n]*)')
+  if ($entries.Count -gt 1) {
+    throw 'Duplicate AZURE_MOCKAPI_KEY entries must be removed before generating a key.'
+  }
+  if ($entries.Count -eq 1 -and $entries[0].Groups[1].Value.Trim() -notin @('', '""', "''")) {
+    throw 'AZURE_MOCKAPI_KEY is already set. Clear it explicitly before generating a replacement.'
+  }
+  $key = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+  $entry = "AZURE_MOCKAPI_KEY=$key"
+  $newline = if ($content.Contains("`r`n")) { "`r`n" } else { "`n" }
+  $updated = if ($entries.Count -eq 1) {
+    $match = $entries[0]
+    $content.Substring(0, $match.Index) + $entry + $content.Substring($match.Index + $match.Length)
+  }
+  else {
+    $separator = if ($content.Length -gt 0 -and -not $content.EndsWith("`n")) { $newline } else { '' }
+    $content + $separator + $entry + $newline
+  }
+  # Replace from the same directory so a failed write never truncates the settings file.
+  $temporary = $path + ".$([Guid]::NewGuid().ToString('N')).tmp"
+  try {
+    [IO.File]::WriteAllText($temporary, $updated, [Text.UTF8Encoding]::new($false))
+    if (-not $IsWindows) {
+      [IO.File]::SetUnixFileMode($temporary, [IO.UnixFileMode]::UserRead -bor [IO.UnixFileMode]::UserWrite)
+    }
+    [IO.File]::Move($temporary, $path, $true)
+  }
+  finally {
+    if ([IO.File]::Exists($temporary)) { [IO.File]::Delete($temporary) }
+  }
+  Write-Host 'Saved AZURE_MOCKAPI_KEY to the selected environment file. The key was not printed.'
+  Write-Host 'Process environment overrides and existing deployed security settings still take precedence.'
+}
 
 function Get-AzureDeploymentConfiguration {
   $environmentPath = if ([IO.Path]::IsPathRooted($EnvironmentFile)) {
@@ -359,6 +410,25 @@ function Assert-AzureInfrastructure {
     'bicep', 'build', '--file', (Join-Path $repositoryRoot 'infra/main.bicep'),
     '--outfile', (Join-Path $azureArtifactsDirectory 'main.json')
   )
+}
+
+function Sync-AzureDeploymentOutputs {
+  param([Parameter(Mandatory)][string] $EnvironmentName)
+
+  # Local azd state may have been recreated independently of the deployed resources.
+  # Refresh reads prior provisioning outputs; it must never provision infrastructure here.
+  Invoke-Tool -Executable 'azd' -Operation 'Refreshing existing Azure deployment outputs (no provisioning)' -Arguments @(
+    'env', 'refresh', '--environment', $EnvironmentName, '--no-prompt'
+  )
+  foreach ($name in @('AZURE_CONTAINER_REGISTRY_ENDPOINT', 'SERVICE_MOCKAPI_URI')) {
+    $valueResult = Invoke-NativeTool -Executable 'azd' -Arguments @(
+      'env', 'get-value', $name, '--environment', $EnvironmentName, '--no-prompt'
+    )
+    $value = "$($valueResult.Output | Select-Object -First 1)".Trim().Trim('"')
+    if ($valueResult.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($value)) {
+      throw "Existing deployment output '$name' is unavailable after refresh. Check the selected subscription and environment; use azure-up only if initial provisioning has not completed."
+    }
+  }
 }
 
 function Get-AzureServiceUri {
@@ -674,6 +744,7 @@ function Invoke-AzureUp {
 
 function Invoke-AzureDeploy {
   $configuration = Invoke-AzureCheck
+  Sync-AzureDeploymentOutputs -EnvironmentName $configuration.AZURE_ENV_NAME
   if ($PSCmdlet.ShouldProcess(
       "Azure environment $($configuration.AZURE_ENV_NAME)",
       'Build and deploy the MockAPI container image')) {
@@ -687,6 +758,7 @@ function Invoke-AzureDeploy {
 
 function Invoke-AzurePush {
   $configuration = Invoke-AzureCheck
+  Sync-AzureDeploymentOutputs -EnvironmentName $configuration.AZURE_ENV_NAME
   if ($PSCmdlet.ShouldProcess(
       "Azure environment $($configuration.AZURE_ENV_NAME)",
       'Build and push the MockAPI container image')) {
@@ -701,6 +773,7 @@ function Invoke-AzurePush {
 function Invoke-AzureImport {
   $configuration = Invoke-AzureCheck
   $environmentName = [string] $configuration.AZURE_ENV_NAME
+  Sync-AzureDeploymentOutputs -EnvironmentName $environmentName
   $resourceGroupName = "rg-$environmentName-$($configuration.AZURE_LOCATION)"
   $registryEndpoint = Get-AzdEnvironmentValue -EnvironmentName $environmentName -Name 'AZURE_CONTAINER_REGISTRY_ENDPOINT'
   $registryName = $registryEndpoint.Split('.')[0]
@@ -1154,7 +1227,7 @@ function Invoke-SitePreview {
   )
 }
 
-function Invoke-Tests {
+function Invoke-ApplicationTests {
   Assert-DotNet
   Assert-Pnpm
   Invoke-Tool -Executable 'dotnet' -Operation "Running tests ($Configuration)" -Arguments @(
@@ -1164,6 +1237,10 @@ function Invoke-Tests {
   Invoke-Tool -Executable 'pnpm' -Operation 'Running frontend unit tests' -Arguments @(
     'run', 'test:frontend'
   )
+}
+
+function Invoke-Tests {
+  Invoke-ApplicationTests
   Invoke-Tool -Executable 'pwsh' -Operation 'Running Developer CLI tests' -Arguments @(
     '-NoProfile', '-File', (Join-Path $repositoryRoot 'tests/DeveloperCli.Tests.ps1')
   )
@@ -1915,7 +1992,7 @@ function Invoke-All {
 
 function Invoke-InitialAzurePathway {
   Write-Host '1/3: Test' -ForegroundColor Cyan
-  Invoke-Tests
+  Invoke-ApplicationTests
   Write-Host '2/3: Build' -ForegroundColor Cyan
   Invoke-Build
   Write-Host '3/3: Provision and deploy' -ForegroundColor Cyan
@@ -1924,7 +2001,7 @@ function Invoke-InitialAzurePathway {
 
 function Invoke-UpdateAzurePathway {
   Write-Host '1/3: Test' -ForegroundColor Cyan
-  Invoke-Tests
+  Invoke-ApplicationTests
   Write-Host '2/3: Build' -ForegroundColor Cyan
   Invoke-Build
   Write-Host '3/3: Build, push, and deploy image' -ForegroundColor Cyan
@@ -1941,7 +2018,8 @@ Usage:
 Interactive menu (no action required):
   Run locally, Verify, Azure, Containers, Setup, Help, Quit.
   Choose a group to see its actions; use b to go back.
-  Existing action shortcuts (such as p1, a4, c3) work from any menu.
+  Choices select immediately; press Enter only for ambiguous choices.
+  Pathway shortcuts p1 and p2 work from any menu.
 
 
 1) Pathways
@@ -1957,6 +2035,7 @@ Interactive menu (no action required):
    dependencies-update Check for and install pnpm dependency updates that completed the eight-day cooldown.
    pnpm-update         Update the project pnpm pin to the latest release that completed the cooldown.
    restore            Restore NuGet packages.
+   azure-generate-key Save a random initial AZURE_MOCKAPI_KEY to the selected environment file.
 
 
 3) Local Development
@@ -2133,7 +2212,56 @@ MockAPI Developer CLI
        Check prerequisites and restore development dependencies.
   [2] Update dependencies and pnpm meeting the cooldown
        Update eligible dependencies first, then update the pnpm pin.
+  [3] Generate initial mock API key
+       Save a random AZURE_MOCKAPI_KEY without overwriting a non-empty value or printing the key.
 "@
+    }
+  }
+}
+
+function Read-MenuSelection {
+  param([Parameter(Mandatory)][string[]] $Choices)
+
+  if ([Console]::IsInputRedirected) {
+    return Read-Host 'Select an action'
+  }
+
+  Write-Host 'Select an action: ' -NoNewline
+  $selection = ''
+  while ($true) {
+    $key = [Console]::ReadKey($true)
+    if ($key.Key -eq [ConsoleKey]::Enter) {
+      Write-Host ''
+      return $selection
+    }
+    if ($key.Key -eq [ConsoleKey]::Backspace) {
+      if ($selection.Length -gt 0) {
+        $selection = $selection.Substring(0, $selection.Length - 1)
+        Write-Host "`b `b" -NoNewline
+      }
+      continue
+    }
+    if ([char]::IsControl($key.KeyChar)) {
+      continue
+    }
+
+    $selection += $key.KeyChar
+    Write-Host ([string] $key.KeyChar) -NoNewline
+    $normalizedSelection = $selection.ToLowerInvariant()
+    $hasExactMatch = $false
+    $hasLongerMatch = $false
+    foreach ($choice in $Choices) {
+      if ($choice -eq $normalizedSelection) {
+        $hasExactMatch = $true
+      }
+      elseif ($choice.StartsWith($normalizedSelection, [StringComparison]::OrdinalIgnoreCase)) {
+        $hasLongerMatch = $true
+      }
+    }
+    # A valid prefix such as 1 must wait while 10 is also available in this menu.
+    if ($hasExactMatch -and -not $hasLongerMatch) {
+      Write-Host ''
+      return $selection
     }
   }
 }
@@ -2164,6 +2292,7 @@ function Show-Menu {
     'Setup' = [ordered]@{
       '1' = @{ Label = 'Setup local dependencies'; Action = 'setup' }
       '2' = @{ Label = 'Update dependencies and pnpm meeting the cooldown'; Action = 'dependency-tooling-update' }
+      '3' = @{ Label = 'Generate initial mock API key'; Action = 'azure-generate-key' }
     }
     'Verify' = [ordered]@{
       '1' = @{ Label = 'Validate managed code'; Action = 'validate' }
@@ -2206,31 +2335,8 @@ function Show-Menu {
     'q' = @{ Action = 'quit' }
     'p1' = @{ Action = 'pathway-azure-initial' }
     'p2' = @{ Action = 'pathway-azure-update' }
-    'a1' = @{ Action = 'azure-setup' }
-    'a2' = @{ Action = 'azure-check' }
-    'a3' = @{ Action = 'azure-up' }
-    'a4' = @{ Action = 'azure-deploy' }
-    'a5' = @{ Action = 'azure-push' }
-    'a6' = @{ Action = 'azure-import' }
-    'a7' = @{ Action = 'azure-down' }
-    'c1' = @{ Action = 'container-engine-wslc' }
-    'c2' = @{ Action = 'container-engine-docker' }
-    'c3' = @{ Action = 'container-build' }
-    'c4' = @{ Action = 'container-run' }
-    'c5' = @{ Action = 'container-test' }
-    'c6' = @{ Action = 'container-showcase' }
-    'c7' = @{ Action = 'container-logs' }
-    'c8' = @{ Action = 'container-status' }
-    'c9' = @{ Action = 'container-stop' }
-    'c10' = @{ Action = 'container-remove' }
-    's1' = @{ Action = 'setup' }
-    's2' = @{ Action = 'dependency-tooling-update' }
-    'v1' = @{ Action = 'validate' }
-    'v2' = @{ Action = 'test' }
   }
-  $choices['s3'] = @{ Action = 'pnpm-update' }
-  $choices['l1'] = @{ Action = 'run' }
-  $choiceWidth = ($choices.Keys | ForEach-Object { "[$_]".Length } | Measure-Object -Maximum).Maximum
+  $choiceWidth = 5
   $currentMenu = $InitialMenu
 
   while ($true) {
@@ -2256,9 +2362,12 @@ function Show-Menu {
       }
     }
     Write-Host ''
-    Write-Host 'Action shortcuts work from any menu.'
+    Write-Host 'Pathway shortcuts p1 and p2 work from any menu.'
+    Write-Host 'Choices select immediately; press Enter only for ambiguous choices.'
     Write-Host ''
-    $selection = (Read-Host 'Select an action').ToLowerInvariant()
+    $validChoices = @($sections[$currentMenu].Keys) + @($menuGroups.Keys) + @($choices.Keys)
+    if ($currentMenu -ne 'Home') { $validChoices += 'b' }
+    $selection = (Read-MenuSelection -Choices $validChoices).ToLowerInvariant()
     Write-Host ''
     $script:MenuContext = $currentMenu
     if ($menuGroups.ContainsKey($selection)) {
@@ -2358,6 +2467,7 @@ function Invoke-Action {
     'azure-push' { Invoke-AzurePush }
     'azure-deploy' { Invoke-AzureDeploy }
     'azure-down' { Invoke-AzureDown }
+    'azure-generate-key' { Invoke-AzureGenerateKey }
     'pathway-azure-initial' { Invoke-InitialAzurePathway }
     'pathway-azure-update' { Invoke-UpdateAzurePathway }
     'all' { Invoke-All }

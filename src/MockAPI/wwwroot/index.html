@@ -440,16 +440,6 @@
                 <button id="bulk-disable" class="button quiet" type="button" disabled>Disable</button>
                 <button id="bulk-delete" class="button quiet bulk-delete" type="button" disabled>Delete</button>
               </div>
-              <button
-                id="endpoint-toggle-groups"
-                class="button quiet"
-                type="button"
-                aria-controls="endpoint-rows"
-                title="Collapse or expand all API groups in the current filtered result."
-                disabled
-              >
-                Collapse all groups
-              </button>
             </div>
 
             <div
@@ -482,10 +472,24 @@
                       />
                     </th>
                     <th class="sortable-header" scope="col" aria-sort="ascending">
-                      <button class="sort-button" type="button" data-sort-key="path">
-                        Path
-                        <span class="sort-indicator" aria-hidden="true"></span>
-                      </button>
+                      <div class="endpoint-path-heading">
+                        <button
+                          id="endpoint-toggle-groups"
+                          class="endpoint-groups-toggle"
+                          type="button"
+                          aria-controls="endpoint-rows"
+                          aria-expanded="true"
+                          aria-label="Collapse all groups"
+                          title="Collapse all groups"
+                          disabled
+                        >
+                          <span class="endpoint-group-chevron" aria-hidden="true"></span>
+                        </button>
+                        <button class="sort-button" type="button" data-sort-key="path">
+                          Path
+                          <span class="sort-indicator" aria-hidden="true"></span>
+                        </button>
+                      </div>
                     </th>
                     <th class="sortable-header" scope="col" aria-sort="none">
                       <button class="sort-button" type="button" data-sort-key="name">

@@ -11,7 +11,9 @@ applyTo: "src/MockAPI/wwwroot/**/*.{js,html,css},tests/{frontend,browser}/**/*.j
 - Keep endpoint table selection/filter/group-local sort state in `dashboard-endpoint-table.js`, draft and captured-revision state in `dashboard-editor-dialog.js`, test-request batches and focus restoration in `dashboard-test-blade.js`, and statistics/request-log scope and rendering in `dashboard-statistics.js`. Keep management commands and confirmations in the entrypoint.
 - Show all filtered endpoints without pagination in a vertically scrollable table with sticky headers.
   Keep API groups alphabetical regardless of operation sort; default operations to ascending path order.
-  Provide a page-local collapse/expand-all group control for the current filtered result. Preserve
+  Provide a page-local, icon-only collapse/expand-all group chevron before the Path header, aligned
+  with API-group chevrons and separate from Path sorting. Keep its accessible name, tooltip, and
+  expanded state synchronized for the current filtered result. Preserve
   hidden groups' state and endpoint selection, keep individual toggles, and start new groups expanded.
   Disable the bulk group control when no groups match; mixed state offers collapse-all.
   Keep per-API selection checkboxes scoped to filtered endpoints, including collapsed groups; show

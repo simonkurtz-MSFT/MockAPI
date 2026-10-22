@@ -152,7 +152,10 @@ export function createDashboardEndpointTable({
     const allCollapsed = groups.length > 0 && groups.every((group) => state.collapsedEndpointGroups.has(group.key));
     const control = elements["endpoint-toggle-groups"];
     control.disabled = groups.length === 0;
-    control.textContent = allCollapsed ? "Expand all groups" : "Collapse all groups";
+    const label = allCollapsed ? "Expand all groups" : "Collapse all groups";
+    control.setAttribute("aria-label", label);
+    control.title = label;
+    control.setAttribute("aria-expanded", String(!allCollapsed));
   }
 
   function toggleAllEndpointGroups() {
@@ -239,7 +242,7 @@ export function createDashboardEndpointTable({
     const buttons = document.querySelectorAll("[data-sort-key]");
     for (const button of buttons) {
       const active = button.dataset.sortKey === state.endpointSort.key;
-      button.parentElement.setAttribute("aria-sort", active ? state.endpointSort.direction : "none");
+      button.closest("th").setAttribute("aria-sort", active ? state.endpointSort.direction : "none");
       button.dataset.direction = active ? state.endpointSort.direction : "none";
     }
   }

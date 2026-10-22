@@ -53,6 +53,13 @@ The image includes PowerShell, so both developer entry points work.
 ./start.sh --action lint
 ```
 
+The composed Azure pathways (`pathway-azure-initial` and `pathway-azure-update`) run backend and
+frontend application tests before building and deploying, but exclude Developer CLI regressions.
+The normal `test`, `validate`, and `all` actions retain the CLI tests. Direct `azure-up`
+and `azure-deploy` actions do not run the application test gate. CLI tests must remain unattended even when
+started from an interactive terminal: menu scenarios supply queued lines, key-input scenarios
+supply synthetic keys, and child processes receive closed standard input.
+
 The API-key allocation regression test covers 32-, 43-, and 256-character keys. After warmup,
 it measures five synchronous batches of 1,000 authorizations on the current thread and requires
 the lowest batch to stay within 1,024 allocated bytes. This measures steady-state allocation

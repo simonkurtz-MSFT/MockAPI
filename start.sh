@@ -453,13 +453,17 @@ invoke_site_preview() {
   run_tool 'Previewing the documentation site' node "$REPOSITORY_ROOT/scripts/serve-site.cjs" --open
 }
 
-invoke_tests() {
+invoke_application_tests() {
   assert_dotnet
   assert_pnpm
   run_tool "Running tests ($CONFIGURATION)" \
     dotnet test "$REPOSITORY_ROOT/MockAPI.slnx" --configuration "$CONFIGURATION" \
     -p:TreatWarningsAsErrors=true
   run_tool 'Running frontend unit tests' pnpm run test:frontend
+}
+
+invoke_tests() {
+  invoke_application_tests
   invoke_developer_cli_tests
 }
 
@@ -545,7 +549,7 @@ invoke_all() {
 
 invoke_initial_azure_pathway() {
   write_color cyan '1/3: Test'
-  invoke_tests
+  invoke_application_tests
   write_color cyan '2/3: Build'
   invoke_build
   write_color cyan '3/3: Provision and deploy'
@@ -554,7 +558,7 @@ invoke_initial_azure_pathway() {
 
 invoke_update_azure_pathway() {
   write_color cyan '1/3: Test'
-  invoke_tests
+  invoke_application_tests
   write_color cyan '2/3: Build'
   invoke_build
   write_color cyan '3/3: Build, push, and deploy image'
@@ -1103,6 +1107,51 @@ assert_azure_cli() {
   write_field 'Azure CLI' "$version" green
 }
 
+invoke_azure_generate_key() {
+  local envPath="$ENVIRONMENT_FILE"
+  if [[ "$envPath" =~ ^[A-Za-z]:[\\/] ]] && require_command cygpath; then
+    envPath="$(cygpath -u "$envPath")"
+  elif [[ "$envPath" != /* ]]; then
+    envPath="$REPOSITORY_ROOT/$envPath"
+  fi
+  should_process "$envPath" 'Generate and save AZURE_MOCKAPI_KEY' || return 0
+  MOCKAPI_ENV_PATH="$envPath" python3 -c '
+import os,re,secrets,tempfile
+from pathlib import Path
+
+path = Path(os.environ["MOCKAPI_ENV_PATH"]).resolve()
+if path.name.lower() == ".env.example":
+    raise SystemExit("The placeholder-only .env.example must not contain secrets.")
+if not path.is_file():
+    raise SystemExit("Environment file not found. Copy .env.example to your local environment file first.")
+content = path.read_bytes().decode("utf-8-sig")
+entries = list(re.finditer(r"(?m)^[ \t]*AZURE_MOCKAPI_KEY=([^\r\n]*)", content))
+if len(entries) > 1:
+    raise SystemExit("Duplicate AZURE_MOCKAPI_KEY entries must be removed before generating a key.")
+if entries and entries[0][1].strip() not in ("", "\"\"", "\x27\x27"):
+    raise SystemExit("AZURE_MOCKAPI_KEY is already set. Clear it explicitly before generating a replacement.")
+entry = "AZURE_MOCKAPI_KEY=" + secrets.token_urlsafe(32)
+newline = "\r\n" if "\r\n" in content else "\n"
+if entries:
+    match = entries[0]
+    updated = content[:match.start()] + entry + content[match.end():]
+else:
+    separator = newline if content and not content.endswith("\n") else ""
+    updated = content + separator + entry + newline
+# mkstemp restricts access; same-directory replacement keeps failed writes from truncating settings.
+descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+try:
+    with os.fdopen(descriptor, "wb") as handle:
+        handle.write(updated.encode("utf-8"))
+    os.replace(temporary, path)
+finally:
+    if os.path.exists(temporary):
+        os.unlink(temporary)
+' || return $?
+  printf '%s\n' 'Saved AZURE_MOCKAPI_KEY to the selected environment file. The key was not printed.'
+  printf '%s\n' 'Process environment overrides and existing deployed security settings still take precedence.'
+}
+
 get_azure_deployment_configuration() {
   local envPath="$ENVIRONMENT_FILE"
   if [[ "$envPath" =~ ^[A-Za-z]:[\\/] ]] && require_command cygpath; then
@@ -1269,6 +1318,21 @@ set_azd_environment() {
   else
     run_tool 'Clearing azd environment value AZURE_MOCKAPI_KEY' azd env set AZURE_MOCKAPI_KEY= --environment "$environmentName" --no-prompt
   fi
+}
+
+sync_azure_deployment_outputs() {
+  local environmentName="$1" name value
+  # Recover local azd state from prior provisioning without changing Azure resources.
+  run_tool 'Refreshing existing Azure deployment outputs (no provisioning)' \
+    azd env refresh --environment "$environmentName" --no-prompt
+  for name in AZURE_CONTAINER_REGISTRY_ENDPOINT SERVICE_MOCKAPI_URI; do
+    value="$(azd env get-value "$name" --environment "$environmentName" --no-prompt)" ||
+      die "Existing deployment output '$name' is unavailable after refresh. Check the selected subscription and environment; use azure-up only if initial provisioning has not completed."
+    value="$(trim "$value")"
+    value="${value%\"}"; value="${value#\"}"
+    [[ -n "$value" ]] ||
+      die "Existing deployment output '$name' is unavailable after refresh. Check the selected subscription and environment; use azure-up only if initial provisioning has not completed."
+  done
 }
 
 get_azd_environment_value() {
@@ -1544,6 +1608,7 @@ invoke_azure_deploy() {
   local environmentName serviceUri
   invoke_azure_check
   environmentName="$AZURE_CONFIGURATION_ENVIRONMENT_NAME"
+  sync_azure_deployment_outputs "$environmentName"
   if should_process "Azure environment $environmentName" 'Build and deploy the MockAPI container image'; then
     run_tool 'Deploying MockAPI to Azure' azd deploy --environment "$environmentName"
     complete_azure_deployment
@@ -1556,6 +1621,7 @@ invoke_azure_push() {
   local environmentName serviceUri
   invoke_azure_check
   environmentName="$AZURE_CONFIGURATION_ENVIRONMENT_NAME"
+  sync_azure_deployment_outputs "$environmentName"
   if should_process "Azure environment $environmentName" 'Build and push the MockAPI container image'; then
     run_tool 'Building and pushing MockAPI to Azure Container Registry' azd publish mockapi --environment "$environmentName" --no-prompt
     serviceUri="$(get_azure_service_uri "$environmentName")"
@@ -1568,6 +1634,7 @@ invoke_azure_import() {
   local location environmentName
   location="$AZURE_CONFIGURATION_LOCATION"
   environmentName="$AZURE_CONFIGURATION_ENVIRONMENT_NAME"
+  sync_azure_deployment_outputs "$environmentName"
 
   local resourceGroup="rg-${environmentName}-${location}"
   local appVersion
@@ -1627,7 +1694,8 @@ Usage:
 Interactive menu (no action required):
   Run locally, Verify, Azure, Containers, Setup, Help, Quit.
   Choose a group to see its actions; use b to go back.
-  Existing action shortcuts (such as p1, a4, c3) work from any menu.
+  Choices select immediately; press Enter only for ambiguous choices.
+  Pathway shortcuts p1 and p2 work from any menu.
 
 
 1) Pathways
@@ -1643,6 +1711,7 @@ Interactive menu (no action required):
    dependencies-update Check for and install pnpm dependency updates that completed the eight-day cooldown.
    pnpm-update         Update the project pnpm pin to the latest release that completed the cooldown.
    restore            Restore NuGet packages.
+   azure-generate-key Save a random initial AZURE_MOCKAPI_KEY to the selected environment file.
 
 
 3) Local Development
@@ -1815,6 +1884,8 @@ MockAPI Developer CLI
        Check prerequisites and restore development dependencies.
   [2] Update dependencies and pnpm meeting the cooldown
        Update eligible dependencies first, then update the pnpm pin.
+  [3] Generate initial mock API key
+       Save a random AZURE_MOCKAPI_KEY without overwriting a non-empty value or printing the key.
 EOF
       ;;
     *) die "Unknown submenu help section '$1'." ;;
@@ -1824,10 +1895,53 @@ EOF
 # ---------------------------------------------------------------------------
 # Interactive menu (mirrors Show-Menu in start.ps1).
 # ---------------------------------------------------------------------------
+read_menu_selection() {
+  local choices=("$@")
+  MENU_INPUT=''
+  if [[ ! -t 0 ]]; then
+    IFS= read -r -p 'Select an action: ' MENU_INPUT || true
+    return
+  fi
+
+  printf '%s' 'Select an action: '
+  local key
+  while true; do
+    IFS= read -r -s -n 1 key || return 1
+    case "$key" in
+      '') printf '\n'; return 0 ;;
+      $'\177'|$'\b')
+        if [[ -n "$MENU_INPUT" ]]; then
+          MENU_INPUT="${MENU_INPUT%?}"
+          printf '\b \b'
+        fi
+        continue
+        ;;
+      [[:cntrl:]]) continue ;;
+    esac
+    MENU_INPUT+="$key"
+    printf '%s' "$key"
+    local normalizedSelection choice hasExactMatch=false hasLongerMatch=false
+    normalizedSelection="$(printf '%s' "$MENU_INPUT" | tr '[:upper:]' '[:lower:]')"
+    for choice in "${choices[@]}"; do
+      if [[ "$choice" == "$normalizedSelection" ]]; then
+        hasExactMatch=true
+      elif [[ "$choice" == "$normalizedSelection"* ]]; then
+        hasLongerMatch=true
+      fi
+    done
+    # A valid prefix such as 1 must wait while 10 is also available in this menu.
+    if [[ "$hasExactMatch" == true && "$hasLongerMatch" == false ]]; then
+      printf '\n'
+      return 0
+    fi
+  done
+}
+
 show_menu() {
   MENU_SELECTION=""
   local currentEngine="$CONTAINER_ENGINE"
   local currentMenu="${MENU_CONTEXT:-Home}"
+  local menuKeys
   while true; do
     reset_console_colors
     printf '\n'
@@ -1839,6 +1953,7 @@ show_menu() {
     printf '\n'
     case "$currentMenu" in
       Home)
+        menuKeys=()
         printf '   %-5s  %s\n' '[l]' 'Run locally'
         printf '   %-5s  %s\n' '[v]' 'Verify'
         printf '   %-5s  %s\n' '[a]' 'Azure'
@@ -1849,15 +1964,18 @@ show_menu() {
         printf '   %-5s  %s\n' '[q]' 'Quit'
         ;;
       'Run locally')
+        menuKeys=(1 2 3)
         printf '   %-5s  %s\n' '[1]' 'Run without tutorial'
         printf '   %-5s  %s\n' '[2]' 'Run with tutorial'
         printf '   %-5s  %s\n' '[3]' 'Preview documentation site'
         ;;
       Verify)
+        menuKeys=(1 2)
         printf '   %-5s  %s\n' '[1]' 'Validate managed code'
         printf '   %-5s  %s\n' '[2]' 'Run unit tests'
         ;;
       Azure)
+        menuKeys=(1 2 3 4 5 6 7 8 9)
         printf '   %-5s  %s\n' '[1]' 'Test, build, and deploy initial Azure environment'
         printf '   %-5s  %s\n' '[2]' 'Test, build, and update existing Azure deployment'
         printf '   %-5s  %s\n' '[3]' 'Set up Azure Tooling'
@@ -1869,6 +1987,7 @@ show_menu() {
         printf '   %-5s  %s\n' '[9]' 'Delete Azure resources'
         ;;
       Containers)
+        menuKeys=(1 2 3 4 5 6 7 8 9 10)
         printf '   %-5s  %s\n' '[1]' 'Use WSLC'
         printf '   %-5s  %s\n' '[2]' 'Use Docker'
         printf '   %-5s  %s\n' '[3]' "Build Dockerfile ($currentEngine)"
@@ -1881,11 +2000,14 @@ show_menu() {
         printf '   %-5s  %s\n' '[10]' 'Remove container'
         ;;
       Setup)
+        menuKeys=(1 2 3)
         printf '   %-5s  %s\n' '[1]' 'Setup local dependencies'
         printf '   %-5s  %s\n' '[2]' 'Update dependencies and pnpm meeting the cooldown'
+        printf '   %-5s  %s\n' '[3]' 'Generate initial mock API key'
         ;;
     esac
     if [[ "$currentMenu" != 'Home' ]]; then
+      menuKeys+=(b)
       printf '\n'
       printf '   %-5s  %s\n' '[b]' 'Back'
       printf '   %-5s  %s\n' '[h]' 'Help'
@@ -1893,10 +2015,12 @@ show_menu() {
     fi
 
     printf '\n'
-    printf '%s\n' 'Action shortcuts work from any menu.'
+    printf '%s\n' 'Pathway shortcuts p1 and p2 work from any menu.'
+    printf '%s\n' 'Choices select immediately; press Enter only for ambiguous choices.'
     printf '\n'
     local selection
-    read -r -p 'Select an action: ' selection || true
+    read_menu_selection "${menuKeys[@]}" l v a c s h q p1 p2
+    selection="$MENU_INPUT"
     printf '\n'
     selection="$(printf '%s' "$selection" | tr '[:upper:]' '[:lower:]')"
     MENU_CONTEXT="$currentMenu"
@@ -1928,6 +2052,7 @@ show_menu() {
       'Containers:10') MENU_SELECTION='container-remove'; return 0 ;;
       'Setup:1') MENU_SELECTION='setup'; return 0 ;;
       'Setup:2') MENU_SELECTION='dependency-tooling-update'; return 0 ;;
+      'Setup:3') MENU_SELECTION='azure-generate-key'; return 0 ;;
     esac
 
     case "$selection" in
@@ -1945,29 +2070,6 @@ show_menu() {
         ;;
       p1) MENU_SELECTION='pathway-azure-initial'; return 0 ;;
       p2) MENU_SELECTION='pathway-azure-update'; return 0 ;;
-      s1) MENU_SELECTION='setup'; return 0 ;;
-      s2) MENU_SELECTION='dependency-tooling-update'; return 0 ;;
-      s3) MENU_SELECTION='pnpm-update'; return 0 ;;
-      l1) MENU_SELECTION='run'; return 0 ;;
-      v1) MENU_SELECTION='validate'; return 0 ;;
-      v2) MENU_SELECTION='test'; return 0 ;;
-      c1) MENU_SELECTION='container-engine-wslc'; return 0 ;;
-      c2) MENU_SELECTION='container-engine-docker'; return 0 ;;
-      c3) MENU_SELECTION='container-build'; return 0 ;;
-      c4) MENU_SELECTION='container-run'; return 0 ;;
-      c5) MENU_SELECTION='container-test'; return 0 ;;
-      c6) MENU_SELECTION='container-showcase'; return 0 ;;
-      c7) MENU_SELECTION='container-logs'; return 0 ;;
-      c8) MENU_SELECTION='container-status'; return 0 ;;
-      c9) MENU_SELECTION='container-stop'; return 0 ;;
-      c10) MENU_SELECTION='container-remove'; return 0 ;;
-      a1) MENU_SELECTION='azure-setup'; return 0 ;;
-      a2) MENU_SELECTION='azure-check'; return 0 ;;
-      a3) MENU_SELECTION='azure-up'; return 0 ;;
-      a4) MENU_SELECTION='azure-deploy'; return 0 ;;
-      a5) MENU_SELECTION='azure-push'; return 0 ;;
-      a6) MENU_SELECTION='azure-import'; return 0 ;;
-      a7) MENU_SELECTION='azure-down'; return 0 ;;
       h)
         if [[ "$currentMenu" == 'Home' ]]; then
           MENU_SELECTION='help'
@@ -2053,6 +2155,7 @@ invoke_action() {
     azure-push) invoke_azure_push ;;
     azure-deploy) invoke_azure_deploy ;;
     azure-down) invoke_azure_down ;;
+    azure-generate-key) invoke_azure_generate_key ;;
     pathway-azure-initial) invoke_initial_azure_pathway ;;
     pathway-azure-update) invoke_update_azure_pathway ;;
     all) invoke_all ;;
@@ -2081,7 +2184,7 @@ run_menu_action() {
 # ---------------------------------------------------------------------------
 # Argument parsing.
 # ---------------------------------------------------------------------------
-VALID_ACTIONS="menu help check setup dependencies-update pnpm-update restore format lint build run run-tutorial site-preview test coverage publish validate container-engine-wslc container-engine-docker container-build container-run container-test container-showcase container-logs container-status container-stop container-remove azure-setup azure-check azure-up azure-import azure-push azure-deploy azure-down pathway-azure-initial pathway-azure-update all"
+VALID_ACTIONS="menu help check setup dependencies-update pnpm-update restore format lint build run run-tutorial site-preview test coverage publish validate container-engine-wslc container-engine-docker container-build container-run container-test container-showcase container-logs container-status container-stop container-remove azure-setup azure-check azure-up azure-import azure-push azure-deploy azure-down azure-generate-key pathway-azure-initial pathway-azure-update all"
 
 is_valid_action() {
   local candidate="$1" action

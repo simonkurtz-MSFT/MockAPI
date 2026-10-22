@@ -44,6 +44,7 @@ function Invoke-CliProcess {
   $process.StartInfo.UseShellExecute = $false
   $process.StartInfo.RedirectStandardOutput = $true
   $process.StartInfo.RedirectStandardError = $true
+  $process.StartInfo.RedirectStandardInput = $true
   $process.StartInfo.ArgumentList.Add('-NoProfile')
   $process.StartInfo.ArgumentList.Add('-File')
   $process.StartInfo.ArgumentList.Add($cliPath)
@@ -59,6 +60,7 @@ function Invoke-CliProcess {
   $process.StartInfo.Environment['MOCKAPI_TEST_ENVIRONMENT_MARKER'] = $environmentMarker
 
   $null = $process.Start()
+  $process.StandardInput.Close()
   $standardOutput = $process.StandardOutput.ReadToEnd()
   $standardError = $process.StandardError.ReadToEnd()
   $process.WaitForExit()
@@ -80,12 +82,14 @@ function Invoke-BashCliProcess {
   $process.StartInfo.UseShellExecute = $false
   $process.StartInfo.RedirectStandardOutput = $true
   $process.StartInfo.RedirectStandardError = $true
+  $process.StartInfo.RedirectStandardInput = $true
   $process.StartInfo.ArgumentList.Add($ScriptPath)
   foreach ($argument in $Arguments) {
     $process.StartInfo.ArgumentList.Add($argument)
   }
 
   $null = $process.Start()
+  $process.StandardInput.Close()
   $standardOutput = $process.StandardOutput.ReadToEnd()
   $standardError = $process.StandardError.ReadToEnd()
   $process.WaitForExit()
@@ -291,7 +295,337 @@ previewExitCode="$1"
   Microsoft.PowerShell.Utility\Write-Host 'Developer CLI site preview tests passed (server arguments, browser opening, and failure parity).'
 }
 
+function Test-AzurePathwayTestScope {
+  foreach ($name in @('Invoke-ApplicationTests', 'Invoke-Tests', 'Invoke-InitialAzurePathway', 'Invoke-UpdateAzurePathway')) {
+    . (Import-CliFunction -Name $name)
+  }
+  function Assert-DotNet {}
+  function Assert-Pnpm {}
+  function Write-Host { param($Object, $ForegroundColor) }
+  function Invoke-Tool {
+    param([string] $Executable, [string] $Operation, [string[]] $Arguments)
+    $script:pathwayEvents.Add($Executable)
+    if ($Executable -eq $script:pathwayFailure) { throw 'Application test failure.' }
+  }
+  function Invoke-Build { $script:pathwayEvents.Add('build') }
+  function Invoke-AzureUp { $script:pathwayEvents.Add('up') }
+  function Invoke-AzureDeploy { $script:pathwayEvents.Add('deploy') }
+  $Configuration = 'Release'
+  $solutionFile = Join-Path $repositoryRoot 'MockAPI.slnx'
+  $bashSource = Get-Content -LiteralPath $bashCliPath -Raw
+  $functions = foreach ($name in @('invoke_application_tests', 'invoke_tests', 'invoke_developer_cli_tests', 'invoke_initial_azure_pathway', 'invoke_update_azure_pathway')) {
+    $match = [regex]::Match($bashSource, "(?ms)^$name\(\) \{.*?^\}")
+    Assert-True $match.Success "Bash must define $name."
+    $match.Value
+  }
+  $harness = @'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+REPOSITORY_ROOT=.
+CONFIGURATION=Release
+failure="$2"
+events=''
+assert_dotnet() { :; }
+assert_pnpm() { :; }
+require_command() { return 0; }
+write_color() { :; }
+event() { events+="$1,"; }
+run_tool() {
+  event "$2"
+  if [[ "$2" == "$failure" ]]; then printf '%s' "$events"; exit 17; fi
+}
+invoke_build() { event build; }
+invoke_azure_up() { event up; }
+invoke_azure_deploy() { event deploy; }
+'@
+  $harness += "`n" + ($functions -join "`n") + "`n" + @'
+"$1"
+printf '%s' "$events"
+'@
+  Set-Content -LiteralPath $bashMenuTestPath -Value $harness.Replace("`r", '') -Encoding utf8NoBOM -NoNewline
+  $scenarios = @(
+    @{ PowerShell = 'Invoke-Tests'; Bash = 'invoke_tests'; Expected = 'dotnet,pnpm,pwsh,'; Failure = 'none' },
+    @{ PowerShell = 'Invoke-InitialAzurePathway'; Bash = 'invoke_initial_azure_pathway'; Expected = 'dotnet,pnpm,build,up,'; Failure = 'none' },
+    @{ PowerShell = 'Invoke-UpdateAzurePathway'; Bash = 'invoke_update_azure_pathway'; Expected = 'dotnet,pnpm,build,deploy,'; Failure = 'none' }
+  )
+  foreach ($pathway in @('Initial', 'Update')) {
+    $bashPathway = $pathway.ToLowerInvariant()
+    $scenarios += @{ PowerShell = "Invoke-${pathway}AzurePathway"; Bash = "invoke_${bashPathway}_azure_pathway"; Expected = 'dotnet,'; Failure = 'dotnet' }
+    $scenarios += @{ PowerShell = "Invoke-${pathway}AzurePathway"; Bash = "invoke_${bashPathway}_azure_pathway"; Expected = 'dotnet,pnpm,'; Failure = 'pnpm' }
+  }
+  foreach ($scenario in $scenarios) {
+    $script:pathwayEvents = [Collections.Generic.List[string]]::new()
+    $script:pathwayFailure = $scenario.Failure
+    $failed = $false
+    try { & $scenario.PowerShell }
+    catch { $failed = $true }
+    Assert-True ($failed -eq ($scenario.Failure -ne 'none')) 'PowerShell must stop a pathway on application test failure.'
+    Assert-True (($script:pathwayEvents -join ',') + ',' -ceq $scenario.Expected) "Incorrect PowerShell test scope/order for $($scenario.PowerShell)."
+    $result = Invoke-BashCliProcess -ScriptPath ('./' + (Split-Path -Leaf $bashMenuTestPath)) -Arguments @($scenario.Bash, $scenario.Failure)
+    Assert-True (($result.ExitCode -eq 0) -eq ($scenario.Failure -eq 'none')) 'Bash must stop a pathway on application test failure.'
+    Assert-True ($result.Output.Trim() -ceq $scenario.Expected) "Incorrect Bash test scope/order for $($scenario.Bash)."
+  }
+  Microsoft.PowerShell.Utility\Write-Host 'Developer CLI Azure pathway test scope passed in PowerShell and Bash.'
+}
+
+function Test-AzureOutputRefresh {
+  . (Import-CliFunction -Name 'Sync-AzureDeploymentOutputs')
+  $script:refreshCommands = [Collections.Generic.List[string]]::new()
+  function Invoke-Tool {
+    param([string] $Executable, [string] $Operation, [string[]] $Arguments)
+    Assert-True ($Executable -eq 'azd' -and ($Arguments -join ' ') -eq 'env refresh --environment fixture --no-prompt') 'Recovery must refresh the explicit environment without provisioning.'
+    $script:refreshCommands.Add('refresh')
+    if ($script:refreshScenario -eq 'refresh-failure') { throw 'refresh failed' }
+  }
+  function Invoke-NativeTool {
+    param([string] $Executable, [string[]] $Arguments)
+    Assert-True ($script:refreshCommands[0] -eq 'refresh') 'Refresh must happen before reading deployment outputs.'
+    Assert-True (($Arguments -join ' ') -eq "env get-value $($Arguments[2]) --environment fixture --no-prompt") 'Output checks must use the selected environment.'
+    $script:refreshCommands.Add($Arguments[2])
+    if ($script:refreshScenario -eq 'missing-registry' -and $Arguments[2] -eq 'AZURE_CONTAINER_REGISTRY_ENDPOINT') {
+      return [pscustomobject]@{ ExitCode = 1; Output = @() }
+    }
+    if ($script:refreshScenario -eq 'empty-service' -and $Arguments[2] -eq 'SERVICE_MOCKAPI_URI') {
+      return [pscustomobject]@{ ExitCode = 0; Output = @('""') }
+    }
+    return [pscustomobject]@{ ExitCode = 0; Output = @('recovered-output') }
+  }
+  $bashSource = Get-Content -LiteralPath $bashCliPath -Raw
+  $helper = [regex]::Match($bashSource, '(?ms)^sync_azure_deployment_outputs\(\) \{.*?^\}')
+  Assert-True $helper.Success 'Bash must define sync_azure_deployment_outputs.'
+  $harness = @'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+scenario="$1"
+refreshed=false
+die() { printf '%s\n' "$1" >&2; exit 1; }
+trim() { printf '%s' "$1"; }
+run_tool() { shift; "$@" || exit $?; }
+azd() {
+  if [[ "$*" == 'env refresh --environment fixture --no-prompt' ]]; then
+    [[ "$scenario" != refresh-failure ]] || return 1
+    refreshed=true
+    return 0
+  fi
+  [[ "$refreshed" == true && "$1 $2" == 'env get-value' && "$4 $5 $6" == '--environment fixture --no-prompt' ]] || exit 90
+  if [[ "$scenario" == missing-registry && "$3" == AZURE_CONTAINER_REGISTRY_ENDPOINT ]]; then return 1; fi
+  if [[ "$scenario" == empty-service && "$3" == SERVICE_MOCKAPI_URI ]]; then printf '""'; return 0; fi
+  printf 'recovered-output'
+}
+'@
+  $harness += "`n" + $helper.Value + "`n" + 'sync_azure_deployment_outputs fixture'
+  Set-Content -LiteralPath $bashMenuTestPath -Value $harness.Replace("`r", '') -Encoding utf8NoBOM -NoNewline
+  foreach ($scenario in @('recovered', 'refresh-failure', 'missing-registry', 'empty-service')) {
+    $script:refreshScenario = $scenario
+    $script:refreshCommands.Clear()
+    $failure = $null
+    try { Sync-AzureDeploymentOutputs -EnvironmentName fixture }
+    catch { $failure = $_ }
+    Assert-True (($null -eq $failure) -eq ($scenario -eq 'recovered')) "PowerShell refresh scenario '$scenario' returned an unexpected result."
+    if ($scenario -eq 'recovered') {
+      Assert-True (($script:refreshCommands -join ',') -eq 'refresh,AZURE_CONTAINER_REGISTRY_ENDPOINT,SERVICE_MOCKAPI_URI') 'Both restored outputs must be checked.'
+    }
+    elseif ($scenario -ne 'refresh-failure') {
+      Assert-True ($failure.Exception.Message.Contains('after refresh')) "Missing outputs must produce an actionable error ($scenario): $($failure.Exception.Message)"
+    }
+    $result = Invoke-BashCliProcess -ScriptPath ('./' + (Split-Path -Leaf $bashMenuTestPath)) -Arguments @($scenario)
+    Assert-True (($result.ExitCode -eq 0) -eq ($scenario -eq 'recovered')) "Bash refresh scenario '$scenario' returned an unexpected result."
+  }
+  foreach ($action in @('Deploy', 'Push', 'Import')) {
+    $powershellAction = (Import-CliFunction -Name "Invoke-Azure$action").ToString()
+    $bashAction = [regex]::Match($bashSource, "(?ms)^invoke_azure_$($action.ToLowerInvariant())\(\) \{.*?^\}").Value
+    Assert-True ($powershellAction.Contains('Sync-AzureDeploymentOutputs -EnvironmentName')) "PowerShell $action must recover deployment outputs."
+    Assert-True ($bashAction.Contains('sync_azure_deployment_outputs "$environmentName"')) "Bash $action must recover deployment outputs."
+  }
+  Write-Host 'Developer CLI Azure output recovery tests passed in PowerShell and Bash.'
+}
+
+function Test-AzureKeyGeneration {
+  $keys = [Collections.Generic.HashSet[string]]::new()
+  foreach ($shell in @('PowerShell', 'Bash')) {
+    $relativePath = Split-Path -Leaf $bashEnvironmentPath
+    foreach ($scenario in @(
+        @{ Content = "# Keep comment`r`nAZURE_LOCATION=eastus2`r`nAZURE_MOCKAPI_KEY=`r`n"; Success = $true },
+        @{ Content = "AZURE_MOCKAPI_KEY=`"`"`n# Keep trailing comment`n"; Success = $true },
+        @{ Content = "AZURE_MOCKAPI_KEY=''"; Success = $true },
+        @{ Content = 'AZURE_ENV_NAME=test'; Success = $true },
+        @{ Content = ''; Success = $true },
+        @{ Content = "AZURE_MOCKAPI_KEY=existing-key`n"; Success = $false },
+        @{ Content = "AZURE_MOCKAPI_KEY=`nAZURE_MOCKAPI_KEY=`n"; Success = $false },
+        @{ Content = "AZURE_MOCKAPI_KEY=`n"; Success = $true; WhatIf = $true },
+        @{ Content = "AZURE_MOCKAPI_KEY=existing-key`n"; Success = $true; WhatIf = $true }
+      )) {
+      [IO.File]::WriteAllText($bashEnvironmentPath, $scenario.Content, [Text.UTF8Encoding]::new($false))
+      $whatIf = $scenario.ContainsKey('WhatIf')
+      if ($shell -eq 'PowerShell') {
+        $arguments = @('-Action', 'azure-generate-key', '-EnvironmentFile', $relativePath)
+        if ($whatIf) { $arguments += '-WhatIf' }
+        $result = Invoke-CliProcess -Arguments $arguments
+      }
+      else {
+        $arguments = @('--action', 'azure-generate-key', '--environment-file', $relativePath)
+        if ($whatIf) { $arguments += '--what-if' }
+        $result = Invoke-BashCliProcess -Arguments $arguments
+      }
+      Assert-True (($result.ExitCode -eq 0) -eq $scenario.Success) "$shell key generation returned an unexpected exit code."
+      $updated = [IO.File]::ReadAllText($bashEnvironmentPath)
+      if (-not $scenario.Success -or $whatIf) {
+        Assert-True ($updated -ceq $scenario.Content) "$shell must not mutate settings on refusal or WhatIf."
+        Assert-True (-not $result.Output.Contains('Saved AZURE_MOCKAPI_KEY')) "$shell must not report a save on refusal or WhatIf."
+        continue
+      }
+      $match = [regex]::Match($updated, '(?m)^AZURE_MOCKAPI_KEY=([A-Za-z0-9_-]{43})\r?$')
+      Assert-True $match.Success "$shell must save a 43-character base64url key."
+      $key = $match.Groups[1].Value
+      Assert-True ($keys.Add($key)) 'Each generation must use fresh randomness.'
+      Assert-True (-not $result.Output.Contains($key)) "$shell must not print the generated secret."
+      $originalWithoutEntry = [regex]::Replace($scenario.Content, '(?m)^AZURE_MOCKAPI_KEY=[^\r\n]*', 'AZURE_MOCKAPI_KEY=')
+      $updatedWithoutEntry = $updated.Replace($key, '')
+      if ($scenario.Content -match '(?m)^AZURE_MOCKAPI_KEY=') {
+        Assert-True ($updatedWithoutEntry -ceq $originalWithoutEntry) "$shell must preserve unrelated content and line endings."
+      }
+      else {
+        Assert-True ($updated.StartsWith($scenario.Content)) "$shell must preserve existing settings when appending."
+      }
+    }
+    Remove-Item -LiteralPath $bashEnvironmentPath
+    foreach ($file in @($relativePath, '.env.example')) {
+      $result = if ($shell -eq 'PowerShell') {
+        Invoke-CliProcess -Arguments @('-Action', 'azure-generate-key', '-EnvironmentFile', $file)
+      }
+      else {
+        Invoke-BashCliProcess -Arguments @('--action', 'azure-generate-key', '--environment-file', $file)
+      }
+      Assert-True ($result.ExitCode -ne 0) "$shell must reject missing files and the tracked template."
+      Assert-True (-not $result.Output.Contains('Saved AZURE_MOCKAPI_KEY')) "$shell must not report success for an invalid destination."
+    }
+  }
+  Write-Host 'Developer CLI key generation tests passed in PowerShell and Bash.'
+}
+
+function Test-MenuKeyInput {
+  # Substitute only the terminal APIs so the production editing/submission loops run unchanged.
+  $definition = (Import-CliFunction -Name 'Read-MenuSelection').ToString()
+  . ([scriptblock]::Create($definition.Replace('[Console]::IsInputRedirected', '$false').Replace('[Console]::ReadKey($true)', '(Read-TestMenuKey)')))
+  function Write-Host { param($Object, [switch] $NoNewline, [ConsoleColor] $ForegroundColor) }
+  function Reset-ConsoleColors {}
+  function Read-TestMenuKey {
+    $value = $script:menuKeyEvents.Dequeue()
+    switch ($value) {
+      'Enter' { return [pscustomobject]@{ Key = [ConsoleKey]::Enter; KeyChar = [char] 13 } }
+      'Backspace' { return [pscustomobject]@{ Key = [ConsoleKey]::Backspace; KeyChar = [char] 8 } }
+      'Control' { return [pscustomobject]@{ Key = [ConsoleKey]::Tab; KeyChar = [char] 9 } }
+      default { return [pscustomobject]@{ Key = [ConsoleKey]::NoName; KeyChar = [char] $value } }
+    }
+  }
+  $bashSource = Get-Content -LiteralPath $bashCliPath -Raw
+  $bashReader = [regex]::Match($bashSource, '(?ms)^read_menu_selection\(\) \{.*?^\}')
+  Assert-True $bashReader.Success 'Bash must define read_menu_selection.'
+  $bashHarness = @'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+expected="$1"
+shift
+IFS=, read -r -a choices <<< "$1"
+shift
+events=("$@")
+position=0
+read() {
+  [[ "$#" == 5 && "$1" == '-r' && "$2" == '-s' && "$3" == '-n' && "$4" == 1 && "$5" == key ]] || exit 90
+  (( position < ${#events[@]} )) || exit 91
+  case "${events[$position]}" in
+    Enter) printf -v key '%s' '' ;;
+    Backspace) printf -v key '\177' ;;
+    Control) printf -v key '\t' ;;
+    *) printf -v key '%s' "${events[$position]}" ;;
+  esac
+  position=$((position + 1))
+}
+'@
+  $bashTest = $bashHarness + "`n" + $bashReader.Value.Replace('[[ ! -t 0 ]]', 'false') + @'
+
+read_menu_selection "${choices[@]}"
+[[ "$MENU_INPUT" == "$expected" && "$position" == "$((${#events[@]} - 1))" ]]
+'@
+  Set-Content -LiteralPath $bashMenuTestPath -Value $bashTest.Replace("`r", '') -Encoding utf8NoBOM -NoNewline
+  $scenarios = @(
+    @{ Keys = @('1', '0'); Expected = '10' },
+    @{ Keys = @('1', 'Enter'); Expected = '1' },
+    @{ Keys = @('1'); Expected = '1'; Choices = @('1', '2', '3') },
+    @{ Keys = @('1', '0', 'Enter'); Expected = '10'; Choices = @('1', '10', '100') },
+    @{ Keys = @('1', '0', '0'); Expected = '100'; Choices = @('1', '10', '100') },
+    @{ Keys = @('x', 'b', 'Enter'); Expected = 'xb' },
+    @{ Keys = @('1', 'Backspace', '2'); Expected = '2' },
+    @{ Keys = @('p', '1'); Expected = 'p1' },
+    @{ Keys = @('P', '2'); Expected = 'P2' },
+    @{ Keys = @('Backspace', 'Control', 'h'); Expected = 'h' },
+    @{ Keys = @('x', 'Backspace', 'q'); Expected = 'q' },
+    @{ Keys = @('Enter'); Expected = '' }
+  )
+  foreach ($key in @('b', 'B', 'h', 'H', 'q', 'Q', 'l', 'L', 'v', 'V', 'a', 'A', 'c', 'C', 's', 'S', '2', '3')) {
+    $scenarios += @{ Keys = @($key); Expected = $key }
+  }
+  foreach ($scenario in $scenarios) {
+    $choices = if ($scenario.ContainsKey('Choices')) {
+      $scenario.Choices
+    }
+    else {
+      @('l', 'v', 'a', 'c', 's', 'b', 'h', 'q', 'p1', 'p2', '1', '10', '2', '3')
+    }
+    $script:menuKeyEvents = [Collections.Generic.Queue[string]]::new()
+    foreach ($key in $scenario.Keys) { $script:menuKeyEvents.Enqueue($key) }
+    $script:menuKeyEvents.Enqueue('unused')
+    Assert-True ((Read-MenuSelection -Choices $choices) -ceq $scenario.Expected) 'PowerShell must submit only complete, unambiguous choices immediately.'
+    Assert-True ($script:menuKeyEvents.Count -eq 1) 'PowerShell must not wait for another key after submission.'
+    $bashResult = Invoke-BashCliProcess -ScriptPath ('./' + (Split-Path -Leaf $bashMenuTestPath)) -Arguments (@($scenario.Expected, ($choices -join ',')) + $scenario.Keys + @('unused'))
+    Assert-True ($bashResult.ExitCode -eq 0) "Bash key input failed: $($bashResult.Output)"
+  }
+  Microsoft.PowerShell.Utility\Write-Host "Developer CLI key input tests passed ($($scenarios.Count) scenarios per shell)."
+
+  . (Import-CliFunction -Name 'Show-Menu')
+  $bashMenu = [regex]::Match($bashSource, '(?ms)^show_menu\(\) \{.*?^\}')
+  $bashTest = $bashHarness + "`n" + $bashReader.Value.Replace('[[ ! -t 0 ]]', 'false') + "`n" + $bashMenu.Value + @'
+
+CONTAINER_ENGINE=wslc
+MENU_CONTEXT=Home
+reset_console_colors() { :; }
+write_color() { printf '%s\n' "$2"; }
+show_menu
+[[ "$MENU_SELECTION" == "$expected" && "$position" == "$((${#events[@]} - 1))" ]]
+'@
+  Set-Content -LiteralPath $bashMenuTestPath -Value $bashTest.Replace("`r", '') -Encoding utf8NoBOM -NoNewline
+  $flows = @(
+    @{ Keys = @('l', '1'); Action = 'run' },
+    @{ Keys = @('v', '2'); Action = 'test' },
+    @{ Keys = @('a', '6'); Action = 'azure-deploy' },
+    @{ Keys = @('c', '1', '0'); Action = 'container-remove' },
+    @{ Keys = @('c', '1', 'Enter'); Action = 'container-engine-wslc' },
+    @{ Keys = @('s', '3'); Action = 'azure-generate-key' },
+    @{ Keys = @('s', 'b', 'L', '2'); Action = 'run-tutorial' },
+    @{ Keys = @('p', '1'); Action = 'pathway-azure-initial' }
+  )
+  foreach ($flow in $flows) {
+    $script:menuKeyEvents.Clear()
+    foreach ($key in $flow.Keys) { $script:menuKeyEvents.Enqueue($key) }
+    $script:menuKeyEvents.Enqueue('unused')
+    Assert-True ((Show-Menu) -ceq $flow.Action) 'PowerShell must use choices from the active menu for immediate selection.'
+    Assert-True ($script:menuKeyEvents.Count -eq 1) 'PowerShell must consume exactly the expected menu flow.'
+    $bashResult = Invoke-BashCliProcess -ScriptPath ('./' + (Split-Path -Leaf $bashMenuTestPath)) -Arguments (@($flow.Action, 'unused') + $flow.Keys + @('unused'))
+    Assert-True ($bashResult.ExitCode -eq 0) "Bash immediate menu flow failed: $($bashResult.Output)"
+  }
+  Microsoft.PowerShell.Utility\Write-Host "Developer CLI immediate menu flows passed ($($flows.Count) scenarios per shell)."
+}
+
 function Test-InteractiveMenu {
+  # Exercise queued line input even when the test runner inherits a real deployment terminal.
+  # The key-input tests above independently exercise the interactive branch with synthetic keys.
+  $reader = (Import-CliFunction -Name 'Read-MenuSelection').ToString()
+  Assert-True ($reader.Contains('[Console]::IsInputRedirected')) 'The line-input harness must replace terminal detection.'
+  $reader = $reader.Replace('[Console]::IsInputRedirected', '$true').Replace('[Console]::ReadKey($true)', '(Read-UnexpectedTerminalKey)')
+  . ([scriptblock]::Create($reader))
+  function Read-UnexpectedTerminalKey {
+    throw 'The queued menu tests must never read keys from the real terminal.'
+  }
   . (Import-CliFunction -Name 'Show-Menu')
   . (Import-CliFunction -Name 'Show-SubmenuHelp')
   $script:readHostResponses = [Collections.Generic.Queue[object]]::new()
@@ -314,6 +648,7 @@ function Test-InteractiveMenu {
 
   $bashSource = Get-Content -LiteralPath $bashCliPath -Raw
   $bashMenu = [regex]::Match($bashSource, '(?ms)^show_menu\(\) \{.*?^\}')
+  $bashReader = [regex]::Match($bashSource, '(?ms)^read_menu_selection\(\) \{.*?^\}')
   Assert-True $bashMenu.Success 'Bash must define show_menu.'
   $powerShellSource = Get-Content -LiteralPath $cliPath -Raw
   $actionValidation = [regex]::Match($powerShellSource, '(?s)\[ValidateSet\((.*?)\)\]\s*\[string\] \$Action')
@@ -330,7 +665,7 @@ shift
 reset_console_colors() { :; }
 write_color() { printf '%s\n' "$2"; }
 '@
-  $bashTest = $bashHarness + "`n" + $bashMenu.Value + @'
+  $bashTest = $bashHarness + "`n" + $bashReader.Value + "`n" + $bashMenu.Value + @'
 
 show_menu < <(printf '%s\n' "$@")
 printf 'SELECTED_ACTION=%s\n' "$MENU_SELECTION"
@@ -339,16 +674,8 @@ printf 'SELECTED_ACTION=%s\n' "$MENU_SELECTION"
   $bashMenuScript = './' + (Split-Path -Leaf $bashMenuTestPath)
 
   $actions = [ordered]@{
-    l1 = 'run'; h = 'help'; q = 'quit'
-    v1 = 'validate'; v2 = 'test'
+    h = 'help'; q = 'quit'
     p1 = 'pathway-azure-initial'; p2 = 'pathway-azure-update'
-    a1 = 'azure-setup'; a2 = 'azure-check'; a3 = 'azure-up'
-    a4 = 'azure-deploy'; a5 = 'azure-push'; a6 = 'azure-import'; a7 = 'azure-down'
-    c1 = 'container-engine-wslc'; c2 = 'container-engine-docker'
-    c3 = 'container-build'; c4 = 'container-run'; c5 = 'container-test'
-    c6 = 'container-showcase'; c7 = 'container-logs'; c8 = 'container-status'
-    c9 = 'container-stop'; c10 = 'container-remove'
-    s1 = 'setup'; s2 = 'dependency-tooling-update'; s3 = 'pnpm-update'
   }
   $menuKeys = @{
     Home = @('l', 'v', 'a', 'c', 's', 'h', 'q')
@@ -356,7 +683,7 @@ printf 'SELECTED_ACTION=%s\n' "$MENU_SELECTION"
     Verify = @('1', '2', 'b', 'h', 'q')
     Azure = @('1', '2', '3', '4', '5', '6', '7', '8', '9', 'b', 'h', 'q')
     Containers = @('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'b', 'h', 'q')
-    Setup = @('1', '2', 'b', 'h', 'q')
+    Setup = @('1', '2', '3', 'b', 'h', 'q')
   }
   $menuActions = @{
     'Run locally' = @('run', 'run-tutorial', 'site-preview')
@@ -369,7 +696,7 @@ printf 'SELECTED_ACTION=%s\n' "$MENU_SELECTION"
       'container-engine-wslc', 'container-engine-docker', 'container-build', 'container-run', 'container-test',
       'container-showcase', 'container-logs', 'container-status', 'container-stop', 'container-remove'
     )
-    Setup = @('setup', 'dependency-tooling-update')
+    Setup = @('setup', 'dependency-tooling-update', 'azure-generate-key')
   }
   $groups = [ordered]@{ l = 'Run locally'; v = 'Verify'; a = 'Azure'; c = 'Containers'; s = 'Setup' }
   $scenarios = [Collections.Generic.List[object]]::new()
@@ -397,13 +724,13 @@ printf 'SELECTED_ACTION=%s\n' "$MENU_SELECTION"
       })
   }
   $scenarios.Add(@{
-      Name = 'Cross-group shortcut'; Input = @('s', 'a4'); Action = 'azure-deploy'; Menus = @('Home', 'Setup')
+      Name = 'Cross-group navigation'; Input = @('s', 'a', '6'); Action = 'azure-deploy'; Menus = @('Home', 'Setup', 'Azure')
     })
   $scenarios.Add(@{
       Name = 'Contextual numeric shortcut'; Input = @('v', '2'); Action = 'test'; Menus = @('Home', 'Verify')
     })
   $scenarios.Add(@{
-      Name = 'Global prefixed shortcut from another submenu'; Input = @('v', 'c3'); Action = 'container-build'; Menus = @('Home', 'Verify')
+      Name = 'Cross-group container navigation'; Input = @('v', 'c', '3'); Action = 'container-build'; Menus = @('Home', 'Verify', 'Containers')
     })
   $scenarios.Add(@{
       Name = 'Uppercase navigation'; Input = @('C', 'B', 'A', 'P2'); Action = 'pathway-azure-update'
@@ -413,6 +740,11 @@ printf 'SELECTED_ACTION=%s\n' "$MENU_SELECTION"
       Name = 'Invalid selections stay in menu'; Input = @('invalid', '', 'v', 'invalid', 'b', 'b', 'q'); Action = 'quit'
       Menus = @('Home', 'Home', 'Home', 'Verify', 'Verify', 'Home', 'Home')
     })
+  foreach ($shortcut in @('l1', 'v1', 'v2', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9', 'c10', 's1', 's2', 's3', 's4')) {
+    $scenarios.Add(@{
+        Name = "Retired shortcut $shortcut"; Input = @($shortcut, 'q'); Action = 'quit'; Menus = @('Home', 'Home')
+      })
+  }
 
   foreach ($scenario in $scenarios) {
     $ContainerEngine = 'wslc'
@@ -502,7 +834,7 @@ printf 'SELECTED_ACTION=%s\n' "$MENU_SELECTION"
       'Test running container', 'Load and showcase built-in example', 'Show container logs',
       'Show container status', 'Stop container', 'Remove container'
     )
-    Setup = @('Setup local dependencies', 'Update dependencies and pnpm meeting the cooldown')
+    Setup = @('Setup local dependencies', 'Update dependencies and pnpm meeting the cooldown', 'Generate initial mock API key')
   }
   $bashSubmenuHelp = [regex]::Match($bashSource, '(?ms)^show_submenu_help\(\) \{.*?^\}')
   Assert-True $bashSubmenuHelp.Success 'Bash must define show_submenu_help.'
@@ -545,6 +877,11 @@ show_submenu_help "$1"
   Assert-True ($powershellMenuHelp.Value.Replace("`r", '') -ceq $bashMenuHelp.Value.Replace("`r", '')) 'Interactive menu help must match.'
   $normalizedPowerShellHelp = $powershellHelp.Output.Replace("`r", '')
   $normalizedBashHelp = $bashHelp.Output.Replace("`r", '')
+  foreach ($helpText in @($normalizedPowerShellHelp, $normalizedBashHelp)) {
+    $setupHelp = [regex]::Match($helpText, '(?s)2\) Setup(.*?)3\) Local Development').Groups[1].Value
+    $azureHelp = [regex]::Match($helpText, '(?s)6\) Azure(.*?)7\) Misc').Groups[1].Value
+    Assert-True ($setupHelp.Contains('azure-generate-key') -and -not $azureHelp.Contains('azure-generate-key')) 'Key generation must be listed under Setup, not Azure.'
+  }
   Assert-True ($normalizedPowerShellHelp -notmatch '\[l1\]') 'The previous l1 menu shortcut must not remain in PowerShell output.'
   Assert-True ($normalizedBashHelp -notmatch '\[l1\]') 'The previous l1 menu shortcut must not remain in Bash output.'
   foreach ($helpSection in @(
@@ -560,12 +897,16 @@ show_submenu_help "$1"
 }
 
 try {
+  Test-MenuKeyInput
   Test-InteractiveMenu
   Test-LocalRun
   Test-SitePreview
   if ($MenuOnly) {
     return
   }
+  Test-AzureKeyGeneration
+  Test-AzureOutputRefresh
+  Test-AzurePathwayTestScope
 
   & (Join-Path $PSScriptRoot 'DeveloperCli.CustomDomains.Tests.ps1')
   & (Join-Path $PSScriptRoot 'DependencyVulnerabilities.Tests.ps1')
@@ -603,10 +944,10 @@ try {
   Assert-True ($cliSource -match '\[Console\]::OutputEncoding = \$originalConsoleOutputEncoding') 'The PowerShell CLI must restore the caller console encoding.'
   Assert-True ($cliSource -match "(?s)function Invoke-Validation.*?Invoke-Restore\s+Invoke-DependencySecurity\s+Invoke-Lint") 'The PowerShell validation action must scan restored dependencies before linting.'
   Assert-True ($bashCliSource -match '(?s)invoke_validation\(\).*?invoke_restore\s+invoke_dependency_security\s+invoke_lint') 'The Bash validation action must scan restored dependencies before linting.'
-  Assert-True ($cliSource -match "(?s)function Invoke-InitialAzurePathway.*?'1/3: Test'.*?Invoke-Tests.*?'2/3: Build'.*?Invoke-Build.*?'3/3: Provision and deploy'.*?Invoke-AzureUp") 'The PowerShell initial Azure pathway must show and run all three steps in order.'
-  Assert-True ($cliSource -match "(?s)function Invoke-UpdateAzurePathway.*?'1/3: Test'.*?Invoke-Tests.*?'2/3: Build'.*?Invoke-Build.*?'3/3: Build, push, and deploy image'.*?Invoke-AzureDeploy") 'The PowerShell Azure update pathway must show and run all three steps in order.'
-  Assert-True ($bashCliSource -match "(?s)invoke_initial_azure_pathway\(\).*?'1/3: Test'.*?invoke_tests.*?'2/3: Build'.*?invoke_build.*?'3/3: Provision and deploy'.*?invoke_azure_up") 'The Bash initial Azure pathway must show and run all three steps in order.'
-  Assert-True ($bashCliSource -match "(?s)invoke_update_azure_pathway\(\).*?'1/3: Test'.*?invoke_tests.*?'2/3: Build'.*?invoke_build.*?'3/3: Build, push, and deploy image'.*?invoke_azure_deploy") 'The Bash Azure update pathway must show and run all three steps in order.'
+  Assert-True ($cliSource -match "(?s)function Invoke-InitialAzurePathway.*?'1/3: Test'.*?Invoke-ApplicationTests.*?'2/3: Build'.*?Invoke-Build.*?'3/3: Provision and deploy'.*?Invoke-AzureUp") 'The PowerShell initial Azure pathway must show and run all three steps in order.'
+  Assert-True ($cliSource -match "(?s)function Invoke-UpdateAzurePathway.*?'1/3: Test'.*?Invoke-ApplicationTests.*?'2/3: Build'.*?Invoke-Build.*?'3/3: Build, push, and deploy image'.*?Invoke-AzureDeploy") 'The PowerShell Azure update pathway must show and run all three steps in order.'
+  Assert-True ($bashCliSource -match "(?s)invoke_initial_azure_pathway\(\).*?'1/3: Test'.*?invoke_application_tests.*?'2/3: Build'.*?invoke_build.*?'3/3: Provision and deploy'.*?invoke_azure_up") 'The Bash initial Azure pathway must show and run all three steps in order.'
+  Assert-True ($bashCliSource -match "(?s)invoke_update_azure_pathway\(\).*?'1/3: Test'.*?invoke_application_tests.*?'2/3: Build'.*?invoke_build.*?'3/3: Build, push, and deploy image'.*?invoke_azure_deploy") 'The Bash Azure update pathway must show and run all three steps in order.'
   Assert-True ($cliSource -match '(?s)function Invoke-DependencyToolingUpdates\s*\{\s*Invoke-DependencyUpdates\s+Invoke-PnpmUpdate\s*\}') 'The PowerShell combined update action must update dependencies before the pnpm pin.'
   Assert-True ($bashCliSource -match '(?s)invoke_dependency_tooling_updates\(\)\s*\{\s*invoke_dependency_updates\s+invoke_pnpm_update\s*\}') 'The Bash combined update action must update dependencies before the pnpm pin.'
   Assert-True ($cliSource -match "(?s)\`$menuContext = 'Home'\s+Clear-Host\s+while \(\`$true\)") 'The PowerShell interactive menu must clear once before its first render.'
@@ -619,15 +960,15 @@ try {
   Assert-True ($cliSource -match 'Press "r" for retry or any other key to return to the menu\.') 'The PowerShell failure prompt must describe retry and return behavior.'
   Assert-True ($bashCliSource -match 'Press "r" for retry or any other key to return to the menu\.') 'The Bash failure prompt must describe retry and return behavior.'
   Assert-True ($bashCliSource -match "(?s)run_menu_action\(\).*?trap '.*?Action failed:.*?wait_for_menu_return true.*?run_menu_action.*?else.*?wait_for_menu_return.*?' EXIT.*?invoke_action") 'The Bash menu must rerun failed actions when retry is selected and pause after successful actions.'
-  Assert-True ($cliSource -match "Read-Host 'Select an action'\)\.ToLowerInvariant\(\)\s+Write-Host ''") 'The PowerShell menu must print a blank line after a selection.'
-  Assert-True ($bashCliSource -match "read -r -p 'Select an action: ' selection \|\| true\s+printf '\\n'") 'The Bash menu must print a blank line after a selection.'
+  Assert-True ($cliSource -match "Read-MenuSelection -Choices \`$validChoices\)\.ToLowerInvariant\(\)\s+Write-Host ''") 'The PowerShell menu must print a blank line after a selection.'
+  Assert-True ($bashCliSource -match "read_menu_selection [^\r\n]+\s+selection="".*?""\s+printf '\\n'") 'The Bash menu must print a blank line after a selection.'
   $expectedActions = @(
     'menu', 'help', 'check', 'setup', 'dependencies-update', 'pnpm-update', 'restore', 'format', 'lint', 'build', 'run', 'run-tutorial', 'site-preview',
     'test', 'coverage', 'publish', 'validate', 'container-engine-wslc',
     'container-engine-docker', 'container-build', 'container-run', 'container-test',
     'container-showcase', 'container-logs', 'container-status', 'container-stop',
     'container-remove', 'azure-setup', 'azure-check', 'azure-up', 'azure-import',
-    'azure-push', 'azure-deploy', 'azure-down', 'pathway-azure-initial',
+    'azure-push', 'azure-deploy', 'azure-down', 'azure-generate-key', 'pathway-azure-initial',
     'pathway-azure-update', 'all'
   )
   foreach ($action in $expectedActions) {
@@ -723,8 +1064,8 @@ try {
     Assert-True ($source.Contains('Build a native AOT image')) 'Both CLI help surfaces must identify native AOT container builds.'
   }
   & (Join-Path $PSScriptRoot 'NativePublication.Tests.ps1')
-  Assert-True ($cliSource -match "'c1' = @\{ Action = 'container-engine-wslc' \}") 'Menu action c1 must select WSLC.'
-  Assert-True ($cliSource -match "'c2' = @\{ Action = 'container-engine-docker' \}") 'Menu action c2 must select Docker.'
+  Assert-True ($cliSource -match "'1' = @\{ Label = 'Use WSLC'; Action = 'container-engine-wslc' \}") 'Containers choice 1 must select WSLC.'
+  Assert-True ($cliSource -match "'2' = @\{ Label = 'Use Docker'; Action = 'container-engine-docker' \}") 'Containers choice 2 must select Docker.'
   Assert-True ($cliSource -match "\[ValidateSet\('wslc', 'docker'\)\]") 'The CLI must accept WSLC and Docker container engines.'
   Assert-True (([regex]::Matches($cliSource, "-Executable 'wslc'")).Count -eq 1) 'Only the WSLC version check may invoke wslc directly; container operations must use the selected engine.'
   Assert-True ($cliSource -match 'Removing dashboard assets makes only a very small difference') 'Container guidance must state that removing dashboard assets has minimal size impact.'
@@ -924,11 +1265,13 @@ if "%1 %2 %3"=="auth login --check-status" exit /b 0
 if "%1 %2"=="auth login" type nul >"%MOCKAPI_TEST_LOGIN_MARKER%"& exit /b 0
 if "%1 %2"=="env select" if not exist "%MOCKAPI_TEST_ENVIRONMENT_MARKER%" exit /b 1
 if "%1 %2"=="env new" type nul >"%MOCKAPI_TEST_ENVIRONMENT_MARKER%"& exit /b 0
+if "%1 %2"=="env refresh" if "%MOCKAPI_TEST_REFRESH_FAILURE%"=="true" exit /b 1
 if "%1 %2"=="env get-values" if "%MOCKAPI_TEST_VALUES_FAILURE%"=="true" exit /b 1
 if "%1 %2"=="env get-values" if "%MOCKAPI_TEST_VALUES_INVALID%"=="true" echo invalid-json& exit /b 0
 if "%1 %2"=="env get-values" if "%MOCKAPI_TEST_VALUES_ARRAY%"=="true" echo [{}]& exit /b 0
 if "%1 %2"=="env get-values" echo {}& exit /b 0
 if "%1 %2 %3"=="env get-value SERVICE_MOCKAPI_URI" if defined MOCKAPI_TEST_SERVICE_URI (echo %MOCKAPI_TEST_SERVICE_URI%) else (echo https://mockapi.example.test)& exit /b 0
+if "%1 %2 %3"=="env get-value AZURE_CONTAINER_REGISTRY_ENDPOINT" if "%MOCKAPI_TEST_MISSING_REGISTRY%"=="true" exit /b 1
 if "%1 %2 %3"=="env get-value AZURE_CONTAINER_REGISTRY_ENDPOINT" echo mockapiregistry.azurecr.io& exit /b 0
 exit /b 0
 '@
@@ -1135,11 +1478,27 @@ fi
   Assert-True ($result.ExitCode -eq 0) "Azure push failed: $($result.Output)"
   $commands = Get-Content -LiteralPath $commandLog -Raw
   Assert-True ($commands -match 'publish mockapi --environment process-environment --no-prompt') 'Azure push must publish the MockAPI service to the selected environment registry.'
+  Assert-True ($commands -match 'env refresh --environment process-environment --no-prompt[\s\S]*env get-value AZURE_CONTAINER_REGISTRY_ENDPOINT[\s\S]*publish mockapi') 'Azure push must recover and verify the registry endpoint before publishing.'
   Assert-True ($commands -match 'publish mockapi[\s\S]*env get-value SERVICE_MOCKAPI_URI') 'Azure push must resolve the deployed Container App URL after publication succeeds.'
   Assert-True ($commands -notmatch '(^|\s)deploy(\s|$)') 'Azure push must not deploy the published image.'
   Assert-True (
     ($result.Output.TrimEnd() -split "`r?`n")[-1] -eq 'https://mockapi.example.test/'
   ) 'Azure push must print the deployed Container App URL as its final output line.'
+
+  foreach ($action in @('azure-deploy', 'azure-push', 'azure-import')) {
+    foreach ($failure in @('MOCKAPI_TEST_REFRESH_FAILURE', 'MOCKAPI_TEST_MISSING_REGISTRY')) {
+      Clear-Content -LiteralPath $commandLog
+      $failedEnvironment = $processEnvironment.Clone()
+      $failedEnvironment[$failure] = 'true'
+      $result = Invoke-CliProcess -Arguments @(
+        '-Action', $action, '-EnvironmentFile', $validFile, '-Confirm:$false'
+      ) -Environment $failedEnvironment
+      Assert-True ($result.ExitCode -ne 0) "$action must fail if existing deployment outputs cannot be recovered."
+      $commands = Get-Content -LiteralPath $commandLog -Raw
+      Assert-True ($commands -match 'env refresh --environment process-environment --no-prompt') "$action must attempt output recovery."
+      Assert-True ($commands -notmatch '(?m)^(deploy|publish|up|provision)\b|az acr import|az containerapp update') "$action must not publish, deploy, or reprovision after output recovery fails."
+    }
+  }
 
   $portReservation = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
   $portReservation.Start()

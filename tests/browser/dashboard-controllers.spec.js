@@ -625,7 +625,7 @@ test("endpoint table owns selection snapshots and releases controls and obsolete
   const groupControl = frame.locator("#endpoint-toggle-groups");
   await groupControl.click();
   await expect(frame.locator(".endpoint-row")).toHaveCount(0);
-  await expect(groupControl).toHaveText("Expand all groups");
+  await expect(groupControl).toHaveAccessibleName("Expand all groups");
   await frame.evaluate((definition) => {
     window.table.updateEndpoints([
       { ...definition, name: "Refreshed endpoint" },
@@ -634,12 +634,12 @@ test("endpoint table owns selection snapshots and releases controls and obsolete
   }, endpoint);
   await expect(frame.locator(".endpoint-row")).toHaveCount(1);
   await expect(frame.locator(".endpoint-row")).toContainText("New group");
-  await expect(groupControl).toHaveText("Collapse all groups");
+  await expect(groupControl).toHaveAccessibleName("Collapse all groups");
   await groupControl.click();
   await expect(frame.locator(".endpoint-row")).toHaveCount(0);
   await frame.evaluate(() => window.table.updateStatistics({ endpoints: [] }));
   await expect(frame.locator(".endpoint-row")).toHaveCount(0);
-  await expect(groupControl).toHaveText("Expand all groups");
+  await expect(groupControl).toHaveAccessibleName("Expand all groups");
   await groupControl.click();
   await expect(frame.locator(".endpoint-row")).toHaveCount(2);
   await expect(frame.getByRole("checkbox", { name: "Select Refreshed endpoint", exact: true })).toBeChecked();
@@ -648,7 +648,7 @@ test("endpoint table owns selection snapshots and releases controls and obsolete
     endpoint
   );
   await expect(frame.locator(".endpoint-row")).toHaveCount(1);
-  await expect(groupControl).toHaveText("Collapse all groups");
+  await expect(groupControl).toHaveAccessibleName("Collapse all groups");
 
   await frame.evaluate(() => window.table.dispose());
   await frame.locator(".endpoint-group-selection").click();

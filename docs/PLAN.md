@@ -330,7 +330,9 @@ at 220px and align the collapse control with the first filter row when filters w
 - Show every filtered endpoint without paging in a vertically scrollable table with sticky headers.
   Keep API groups alphabetical and default operations to ascending path order within each group.
   Header clicks sort operations within expanded groups, never reorder API groups.
-- Offer **Collapse all groups** above the endpoint table, switching to **Expand all groups** when all
+- Place an icon-only **Collapse all groups** chevron before the Path header, vertically aligned with
+  the API-group chevrons and separate from Path sorting. Preserve its accessible name and tooltip,
+  switching to **Expand all groups** when all
   filtered API groups are collapsed. Apply it only to the current filtered groups, preserving hidden
   groups' state and endpoint selection. Keep individual toggles, start new groups expanded, and disable
   the bulk group control when no groups match. Collapse state is page-local and never changes configuration.

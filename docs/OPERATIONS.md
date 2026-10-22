@@ -199,13 +199,45 @@ Apps secret, while MockAPI's separate security document contains only its hash. 
 as secret-bearing local state. Leaving the value blank does not disable protection or erase a saved key.
 See [Mock API keys](#mock-api-keys) for the initial-setup-only precedence and rotation behavior.
 
+To generate and save a cryptographically random initial key locally:
+
+```powershell
+.\start.ps1 -Action azure-generate-key
+# Optional custom destination (must already exist):
+.\start.ps1 -Action azure-generate-key -EnvironmentFile .env.local
+```
+
+```bash
+./start.sh --action azure-generate-key
+# Optional custom destination (must already exist):
+./start.sh --action azure-generate-key --environment-file .env.local
+```
+
+Setup submenu choice `3` runs the same action. It saves a 43-character
+base64url key containing 256 bits of cryptographic randomness, without printing the secret or
+contacting Azure. Copy the template first; the action refuses `.env.example`, duplicate key entries,
+and non-empty keys. Clear an existing value explicitly before generating a replacement.
+Comments, other settings, and line endings are preserved. PowerShell `-WhatIf` and Bash `--what-if`
+leave the file unchanged. Non-empty process-environment values still override this file during
+deployment; generating a local key does not rotate an existing deployed key.
+
 Run `./start.ps1 -Action azure-setup -InstallMissing` to install or verify Azure Developer CLI 1.27.1 or newer and Azure CLI through WinGet. This action does not authenticate or configure an environment. Then run `./start.ps1 -Action azure-check`; it verifies the cached login status, starts interactive login when needed, synchronizes the named azd environment, parses the Docker service, and builds Bicep locally. The local `check` and `setup` actions remain independent of Azure tooling.
 
 Azure preflight prints the environment, subscription, location, and resource group before deployment. The resource group is `rg-<AZURE_ENV_NAME>-<AZURE_LOCATION>`, matching the infrastructure parameters and using the effective settings after process-environment overrides. Both `./start.ps1 -Action azure-check` and `./start.sh --action azure-check`, as well as the deployment actions that run preflight, show this target.
 
-Use `pathway-azure-initial` for the normal first deployment and `pathway-azure-update` for subsequent application updates. Interactive menu choices `p1` and `p2` select those pathways. Both stop on the first failure: they run the test suite and managed build before delegating to `azure-up` or `azure-deploy`, respectively. The equivalent Bash actions use `./start.sh --action pathway-azure-initial` and `./start.sh --action pathway-azure-update`.
+Before updating, pushing, or importing an image, both CLIs run
+`azd env refresh --environment <environment-name> --no-prompt` to recover outputs from the previous
+infrastructure provisioning. This restores local `azd` registry and service URL settings when a
+checkout or local environment has been recreated; it does not provision or modify Azure resources.
+The action stops before image publication if refresh fails or either required output is still missing.
+Check the selected subscription and environment in that case. Use `azure-up` only when initial
+provisioning is actually needed, not merely to repair missing local outputs.
+The read-only Azure refresh also runs under PowerShell `-WhatIf` and Bash `--what-if`, like preflight;
+it updates local `azd` state but does not publish an image or change the deployed application.
 
-`azure-up` builds the native container through WSLC, runs `azd provision --preview`, and then uses normal PowerShell and azd confirmation behavior before creating resources. Interactive menu action `a4` runs `azure-deploy`, which builds and pushes the image, updates the Container App to pull it, verifies `/health/ready`, and prints the HTTPS endpoint. Menu action `a5` runs the registry-only `azure-push` path; it uses `azd publish` without changing the running Container App. Azure submenu choice `8` (global shortcut `a6`) runs `azure-import`; it prompts for a Docker Hub tag (default `latest`), imports the public `docker.io/simonkurtzmsft/mockapi:<tag>` image into ACR as `mockapi:<tag>` without Docker Hub credentials, updates the existing Container App without building, verifies readiness, and prints the endpoint. Azure image publication uses an ACR remote build and does not require a local Docker CLI. `azure-down` confirms resource-group deletion, submits the request with Azure CLI `--no-wait`, and returns while Azure completes deletion asynchronously. Use `-WhatIf` to inspect a PowerShell-managed Azure mutation without running it.
+Use `pathway-azure-initial` for the normal first deployment and `pathway-azure-update` for subsequent application updates. Interactive menu choices `p1` and `p2` select those pathways. Both stop on the first failure: they run backend and frontend application tests (not Developer CLI tests) and the managed build before delegating to `azure-up` or `azure-deploy`, respectively. The equivalent Bash actions use `./start.sh --action pathway-azure-initial` and `./start.sh --action pathway-azure-update`.
+
+`azure-up` builds the native container through WSLC, runs `azd provision --preview`, and then uses normal PowerShell and azd confirmation behavior before creating resources. Azure submenu choice `6` runs `azure-deploy`, which builds and pushes the image, updates the Container App to pull it, verifies `/health/ready`, and prints the HTTPS endpoint. Azure choice `7` runs the registry-only `azure-push` path; it uses `azd publish` without changing the running Container App. Azure submenu choice `8` runs `azure-import`; it prompts for a Docker Hub tag (default `latest`), imports the public `docker.io/simonkurtzmsft/mockapi:<tag>` image into ACR as `mockapi:<tag>` without Docker Hub credentials, updates the existing Container App without building, verifies readiness, and prints the endpoint. Azure image publication uses an ACR remote build and does not require a local Docker CLI. `azure-down` confirms resource-group deletion, submits the request with Azure CLI `--no-wait`, and returns while Azure completes deletion asynchronously. Use `-WhatIf` to inspect a PowerShell-managed Azure mutation without running it.
 
 `azure-import` requires the Azure environment to be provisioned first. Command-line invocation defaults to `latest` without prompting; override it with `.\start.ps1 -Action azure-import -AzureImageTag <version>` or `./start.sh --action azure-import --azure-image-tag <version>`. Tags must contain 1-128 ASCII letters, numbers, underscores, periods, or hyphens and cannot start with a period or hyphen. Each deployment creates a new revision so a refreshed `latest` tag takes effect. Only `latest` is overwritten in ACR; importing an already-present version tag fails rather than overwriting it. The action does not configure ACR Artifact Cache or automatically synchronize later Docker Hub tags. Published version tags are immutable and must not be moved or overwritten.
 

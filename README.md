@@ -504,6 +504,7 @@ Set up the Azure tools, create the ignored environment file, validate the deploy
 ```powershell
 .\start.ps1 -Action azure-setup -InstallMissing
 Copy-Item .env.example .env
+.\start.ps1 -Action azure-generate-key
 # Edit .env with the target subscription and environment settings.
 .\start.ps1 -Action pathway-azure-initial
 ```
@@ -516,6 +517,7 @@ Copy-Item .env.example .env
 ```bash
 ./start.sh --action azure-setup --install-missing
 cp .env.example .env
+./start.sh --action azure-generate-key
 # Edit .env with the target subscription and environment settings.
 ./start.sh --action pathway-azure-initial
 ```
@@ -758,7 +760,7 @@ Use the developer CLI to install eligible pnpm-managed dependency updates or upd
 
 </details>
 
-Choice `2` in the interactive Setup menu combines these operations, running dependency updates first and then updating the pnpm pin. The individual command-line actions remain available, while `s2` remains a global alias for the combined operation and the previous `s3` shortcut still runs only the pnpm update.
+Choice `2` in the interactive Setup menu combines these operations, running dependency updates first and then updating the pnpm pin. The individual command-line actions remain available.
 
 The dependency action reports outdated pnpm packages before updating exact direct pins and compatible transitive packages to their latest eligible releases. The pnpm action selects the newest stable pnpm release whose publication date satisfies the cooldown and synchronizes the `packageManager` and `engines.pnpm` pins. `@playwright/test` is intentionally excluded because its version must be reviewed and updated together with the digest-pinned Playwright CI image. NuGet packages, GitHub Actions, Playwright's coupled package and image, and other container images remain manually selected and are rejected by `pnpm run validate:dependency-age` if they have not completed the cooldown.
 
@@ -772,13 +774,23 @@ Run the CLI interactively with `.\start.ps1` or `./start.sh`. The home menu show
 | `v` | Verify      | Open validation and test actions.                      |
 | `a` | Azure       | Open deployment pathways and individual Azure actions. |
 | `c` | Containers  | Open engine selection and container operations.        |
-| `s` | Setup       | Open local setup and dependency updates.               |
+| `s` | Setup       | Open dependency setup, updates, and key generation.    |
 | `h` | Help        | List every command-line action and option.             |
 | `q` | Quit        | Exit the CLI.                                          |
 
-Submenus use simple numeric choices and offer `b` to go back, `h` for help, and `q` to quit. Existing prefixed action shortcuts such as `p1`, `a4`, and `c3` remain hidden global aliases that work from any menu without opening the group first. Azure keeps both composed pathways (`p1`/`p2`) and individual operations, including the distinct deploy (`a4`) and push-only (`a5`) actions.
+Submenus use simple numeric choices and offer `b` to go back, `h` for help, and `q` to quit.
+The `l`, `v`, `a`, `c`, and `s` keys open their groups from any menu. Conflicting prefixed
+shortcuts such as `l1`, `a4`, `c3`, and `s3` are retired: open the group, then choose its action.
+The non-conflicting `p1` and `p2` pathway shortcuts remain available from any menu.
+Azure choice `6` deploys the image, while choice `7` only pushes it to the registry.
 
-The Run locally submenu provides `1` for **Run without tutorial**, `2` for **Run with tutorial**, and `3` for **Preview documentation site**. Numeric choices apply to the currently open submenu; the legacy `l1` shortcut remains a global alias for `run`.
+In an interactive terminal, every complete, unambiguous choice responds immediately without Enter
+(uppercase letters also work). Only ambiguous choices need Enter: in Containers, `1` waits
+because `10` also exists; press Enter for `1`, or type `0` to select `10` immediately.
+In menus without `10`, `1` selects immediately. Likewise, `p1` and `p2` select as soon as complete.
+Backspace edits pending input. Redirected input remains line-based for automation.
+
+The Run locally submenu provides `1` for **Run without tutorial**, `2` for **Run with tutorial**, and `3` for **Preview documentation site**. Numeric choices apply to the currently open submenu.
 
 To review the GitHub Pages documentation locally, run `.\start.ps1 -Action site-preview` (PowerShell 7) or `./start.sh --action site-preview` (bash). The preview requires Node.js from `.nvmrc`, not .NET or a dependency restore. It opens `http://127.0.0.1:4173/MockAPI/` once the server is listening and serves only the site's publication allowlist. Refresh the browser after editing; stop the server with **Ctrl+C**. Port 4173 must be available. This is the documentation page, not the runtime dashboard.
 

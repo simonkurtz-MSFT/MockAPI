@@ -546,6 +546,31 @@ test("remains usable when the localStorage getter is blocked", async ({ context 
   }
 });
 
+test("aligns the compact all-groups chevron with API chevrons before the separate Path sort button", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Load examples" }).first().click();
+  const control = page.locator("#endpoint-toggle-groups");
+  const pathSort = page.locator('[data-sort-key="path"]');
+  await expect(page.locator(".endpoint-group-toggle")).toHaveCount(3);
+
+  for (const width of [1920, 1200, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const controlBounds = await control.boundingBox();
+    const sortBounds = await pathSort.boundingBox();
+    expect(controlBounds.width).toBeGreaterThanOrEqual(24);
+    expect(controlBounds.width).toBeLessThanOrEqual(40);
+    expect(controlBounds.height).toBeGreaterThanOrEqual(24);
+    expect(controlBounds.x + controlBounds.width).toBeLessThanOrEqual(sortBounds.x + 1);
+    const headerChevron = await control.locator(".endpoint-group-chevron").boundingBox();
+    const headerCenter = headerChevron.x + headerChevron.width / 2;
+    for (const chevron of await page.locator(".endpoint-group-toggle .endpoint-group-chevron").all()) {
+      const groupBounds = await chevron.boundingBox();
+      expect(Math.abs(headerCenter - (groupBounds.x + groupBounds.width / 2))).toBeLessThanOrEqual(1);
+    }
+  }
+});
+
 test("reflows without page overflow", async ({ page }) => {
   await expect(page.locator("html")).toHaveCSS("overflow-y", "scroll");
   await page.getByRole("button", { name: "Load examples" }).first().click();
@@ -558,10 +583,10 @@ test("reflows without page overflow", async ({ page }) => {
   expect(controlBounds.x).toBeGreaterThanOrEqual(panelBounds.x);
   expect(controlBounds.x + controlBounds.width).toBeLessThanOrEqual(panelBounds.x + panelBounds.width);
   await groupControl.click();
-  await expect(groupControl).toHaveText("Expand all groups");
+  await expect(groupControl).toHaveAccessibleName("Expand all groups");
   expect((await groupControl.boundingBox()).width).toBe(controlBounds.width);
   await groupControl.click();
-  await expect(groupControl).toHaveText("Collapse all groups");
+  await expect(groupControl).toHaveAccessibleName("Collapse all groups");
   await page.getByRole("button", { name: "Test" }).first().click();
   const bladeWidth = await page.locator("#test-blade").evaluate((element) => element.getBoundingClientRect().width);
   const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);
