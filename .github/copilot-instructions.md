@@ -81,7 +81,7 @@
 ## Validation
 
 - Use the narrowest relevant test first, then run the broader project checks affected by the change.
-- Keep Markdown lint-clean: every change must pass `pnpm run lint:markdown` (run through the `lint` action) with zero violations. Do not disable, suppress, or scope-narrow a rule to hide a real defect; only change `.markdownlint.jsonc` for an intentional, documented convention, and record the rationale inline in that file.
+- Keep Markdown lint-clean: every change must pass `pnpm run lint:markdown` (run through the `lint` action) with zero violations. Do not disable, suppress, or scope-narrow a rule to hide a real defect; only change `.markdownlint-cli2.jsonc` for an intentional, documented convention, and record the rationale inline in that file.
 - Run local container smoke tests without dashboard credentials by leaving the optional dashboard username blank. Configure credentials only for authentication-specific tests or protected deployments.
 - Use `start.ps1` (PowerShell 7) and `start.sh` (bash) as the canonical local entry points for setup, formatting, linting, backend/frontend coverage validation, managed-code validation, publication, and WSLC container workflows; keep their help and documentation current when commands change.
 - Both `start.ps1` and `start.sh` are mandatory and must always exist together at the repository root. Never add, rename, or remove one without doing the same to the other in the same change.

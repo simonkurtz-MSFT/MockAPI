@@ -19,7 +19,7 @@ on:
       - ".editorconfig"
       - ".gitattributes"
       - "global.json"
-      - ".markdownlint.jsonc"
+      - ".markdownlint-cli2.jsonc"
       - ".prettierignore"
       - ".prettierrc.json"
       - ".nvmrc"

@@ -20,7 +20,7 @@ tests
 .env.*
 .azure
 .gitattributes
-.markdownlint.jsonc
+.markdownlint-cli2.jsonc
 .nvmrc
 .npmrc
 .prettierignore
