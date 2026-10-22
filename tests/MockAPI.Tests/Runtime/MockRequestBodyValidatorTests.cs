@@ -19,20 +19,21 @@ public sealed class MockRequestBodyValidatorTests
         using var body = new MemoryStream(CreateBody(scenario));
         var request = CreateRequest(body, scenario.Contains("json", StringComparison.Ordinal) ? "application/json" : "text/plain",
             knownLength ? body.Length : null);
+        // A private pool preserves warm buffers despite shared-pool trimming and parallel test activity.
+        var bufferPool = ArrayPool<byte>.Create(MockRequestBodyValidator.MaximumBodyBytes, maxArraysPerBucket: 2);
         for (var iteration = 0; iteration < 3; iteration++)
         {
             body.Position = 0;
-            Assert.Null(await MockRequestBodyValidator.ValidateAsync(request));
+            Assert.Null(await MockRequestBodyValidator.ValidateAsync(request, bufferPool));
         }
 
         body.Position = 0;
         var before = GC.GetAllocatedBytesForCurrentThread();
-        var validation = MockRequestBodyValidator.ValidateAsync(request);
-        Assert.True(validation.IsCompletedSuccessfully);
-        var problem = await validation;
+        var validation = MockRequestBodyValidator.ValidateAsync(request, bufferPool);
         var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
 
-        Assert.Null(problem);
+        Assert.True(validation.IsCompletedSuccessfully);
+        Assert.Null(await validation);
         Assert.InRange(allocatedBytes, 0, 4096);
     }
 
