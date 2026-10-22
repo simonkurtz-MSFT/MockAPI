@@ -17,7 +17,8 @@ import { applyStatisticsDelta } from "./dashboard-core.js?v={{ASSET_VERSION}}";
 /**
  * @typedef {{
  * (path: "/configuration", options?: import("./dashboard-management.js").ManagementRequestOptions): Promise<ConfigurationStatus>;
- * (path: "/endpoints", options?: import("./dashboard-management.js").ManagementRequestOptions): Promise<readonly import("./dashboard-core.js").MockEndpoint[]>;
+ * (path: "/endpoints/manifest", options?: import("./dashboard-management.js").ManagementRequestOptions): Promise<readonly import("./dashboard-core.js").EndpointFingerprint[]>;
+ * (path: "/endpoints/batch", options?: import("./dashboard-management.js").ManagementRequestOptions): Promise<readonly import("./dashboard-core.js").MockEndpoint[]>;
  * (path: "/statistics", options?: import("./dashboard-management.js").ManagementRequestOptions): Promise<import("./dashboard-core.js").DashboardStatistics>;
  * }} DashboardReadClient
  */
@@ -49,6 +50,7 @@ import { applyStatisticsDelta } from "./dashboard-core.js?v={{ASSET_VERSION}}";
  * @returns {DashboardSynchronizer} Stream, polling, and revision-cache owner.
  * Refresh outcomes describe the final coalesced read: completed, failed (also reported through onError),
  * or inactive when hidden/disposed. Background recovery remains scheduled after active failures.
+ * Manifest hashes reuse unchanged definitions only in memory; no endpoint content enters browser storage.
  */
 export function createDashboardSynchronizer({
   request,
@@ -81,6 +83,8 @@ export function createDashboardSynchronizer({
   let statisticsSequence = 0;
   /** @type {number|null} */
   let endpointsRevision = null;
+  /** @type {Map<string, {hash: string, endpoint: import("./dashboard-core.js").MockEndpoint}>} */
+  let endpointCache = new Map();
   /** @type {Promise<void>|null} */
   let endpointWork = null;
   /** @type {Promise<SynchronizationResult>|null} */
@@ -124,10 +128,53 @@ export function createDashboardSynchronizer({
     endpointWork = (async () => {
       while (active(epoch) && configuration && endpointsRevision !== configuration.revision) {
         const target = configuration;
+        const cached = endpointCache;
         try {
-          const endpoints = await request("/endpoints", { signal, expectedEtag: target.etag });
+          const manifest = await request("/endpoints/manifest", { signal, expectedEtag: target.etag });
           if (!active(epoch)) return;
-          if (configuration.revision !== target.revision) continue;
+          if (configuration.revision !== target.revision || endpointCache !== cached) continue;
+          const ids = new Set();
+          if (!Array.isArray(manifest)) throw new Error("Invalid endpoint manifest.");
+          for (const entry of manifest) {
+            if (
+              typeof entry?.id !== "string" ||
+              !entry.id ||
+              !/^[A-F0-9]{32}$/.test(entry.contentHash) ||
+              ids.has(entry.id)
+            ) {
+              throw new Error("Invalid endpoint manifest.");
+            }
+            ids.add(entry.id);
+          }
+          const changed = manifest.filter((entry) => cached.get(entry.id)?.hash !== entry.contentHash);
+          /** @type {readonly import("./dashboard-core.js").MockEndpoint[]} */
+          let fetched = [];
+          if (changed.length > 0) {
+            fetched = await request("/endpoints/batch", {
+              method: "POST",
+              body: JSON.stringify({ endpoints: changed }),
+              signal,
+              expectedEtag: target.etag,
+            });
+          }
+          if (!active(epoch)) return;
+          if (configuration.revision !== target.revision || endpointCache !== cached) continue;
+          if (!Array.isArray(fetched) || fetched.length !== changed.length) {
+            throw new Error("Incomplete endpoint batch.");
+          }
+          const received = new Map(fetched.map((endpoint) => [endpoint?.id, endpoint]));
+          if (received.size !== changed.length || changed.some((entry) => !received.has(entry.id))) {
+            throw new Error("Invalid endpoint batch.");
+          }
+          // Stage the entire replacement before publishing. Failures retain the last complete
+          // cache and write ETag; missing manifest IDs are removed without retaining history.
+          const replacement = new Map();
+          const endpoints = manifest.map((entry) => {
+            const endpoint = received.get(entry.id) ?? cached.get(entry.id).endpoint;
+            replacement.set(entry.id, { hash: entry.contentHash, endpoint });
+            return endpoint;
+          });
+          endpointCache = replacement;
           endpointsRevision = target.revision;
           onEndpoints(endpoints);
         } catch (error) {
@@ -171,7 +218,10 @@ export function createDashboardSynchronizer({
   function synchronize({ includeStatistics = true, forceEndpoints = false } = {}) {
     if (!visible || disposed) return Promise.resolve({ kind: "inactive" });
     statisticsRequested ||= includeStatistics;
-    if (forceEndpoints) endpointsRevision = null;
+    if (forceEndpoints) {
+      endpointsRevision = null;
+      endpointCache = new Map();
+    }
     if (refreshWork) {
       refreshAgain = true;
       return refreshWork;
@@ -341,6 +391,7 @@ export function createDashboardSynchronizer({
     if (disposed) return;
     disposed = true;
     deactivate();
+    endpointCache.clear();
   }
 
   return { start, synchronize, setVisible, dispose };

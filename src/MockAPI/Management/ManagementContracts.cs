@@ -33,6 +33,13 @@ public sealed record ApiDescriptionRequest
 /// <param name="Enabled">The desired enabled state.</param>
 public sealed record EndpointEnabledRequest(bool Enabled);
 
+/// <summary>Requests a read-only batch of endpoints from the revision required by If-Match.</summary>
+public sealed record EndpointBatchRequest
+{
+    /// <summary>Gets a non-empty selection from the manifest; IDs must be unique and their content hashes must still match.</summary>
+    public required IReadOnlyList<EndpointFingerprint> Endpoints { get; init; }
+}
+
 /// <summary>Requests one atomic mutation across a set of stable endpoint IDs.</summary>
 public sealed record BulkEndpointRequest
 {
@@ -146,6 +153,8 @@ public sealed record ManagementProblemDetails(
 [JsonSerializable(typeof(ApiKeyCreated))]
 [JsonSerializable(typeof(ApiDescriptionRequest))]
 [JsonSerializable(typeof(EndpointEnabledRequest))]
+[JsonSerializable(typeof(EndpointBatchRequest))]
+[JsonSerializable(typeof(EndpointFingerprint[]))]
 [JsonSerializable(typeof(BulkEndpointRequest))]
 [JsonSerializable(typeof(ConfigurationValidationResponse))]
 [JsonSerializable(typeof(ConfigurationSaveResponse))]

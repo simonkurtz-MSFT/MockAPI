@@ -11,6 +11,12 @@
  */
 
 /**
+ * @typedef {object} EndpointFingerprint
+ * @property {string} id Full stable endpoint ID.
+ * @property {string} contentHash First 128 bits of SHA-256 over canonical endpoint JSON, as 32 uppercase hexadecimal characters.
+ */
+
+/**
  * @typedef {Object} MockResponse
  * @property {"response"|"abortConnection"} [behavior] Omitted for the default HTTP response behavior.
  * @property {number} [delaySeconds] Intentional whole-second delay before the configured behavior.

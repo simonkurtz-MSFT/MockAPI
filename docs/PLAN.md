@@ -262,7 +262,14 @@ Use one dashboard Server-Sent Events connection for immediate configuration and 
 changes plus coalesced live statistics. Do not poll configuration while the stream is healthy.
 Use a 15-second completion-scheduled poll only for recovery or browsers without SSE, and stop
 background work while hidden. Keep endpoint definitions in memory by revision and discard stale
-responses. Revalidate scripts and styles with private content ETags; keep administrative data and
+responses. Synchronize through an ordered stable-ID/content-hash manifest and one read-only batch
+of added or changed definitions, both protected by the target configuration's strong `If-Match`.
+Batch selections also require the manifest's content hashes so reused revisions after a restart cannot mix content.
+Use 128-bit SHA-256 content fingerprints over canonical endpoint JSON, independent of API metadata
+and persistence status. Remove absent IDs and publish the reconstructed list atomically before
+advancing its write ETag. Recheck the manifest on reconnect even when a process reuses a revision;
+reloads start with no cached definitions. Never persist endpoint definitions or hashes in browser storage.
+Revalidate scripts and styles with private content ETags; keep administrative data and
 dashboard HTML non-storable. Update statistics cells without rebuilding unchanged endpoint controls,
 and defer collapsed panels and inactive statistics views until shown.
 

@@ -3,7 +3,7 @@
 /**
  * @typedef {RequestInit & {mutatesConfiguration?: boolean, etag?: string|null, expectedEtag?: string}} ManagementRequestOptions
  * Configuration writes require the revision captured when the user began the operation.
- * Endpoint reads can require an exact response revision before consuming the body.
+ * Revision-bound reads send If-Match and require an exact response revision before consuming the body.
  */
 
 /**
@@ -43,6 +43,7 @@ export function createDashboardManagementClient({ request }) {
     const { mutatesConfiguration = false, etag, expectedEtag, ...requestOptions } = options;
     const headers = new Headers(requestOptions.headers);
     if (requestOptions.body !== undefined) headers.set("Content-Type", "application/json");
+    if (expectedEtag !== undefined) headers.set("If-Match", expectedEtag);
     if (mutatesConfiguration) {
       if (typeof etag !== "string" || !/^"\d+"$/.test(etag)) {
         throw new Error("A configuration revision is required. Wait for synchronization and reopen the operation.");

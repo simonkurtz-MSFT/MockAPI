@@ -62,6 +62,8 @@ Management routes allow 120 requests per client address in a rolling one-minute 
 | `GET`                  | `/configuration/export/{format}`          | Download a portable request/test artifact            |
 | `POST`                 | `/configuration/save`                     | Retry persistence of the active revision             |
 | `GET`, `POST`          | `/endpoints`                              | List or create endpoint definitions                  |
+| `GET`                  | `/endpoints/manifest`                     | Ordered endpoint IDs and content hashes              |
+| `POST`                 | `/endpoints/batch`                        | Read selected definitions from one revision          |
 | `POST`                 | `/endpoints/bulk`                         | Atomically enable, disable, or delete endpoints      |
 | `GET`, `PUT`, `DELETE` | `/endpoints/{id}`                         | Read, replace, or delete one endpoint                |
 | `PUT`                  | `/endpoints/{id}/enabled`                 | Enable or disable one endpoint                       |
@@ -72,6 +74,45 @@ Management routes allow 120 requests per client address in a rolling one-minute 
 | `POST`                 | `/statistics/endpoints/{id}/reset`        | Reset one endpoint's statistics                      |
 
 Portable export formats are `postman`, `insomnia`, `curl`, `jmeter`, `openapi`, `k6`, and `http`. Only enabled endpoints are included. The generated artifacts use `http://localhost:8080` as their editable default base URL. Postman, JMeter, and k6 exports include assertions for configured responses; cURL, Insomnia, and HTTP exports provide runnable requests; OpenAPI describes the configured responses.
+
+### Incremental endpoint synchronization
+
+The dashboard retains endpoint definitions **only in memory**, never in `localStorage`, `sessionStorage`,
+or a persistent application cache. Administrative responses still use `Cache-Control: no-store`.
+A reload starts with an empty endpoint cache; ordinary edits transfer only added or changed definitions.
+
+1. Obtain the current configuration ETag from `/configuration` or its dashboard SSE event.
+2. `GET /endpoints/manifest` with that strong ETag in `If-Match`. The response is an ordered array
+   of `{"id":"<full endpoint UUID>","contentHash":"<32 uppercase hex characters>"}` for all endpoints,
+   including disabled endpoints. Its `ETag` identifies the captured configuration revision.
+3. Compare each content hash against the in-memory definition. For added or changed entries,
+   `POST /endpoints/batch` with the same `If-Match` and
+   `{"endpoints":[{"id":"<full endpoint UUID>","contentHash":"<hash from manifest>"}]}`.
+   This POST is read-only; it neither activates nor saves
+   configuration. JSON avoids URL-length limits for large selections.
+4. Reassemble definitions in manifest order, remove IDs absent from the manifest, and publish the
+   complete replacement before using its ETag for edits. Skip the batch entirely when nothing changed.
+
+Content hashes are the first 128 bits of SHA-256 over canonical endpoint JSON, covering the entire
+definition, including exact body text and ordered repeated header values. They are change detectors,
+not credentials or endpoint identities. Stable UUIDs are never shortened or changed by edits.
+API-description edits, endpoint reordering, and persistence-status changes do not change an endpoint's
+content hash. Hashes are computed lazily once per immutable snapshot without materializing body strings;
+save-only snapshots share the projection. Batch reads materialize only selected definitions.
+
+Both synchronization routes require a current strong `If-Match`: missing headers return `428`,
+malformed or weak tags return `400`, and stale revisions return `412`. Every success comes from one
+captured immutable snapshot. The batch requires a non-empty manifest selection with unique, non-empty
+UUIDs and correctly formatted hashes. Invalid selections return `400`, and any unknown ID rejects
+the entire batch with `404`. A mismatched content hash returns `412`, including when a restarted
+process reuses a revision between manifest and batch reads. Normal management
+request-size, media-type, authentication, and rate limits apply. Returned definitions follow
+configuration order, not request order.
+
+If either read fails or its ETag differs from the target, keep the last complete dashboard snapshot
+and recover using fresh configuration status and a new manifest, without replaying writes. Reconnects
+recheck the manifest even if a restarted process reuses its numeric revision. The unfiltered
+`GET /endpoints` and single-endpoint read remain available and unchanged.
 
 Both export routes accept repeated `endpointId` query parameters containing stable endpoint UUIDs. Omitting
 `endpointId` exports every endpoint; providing one or more values limits the native document or portable

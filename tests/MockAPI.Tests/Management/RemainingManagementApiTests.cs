@@ -1194,7 +1194,24 @@ public sealed class RemainingManagementApiTests : IDisposable
             .SelectMany(path => path.Value.EnumerateObject())
             .Select(operation => operation.Value)
             .ToArray();
-        Assert.Equal(24, operations.Length);
+        Assert.Equal(26, operations.Length);
+        var manifest = paths.GetProperty($"{BasePath}/endpoints/manifest").GetProperty("get");
+        Assert.Equal("GetEndpointManifest", manifest.GetProperty("operationId").GetString());
+        Assert.Contains("If-Match", manifest.GetProperty("description").GetString(), StringComparison.Ordinal);
+        Assert.Equal("#/components/schemas/EndpointFingerprint",
+            manifest.GetProperty("responses").GetProperty("200").GetProperty("content")
+                .GetProperty("application/json").GetProperty("schema").GetProperty("items").GetProperty("$ref").GetString());
+        var batch = paths.GetProperty($"{BasePath}/endpoints/batch").GetProperty("post");
+        Assert.Equal("ReadEndpointBatch", batch.GetProperty("operationId").GetString());
+        Assert.Contains("Read-only", batch.GetProperty("description").GetString(), StringComparison.Ordinal);
+        Assert.Contains("If-Match", batch.GetProperty("description").GetString(), StringComparison.Ordinal);
+        Assert.Equal("#/components/schemas/EndpointBatchRequest",
+            batch.GetProperty("requestBody").GetProperty("content").GetProperty("application/json")
+                .GetProperty("schema").GetProperty("$ref").GetString());
+        foreach (var statusCode in new[] { "200", "400", "404", "412", "413", "415", "428" })
+        {
+            Assert.True(batch.GetProperty("responses").TryGetProperty(statusCode, out _));
+        }
         var apiDescription = paths.GetProperty($"{BasePath}/configuration/api-description").GetProperty("put");
         Assert.Equal("SetApiDescription", apiDescription.GetProperty("operationId").GetString());
         Assert.Contains("If-Match", apiDescription.GetProperty("description").GetString(), StringComparison.Ordinal);

@@ -72,6 +72,7 @@ describe("dashboard management transport", () => {
     const api = createDashboardManagementClient({ request });
 
     await expect(api("/endpoints", { expectedEtag: '"3"' })).resolves.toEqual([]);
+    expect(request.mock.calls[0][1].headers.get("If-Match")).toBe('"3"');
   });
 
   it.each([null, '"4"'])("rejects a successful endpoint read with obsolete or absent ETag %s", async (etag) => {

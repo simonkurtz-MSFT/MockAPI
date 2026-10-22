@@ -55,6 +55,8 @@ public sealed class DashboardAuthenticationTests
     [InlineData("/dashboard-test-request.js")]
     [InlineData("/dashboard-tutorial.js")]
     [InlineData("/__mockapi/api/configuration")]
+    [InlineData("/__mockapi/api/endpoints/manifest")]
+    [InlineData("/__mockapi/api/endpoints/batch")]
     [InlineData("/__mockapi/api/statistics")]
     [InlineData("/__mockapi/api/configuration/export/openapi?download=false")]
     [InlineData("/__mockapi/openapi/v1.json")]

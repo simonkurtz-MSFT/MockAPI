@@ -14,7 +14,7 @@ test("shows endpoint loading progress instead of the empty prompt during initial
   const endpointsGate = new Promise((resolve) => {
     releaseEndpoints = resolve;
   });
-  await page.route("**/__mockapi/api/endpoints", async (route) => {
+  await page.route("**/__mockapi/api/endpoints/manifest", async (route) => {
     await endpointsGate;
     await route.continue();
   });
@@ -43,7 +43,7 @@ test("keeps management commands pending through the authoritative refresh", asyn
   let refreshStarted = false;
   const writes = [];
   page.on("request", (request) => {
-    if (request.method() === "POST" && request.url().includes("/__mockapi/api/")) writes.push(request);
+    if (request.method() === "POST" && request.url().endsWith("/__mockapi/api/endpoints")) writes.push(request);
   });
   await page.route("**/__mockapi/api/configuration", async (route) => {
     refreshStarted = true;
@@ -217,31 +217,99 @@ test("@smoke dashboard synchronization is event-driven through idle time, extern
   page.on("request", (request) => {
     const path = new URL(request.url()).pathname;
     if (
-      request.method() === "GET" &&
-      ["/__mockapi/api/configuration", "/__mockapi/api/statistics", "/__mockapi/api/endpoints"].includes(path)
+      [
+        "/__mockapi/api/configuration",
+        "/__mockapi/api/statistics",
+        "/__mockapi/api/endpoints/manifest",
+        "/__mockapi/api/endpoints/batch",
+      ].includes(path)
     ) {
       reads.push(path);
     }
   });
   await page.clock.install();
   await page.reload();
-  await expect.poll(() => reads.filter((path) => path.endsWith("/endpoints")).length).toBe(1);
+  await expect.poll(() => reads.filter((path) => path.endsWith("/manifest")).length).toBe(1);
   await expect(page.locator("#connection-status")).toHaveText("Live");
   await page.clock.runFor(60000);
-  expect(reads).toEqual(["/__mockapi/api/endpoints"]);
+  expect(reads).toEqual(["/__mockapi/api/endpoints/manifest"]);
 
   const example = await (await request.get("/__mockapi/api/configuration/example")).json();
   await importDocument(request, example);
   await expect(page.locator(".endpoint-row")).not.toHaveCount(0);
   await expect(page.getByRole("button", { name: "Retry save", exact: true })).toBeDisabled();
-  expect(reads).toEqual(["/__mockapi/api/endpoints", "/__mockapi/api/endpoints"]);
+  expect(reads).toEqual([
+    "/__mockapi/api/endpoints/manifest",
+    "/__mockapi/api/endpoints/manifest",
+    "/__mockapi/api/endpoints/batch",
+  ]);
   const configuration = await (await request.get("/__mockapi/api/configuration")).json();
   expect(configuration.hasUnsavedChanges).toBe(false);
   expect(
     (await request.post("/__mockapi/api/configuration/save", { headers: { "If-Match": configuration.etag } })).ok()
   ).toBe(true);
   await expect(page.getByRole("button", { name: "Retry save", exact: true })).toBeDisabled();
-  expect(reads).toEqual(["/__mockapi/api/endpoints", "/__mockapi/api/endpoints"]);
+  expect(reads).toEqual([
+    "/__mockapi/api/endpoints/manifest",
+    "/__mockapi/api/endpoints/manifest",
+    "/__mockapi/api/endpoints/batch",
+  ]);
+});
+
+test("fetches only changed endpoint bodies, skips metadata-only batches, and never persists definitions", async ({
+  page,
+  request,
+}) => {
+  const second = {
+    ...endpoint,
+    id: "a0000000-0000-0000-0000-000000000002",
+    path: "/unchanged",
+    name: "Unchanged endpoint",
+    response: { ...endpoint.response, body: "sensitive-fixture-" + "x".repeat(65536) },
+  };
+  await importDocument(request, { ...emptyDocument, endpoints: [endpoint, second] });
+  await expect(page.locator(".endpoint-row")).toHaveCount(2);
+  const batches = [];
+  const batchResponses = [];
+  page.on("request", (sent) => {
+    if (sent.url().endsWith("/endpoints/batch")) batches.push(sent.postDataJSON());
+  });
+  page.on("response", (received) => {
+    if (received.url().endsWith("/endpoints/batch")) batchResponses.push(received);
+  });
+
+  const changed = { ...endpoint, name: "Changed endpoint" };
+  await importDocument(request, { ...emptyDocument, endpoints: [second, changed] });
+  await expect(page.locator(`.endpoint-row[data-endpoint-id="${endpoint.id}"]`)).toContainText(changed.name);
+  expect(batches).toEqual([{ endpoints: [{ id: endpoint.id, contentHash: expect.stringMatching(/^[A-F0-9]{32}$/) }] }]);
+  const payload = await batchResponses[0].json();
+  expect(payload).toHaveLength(1);
+  expect(JSON.stringify(payload)).not.toContain("sensitive-fixture-");
+  expect(batchResponses[0].headers()["cache-control"]).toBe("no-store");
+
+  await importDocument(request, {
+    ...emptyDocument,
+    endpoints: [second, changed],
+    apiDescriptions: { "/unchanged": "Metadata only" },
+  });
+  const info = page.getByRole("button", { name: "Edit API description for /unchanged", exact: true });
+  await info.focus();
+  await expect(page.getByRole("tooltip").filter({ hasText: "Metadata only" })).toBeVisible();
+  expect(batches).toHaveLength(1);
+  await importDocument(request, { ...emptyDocument, endpoints: [changed] });
+  await expect(page.locator(".endpoint-row")).toHaveCount(1);
+  expect(batches).toHaveLength(1);
+
+  await page.reload();
+  await expect(page.locator(".endpoint-row")).toContainText(changed.name);
+  expect(batches).toHaveLength(2);
+  expect(batches[1]).toEqual(batches[0]);
+  const storage = await page.evaluate(() => ({
+    local: { ...localStorage },
+    session: { ...sessionStorage },
+  }));
+  expect(JSON.stringify(storage)).not.toContain(endpoint.id);
+  expect(JSON.stringify(storage)).not.toContain("sensitive-fixture-");
 });
 
 test("statistics updates preserve endpoint controls and render collapsed content when reopened", async ({

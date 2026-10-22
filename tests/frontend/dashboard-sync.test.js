@@ -16,6 +16,8 @@ const status = (revision = 1, dirty = false) => ({
   etag: `"${revision}"`,
   hasUnsavedChanges: dirty,
 });
+const fingerprint = (id, hash = "A".repeat(32)) => ({ id, contentHash: hash });
+const manifest = (revision) => [fingerprint(`endpoint-${revision}`)];
 const flush = async () => {
   await vi.advanceTimersByTimeAsync(0);
 };
@@ -26,9 +28,10 @@ function harness({ eventSource = true, ...options } = {}) {
     ["configuration", "endpoints", "statistics", "connection", "error"].map((name) => [name, vi.fn()])
   );
   let current = status();
-  const request = vi.fn(async (path) => {
+  const request = vi.fn(async (path, options) => {
     if (path === "/configuration") return current;
-    if (path === "/endpoints") return [{ id: `endpoint-${current.revision}` }];
+    if (path === "/endpoints/manifest") return manifest(current.revision);
+    if (path === "/endpoints/batch") return JSON.parse(options.body).endpoints.map(({ id }) => ({ id }));
     return { totalRequests: current.revision };
   });
   const synchronizer = createDashboardSynchronizer({
@@ -252,14 +255,14 @@ describe("event-driven dashboard synchronization", () => {
     h.synchronizer.dispose();
   });
 
-  it("makes zero configuration/statistics GETs and only one endpoint GET during a healthy idle minute", async () => {
+  it("makes zero configuration/statistics GETs and only one manifest/batch pair during a healthy idle minute", async () => {
     const h = harness();
     await h.connect();
     await h.synchronizer.start();
     expect(h.streams).toHaveLength(1);
     expect(h.streams[0].path).toBe("/dashboard/events");
     await vi.advanceTimersByTimeAsync(60000);
-    expect(h.request.mock.calls.map(([path]) => path)).toEqual(["/endpoints"]);
+    expect(h.request.mock.calls.map(([path]) => path)).toEqual(["/endpoints/manifest", "/endpoints/batch"]);
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -270,11 +273,149 @@ describe("event-driven dashboard synchronization", () => {
     h.streams[0].emit("configuration", status(1));
     await flush();
     expect(h.callbacks.configuration).toHaveBeenCalledTimes(2);
-    expect(h.request).toHaveBeenCalledTimes(1);
+    expect(h.request).toHaveBeenCalledTimes(2);
     h.setStatus(status(2));
     h.streams[0].emit("configuration", status(2));
     await flush();
     expect(h.callbacks.endpoints).toHaveBeenLastCalledWith([{ id: "endpoint-2" }]);
+  });
+
+  it("fetches only changed and added definitions, removes deleted entries, and follows manifest order", async () => {
+    const h = harness();
+    await h.connect();
+    const unchanged = h.callbacks.endpoints.mock.calls[0][0][0];
+    h.request.mockClear();
+    h.request.mockResolvedValueOnce([fingerprint("added"), fingerprint("endpoint-1")]);
+    h.streams[0].emit("configuration", status(2));
+    await flush();
+    expect(h.request.mock.calls[1]).toEqual([
+      "/endpoints/batch",
+      expect.objectContaining({
+        method: "POST",
+        expectedEtag: '"2"',
+        body: JSON.stringify({ endpoints: [fingerprint("added")] }),
+      }),
+    ]);
+    expect(h.callbacks.endpoints).toHaveBeenLastCalledWith([{ id: "added" }, unchanged]);
+    expect(h.callbacks.endpoints.mock.lastCall[0][1]).toBe(unchanged);
+
+    h.request.mockClear();
+    h.request.mockResolvedValueOnce([fingerprint("endpoint-1", "B".repeat(32))]);
+    h.streams[0].emit("configuration", status(3));
+    await flush();
+    expect(JSON.parse(h.request.mock.calls[1][1].body)).toEqual({
+      endpoints: [fingerprint("endpoint-1", "B".repeat(32))],
+    });
+    expect(h.callbacks.endpoints.mock.lastCall[0]).toEqual([{ id: "endpoint-1" }]);
+    expect(h.callbacks.endpoints.mock.lastCall[0][0]).not.toBe(unchanged);
+
+    h.request.mockClear();
+    h.request.mockResolvedValueOnce([]);
+    h.streams[0].emit("configuration", status(4));
+    await flush();
+    expect(h.request).toHaveBeenCalledTimes(1);
+    expect(h.callbacks.endpoints).toHaveBeenLastCalledWith([]);
+    h.synchronizer.dispose();
+  });
+
+  it("reuses unchanged definitions for metadata edits and reordering without a batch request", async () => {
+    const h = harness();
+    await h.connect();
+    const cached = h.callbacks.endpoints.mock.lastCall[0][0];
+    h.request.mockClear();
+    h.request.mockResolvedValueOnce(manifest(1));
+    h.streams[0].emit("configuration", status(2));
+    await flush();
+    expect(h.request).toHaveBeenCalledTimes(1);
+    expect(h.callbacks.endpoints.mock.lastCall[0][0]).toBe(cached);
+    expect(h.callbacks.configuration).toHaveBeenLastCalledWith(status(2));
+    h.synchronizer.dispose();
+  });
+
+  it.each([
+    null,
+    [{}],
+    [fingerprint("")],
+    [fingerprint("endpoint-1", "short")],
+    [fingerprint("same"), fingerprint("same")],
+  ])("reports an invalid manifest without replacing the cached snapshot (%j)", async (invalid) => {
+    const h = harness();
+    await h.connect();
+    h.request.mockResolvedValueOnce(invalid);
+    h.streams[0].emit("configuration", status(2));
+    await flush();
+    expect(h.callbacks.error).toHaveBeenCalledOnce();
+    expect(h.callbacks.endpoints).toHaveBeenCalledTimes(1);
+    expect(h.callbacks.configuration).toHaveBeenLastCalledWith(status(1));
+    h.synchronizer.dispose();
+  });
+
+  it.each([null, [], [{ id: "unknown" }], [{ id: "added" }, { id: "added" }]])(
+    "rejects incomplete or invalid batches without publishing partial state (%j)",
+    async (batch) => {
+      const h = harness();
+      await h.connect();
+      h.request.mockResolvedValueOnce([fingerprint("added"), fingerprint("other")]).mockResolvedValueOnce(batch);
+      h.streams[0].emit("configuration", status(2));
+      await flush();
+      expect(h.callbacks.error).toHaveBeenCalledOnce();
+      expect(h.callbacks.endpoints).toHaveBeenCalledTimes(1);
+      expect(h.callbacks.configuration).toHaveBeenLastCalledWith(status(1));
+      h.synchronizer.dispose();
+    }
+  );
+
+  it("recovers a revision conflict without publishing or caching any partial batch", async () => {
+    const h = harness();
+    await h.connect();
+    h.request
+      .mockResolvedValueOnce(manifest(2))
+      .mockRejectedValueOnce(Object.assign(new Error("Configuration revision conflict"), { status: 412 }));
+    h.setStatus(status(2));
+    h.streams[0].emit("configuration", status(2));
+    await flush();
+    expect(h.callbacks.configuration).toHaveBeenLastCalledWith(status(1));
+    expect(h.callbacks.endpoints).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(h.callbacks.endpoints).toHaveBeenLastCalledWith([{ id: "endpoint-2" }]);
+    expect(h.callbacks.configuration).toHaveBeenLastCalledWith(status(2));
+    expect(h.request.mock.calls.filter(([path]) => path === "/endpoints/batch")).toHaveLength(3);
+    h.synchronizer.dispose();
+  });
+
+  it("discards a superseded batch and rebuilds from the last complete cache", async () => {
+    const h = harness();
+    await h.connect();
+    const pending = deferred();
+    h.request.mockResolvedValueOnce(manifest(2)).mockReturnValueOnce(pending.promise);
+    h.streams[0].emit("configuration", status(2));
+    await flush();
+    h.setStatus(status(3));
+    h.streams[0].emit("configuration", status(3));
+    pending.resolve([{ id: "endpoint-2" }]);
+    await flush();
+    expect(h.callbacks.endpoints).toHaveBeenCalledTimes(2);
+    expect(h.callbacks.endpoints).toHaveBeenLastCalledWith([{ id: "endpoint-3" }]);
+    h.synchronizer.dispose();
+  });
+
+  it("honors forced invalidation during an in-flight batch without reusing cleared definitions", async () => {
+    const h = harness();
+    await h.connect();
+    const pending = deferred();
+    h.request
+      .mockResolvedValueOnce([fingerprint("endpoint-1"), fingerprint("added")])
+      .mockReturnValueOnce(pending.promise);
+    h.streams[0].emit("configuration", status(2));
+    await flush();
+    const refresh = h.synchronizer.synchronize({ forceEndpoints: true, includeStatistics: false });
+    pending.resolve([{ id: "added" }]);
+    expect(await refresh).toEqual({ kind: "completed" });
+    expect(h.callbacks.error).not.toHaveBeenCalled();
+    expect(h.callbacks.endpoints).toHaveBeenCalledTimes(2);
+    expect(h.callbacks.endpoints).toHaveBeenLastCalledWith([{ id: "endpoint-1" }]);
+    expect(h.request.mock.calls.filter(([path]) => path === "/endpoints/batch")).toHaveLength(3);
+    h.synchronizer.dispose();
   });
 
   it("accepts an in-flight endpoint response across a save-only notification", async () => {
@@ -285,9 +426,9 @@ describe("event-driven dashboard synchronization", () => {
     h.request.mockReturnValueOnce(pending.promise);
     h.streams[0].emit("configuration", status(2, true));
     h.streams[0].emit("configuration", status(2));
-    pending.resolve([{ id: "endpoint-2" }]);
+    pending.resolve(manifest(2));
     await flush();
-    expect(h.request.mock.calls.map(([path]) => path)).toEqual(["/endpoints"]);
+    expect(h.request.mock.calls.map(([path]) => path)).toEqual(["/endpoints/manifest", "/endpoints/batch"]);
     expect(h.callbacks.endpoints).toHaveBeenLastCalledWith([{ id: "endpoint-2" }]);
     expect(h.callbacks.configuration).toHaveBeenLastCalledWith(status(2));
   });
@@ -299,7 +440,12 @@ describe("event-driven dashboard synchronization", () => {
     h.streams[0].onerror();
     expect(vi.getTimerCount()).toBe(1);
     await vi.advanceTimersByTimeAsync(15000);
-    expect(h.request.mock.calls.map(([path]) => path)).toEqual(["/endpoints", "/configuration", "/statistics"]);
+    expect(h.request.mock.calls.map(([path]) => path)).toEqual([
+      "/endpoints/manifest",
+      "/endpoints/batch",
+      "/configuration",
+      "/statistics",
+    ]);
     h.streams[0].onopen();
     h.streams[0].emit("configuration", status());
     await flush();
@@ -310,7 +456,12 @@ describe("event-driven dashboard synchronization", () => {
     const h = harness();
     await h.synchronizer.start();
     await vi.advanceTimersByTimeAsync(15000);
-    expect(h.request.mock.calls.map(([path]) => path)).toEqual(["/configuration", "/endpoints", "/statistics"]);
+    expect(h.request.mock.calls.map(([path]) => path)).toEqual([
+      "/configuration",
+      "/endpoints/manifest",
+      "/endpoints/batch",
+      "/statistics",
+    ]);
     expect(vi.getTimerCount()).toBe(1);
   });
 
@@ -319,7 +470,7 @@ describe("event-driven dashboard synchronization", () => {
     await h.synchronizer.start();
     await vi.advanceTimersByTimeAsync(30000);
     expect(h.request.mock.calls.filter(([path]) => path === "/configuration")).toHaveLength(3);
-    expect(h.request.mock.calls.filter(([path]) => path === "/endpoints")).toHaveLength(1);
+    expect(h.request.mock.calls.filter(([path]) => path === "/endpoints/manifest")).toHaveLength(1);
     h.synchronizer.dispose();
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -384,7 +535,12 @@ describe("event-driven dashboard synchronization", () => {
     await h.synchronizer.synchronize({ includeStatistics: false });
     expect(h.request.mock.calls.map(([path]) => path)).toEqual(["/configuration"]);
     await h.synchronizer.synchronize({ includeStatistics: false, forceEndpoints: true });
-    expect(h.request.mock.calls.map(([path]) => path)).toEqual(["/configuration", "/configuration", "/endpoints"]);
+    expect(h.request.mock.calls.map(([path]) => path)).toEqual([
+      "/configuration",
+      "/configuration",
+      "/endpoints/manifest",
+      "/endpoints/batch",
+    ]);
   });
 
   it("coalesces overlapping refreshes into one follow-up, retaining requested statistics", async () => {
@@ -455,7 +611,7 @@ describe("event-driven dashboard synchronization", () => {
     h.request.mockReturnValueOnce(pending.promise);
     h.streams[0].emit("configuration", status(2));
     expect(h.callbacks.configuration).toHaveBeenLastCalledWith(status(1));
-    pending.resolve([{ id: "endpoint-2" }]);
+    pending.resolve(manifest(2));
     await flush();
     expect(h.callbacks.configuration).toHaveBeenLastCalledWith(status(2));
     expect(h.callbacks.endpoints.mock.invocationCallOrder.at(-1)).toBeLessThan(
@@ -469,16 +625,25 @@ describe("event-driven dashboard synchronization", () => {
     h.streams[0].onopen();
     h.streams[0].emit("configuration", status());
     await flush();
-    expect(h.request).toHaveBeenCalledTimes(2);
+    expect(h.request.mock.calls.map(([path]) => path)).toEqual([
+      "/endpoints/manifest",
+      "/endpoints/batch",
+      "/endpoints/manifest",
+    ]);
   });
 
-  it.each(["configuration", "endpoints", "statistics"])(
+  it.each(["configuration", "endpoints/manifest", "endpoints/batch", "statistics"])(
     "aborts %s requests and ignores late responses when hidden",
     async (path) => {
       const h = harness();
       await h.connect();
       const pending = deferred();
-      h.request.mockImplementation(async (url) => (url === `/${path}` ? pending.promise : status(2)));
+      h.request.mockImplementation(async (url) => {
+        if (url === `/${path}`) return pending.promise;
+        if (url === "/endpoints/manifest") return manifest(2);
+        if (url === "/endpoints/batch") return [{ id: "endpoint-2" }];
+        return status(2);
+      });
       const refresh = h.synchronizer.synchronize({ forceEndpoints: true });
       await flush();
       const options = h.request.mock.calls.at(-1)[1];

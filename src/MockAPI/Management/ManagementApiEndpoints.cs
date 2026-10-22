@@ -157,6 +157,30 @@ public static class ManagementApiEndpoints
             .Produces<MockEndpointDefinition[]>(StatusCodes.Status200OK, "application/json");
 
         WithProblemResponses(
+                group.MapGet("/endpoints/manifest", (HttpContext context, CancellationToken _) => WriteEndpointManifestAsync(context, service))
+                    .WithName("GetEndpointManifest")
+                    .WithSummary("List ordered endpoint IDs and content hashes")
+                    .WithDescription("Read-only synchronization manifest. Requires the current strong configuration ETag in If-Match. Returns 128-bit content hashes, never endpoint bodies.")
+                    .Produces<EndpointFingerprint[]>(StatusCodes.Status200OK, "application/json"),
+                StatusCodes.Status400BadRequest,
+                StatusCodes.Status412PreconditionFailed,
+                StatusCodes.Status428PreconditionRequired);
+
+        WithProblemResponses(
+                group.MapPost("/endpoints/batch", (HttpContext context, CancellationToken _) => ReadEndpointBatchAsync(context, service))
+                    .WithName("ReadEndpointBatch")
+                    .WithSummary("Read selected endpoint definitions from one revision")
+                    .WithDescription("Read-only despite using POST to avoid URL-length limits. Requires the current strong configuration ETag in If-Match and a non-empty endpoints selection from the manifest with unique IDs and matching content hashes. Returns definitions in configuration order; unknown IDs or changed hashes reject the entire batch.")
+                    .WithJsonRequestBody<EndpointBatchRequest>()
+                    .Produces<MockEndpointDefinition[]>(StatusCodes.Status200OK, "application/json"),
+                StatusCodes.Status400BadRequest,
+                StatusCodes.Status404NotFound,
+                StatusCodes.Status412PreconditionFailed,
+                StatusCodes.Status413PayloadTooLarge,
+                StatusCodes.Status415UnsupportedMediaType,
+                StatusCodes.Status428PreconditionRequired);
+
+        WithProblemResponses(
                 group.MapPost("/endpoints/bulk", (HttpContext context, CancellationToken _) => ApplyBulkEndpointOperationAsync(context, service, configuration))
                     .WithName("ApplyBulkEndpointOperation")
                     .WithSummary("Enable, disable, or delete multiple endpoints")
@@ -677,6 +701,67 @@ public static class ManagementApiEndpoints
             ManagementJsonContext.Default.ConfigurationStatusResponse);
     }
 
+    private static async Task WriteEndpointManifestAsync(HttpContext context, EndpointManagementService service)
+    {
+        var snapshot = service.Current;
+        if (!await RequireReadRevisionAsync(context, snapshot)) return;
+
+        SetETag(context, snapshot);
+        await WriteJsonAsync(context, StatusCodes.Status200OK, snapshot.EndpointManifest.ToArray(),
+            ManagementJsonContext.Default.EndpointFingerprintArray);
+    }
+
+    private static async Task ReadEndpointBatchAsync(HttpContext context, EndpointManagementService service)
+    {
+        // Capture once before reading the request: every selected definition and ETag must come
+        // from this snapshot even if another writer publishes while the body is being read.
+        var snapshot = service.Current;
+        if (!await RequireReadRevisionAsync(context, snapshot)) return;
+        var request = await ReadJsonAsync(context, ManagementJsonContext.Default.EndpointBatchRequest);
+        if (request is null) return;
+
+        if (request.Endpoints is null || request.Endpoints.Count == 0 ||
+            request.Endpoints.Any(entry => entry is null || entry.Id == Guid.Empty ||
+                entry.ContentHash is null || entry.ContentHash.Length != 32 ||
+                entry.ContentHash.Any(character => !char.IsAsciiHexDigitUpper(character))) ||
+            request.Endpoints.Select(entry => entry.Id).Distinct().Count() != request.Endpoints.Count)
+        {
+            await WriteProblemAsync(context, StatusCodes.Status400BadRequest, "invalid-endpoint-selection",
+                "Invalid endpoint selection", "Provide unique, non-empty endpoint IDs with their 32-character uppercase hexadecimal manifest hashes.", snapshot);
+            return;
+        }
+
+        var fingerprints = snapshot.EndpointManifest.ToDictionary(entry => entry.Id, entry => entry.ContentHash);
+        if (request.Endpoints.Any(entry => !fingerprints.ContainsKey(entry.Id)))
+        {
+            await WriteProblemAsync(context, StatusCodes.Status404NotFound, "endpoint-not-found",
+                "Endpoint not found", "One or more selected endpoints do not exist in the requested revision.", snapshot);
+            return;
+        }
+
+        // Revisions are process-local. Comparing content as well prevents a restart between
+        // manifest and batch reads from pairing old hashes with new definitions at a reused revision.
+        if (request.Endpoints.Any(entry => fingerprints[entry.Id] != entry.ContentHash))
+        {
+            await WriteRevisionConflictAsync(context, snapshot);
+            return;
+        }
+
+        var endpoints = snapshot.GetEndpoints(request.Endpoints.Select(entry => entry.Id).ToHashSet());
+        SetETag(context, snapshot);
+        await WriteJsonAsync(context, StatusCodes.Status200OK, endpoints,
+            ManagementJsonContext.Default.MockEndpointDefinitionArray);
+    }
+
+    private static async Task<bool> RequireReadRevisionAsync(HttpContext context, ConfigurationStateSnapshot snapshot)
+    {
+        var revision = await ReadExpectedRevisionAsync(context, snapshot);
+        if (revision is null) return false;
+        if (revision == snapshot.Revision) return true;
+        await WriteRevisionConflictAsync(context, snapshot);
+        return false;
+    }
+
     private static Task WriteEndpointsAsync(HttpContext context, EndpointManagementService service)
     {
         var snapshot = service.Current;
@@ -940,7 +1025,7 @@ public static class ManagementApiEndpoints
                 StatusCodes.Status428PreconditionRequired,
                 "precondition-required",
                 "Precondition required",
-                "Management writes require a quoted configuration revision in the If-Match header.",
+                "This operation requires a quoted configuration revision in the If-Match header.",
                 snapshot);
             return null;
         }

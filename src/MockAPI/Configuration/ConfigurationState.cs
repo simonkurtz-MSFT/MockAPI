@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text.Json;
 using MockAPI.Runtime;
 
@@ -134,15 +135,20 @@ public sealed class ConfigurationState
 public sealed class ConfigurationStateSnapshot
 {
     private readonly byte[] _serializedDocument;
+    private readonly Lazy<IReadOnlyList<EndpointFingerprint>> _endpointManifest;
 
     private ConfigurationStateSnapshot(
         byte[] serializedDocument,
         IReadOnlyDictionary<string, string>? apiDescriptions,
         EndpointRegistrySnapshot endpoints,
         long revision,
-        bool hasUnsavedChanges)
+        bool hasUnsavedChanges,
+        Lazy<IReadOnlyList<EndpointFingerprint>>? endpointManifest = null)
     {
         _serializedDocument = serializedDocument;
+        // Hash canonical bytes once, without materializing response bodies. Save-only snapshots
+        // share this lazy projection; neither it nor the hashes retain a prior snapshot.
+        _endpointManifest = endpointManifest ?? new(() => CreateEndpointManifest(serializedDocument));
         ApiDescriptions = apiDescriptions;
         Endpoints = endpoints;
         Revision = revision;
@@ -171,6 +177,64 @@ public sealed class ConfigurationStateSnapshot
     public MockApiConfigurationDocument GetDocument() =>
         DeserializeDocument(_serializedDocument);
 
+    internal IReadOnlyList<EndpointFingerprint> EndpointManifest => _endpointManifest.Value;
+
+    private static IReadOnlyList<EndpointFingerprint> CreateEndpointManifest(byte[] serializedDocument)
+    {
+        var manifest = new List<EndpointFingerprint>();
+        var reader = new Utf8JsonReader(serializedDocument);
+        while (reader.Read())
+        {
+            if (reader.TokenType != JsonTokenType.PropertyName || reader.CurrentDepth != 1 ||
+                !reader.ValueTextEquals("endpoints"))
+            {
+                continue;
+            }
+
+            reader.Read();
+            while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+            {
+                var id = ReadEndpointId(reader);
+                var start = checked((int)reader.TokenStartIndex);
+                reader.Skip();
+                var length = checked((int)reader.BytesConsumed) - start;
+                var hash = SHA256.HashData(serializedDocument.AsSpan(start, length));
+                manifest.Add(new(id, Convert.ToHexString(hash.AsSpan(0, 16))));
+            }
+            break;
+        }
+        return manifest.AsReadOnly();
+    }
+
+    internal MockEndpointDefinition[] GetEndpoints(IReadOnlySet<Guid> endpointIds)
+    {
+        var endpoints = new List<MockEndpointDefinition>();
+        var reader = new Utf8JsonReader(_serializedDocument);
+        while (reader.Read())
+        {
+            if (reader.TokenType != JsonTokenType.PropertyName || reader.CurrentDepth != 1 ||
+                !reader.ValueTextEquals("endpoints"))
+            {
+                continue;
+            }
+
+            reader.Read();
+            while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+            {
+                if (endpointIds.Contains(ReadEndpointId(reader)))
+                {
+                    endpoints.Add(JsonSerializer.Deserialize(ref reader, MockApiJsonContext.Default.MockEndpointDefinition)!);
+                }
+                else
+                {
+                    reader.Skip();
+                }
+            }
+            break;
+        }
+        return endpoints.ToArray();
+    }
+
     internal MockEndpointDefinition GetEndpoint(Guid endpointId)
     {
         var reader = new Utf8JsonReader(_serializedDocument);
@@ -185,7 +249,7 @@ public sealed class ConfigurationStateSnapshot
             reader.Read();
             while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
             {
-                if (HasEndpointId(reader, endpointId))
+                if (ReadEndpointId(reader) == endpointId)
                 {
                     // Deserialize from the captured canonical bytes, but do not materialize unrelated bodies.
                     return JsonSerializer.Deserialize(ref reader, MockApiJsonContext.Default.MockEndpointDefinition)!;
@@ -198,7 +262,7 @@ public sealed class ConfigurationStateSnapshot
         throw new InvalidOperationException("The captured configuration does not contain the requested endpoint.");
     }
 
-    private static bool HasEndpointId(Utf8JsonReader reader, Guid endpointId)
+    private static Guid ReadEndpointId(Utf8JsonReader reader)
     {
         // Probe a value copy so the caller can still deserialize from the object's opening token.
         while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
@@ -206,11 +270,11 @@ public sealed class ConfigurationStateSnapshot
             if (reader.ValueTextEquals("id"))
             {
                 reader.Read();
-                return reader.GetGuid() == endpointId;
+                return reader.GetGuid();
             }
             reader.Skip();
         }
-        return false;
+        throw new InvalidOperationException("A canonical endpoint is missing its ID.");
     }
 
     /// <summary>Copies the deterministic UTF-8 JSON representation of this snapshot.</summary>
@@ -286,8 +350,13 @@ public sealed class ConfigurationStateSnapshot
     }
 
     internal ConfigurationStateSnapshot WithUnsavedChanges(bool hasUnsavedChanges) =>
-        new(_serializedDocument, ApiDescriptions, Endpoints, Revision, hasUnsavedChanges);
+        new(_serializedDocument, ApiDescriptions, Endpoints, Revision, hasUnsavedChanges, _endpointManifest);
 }
+
+/// <summary>Identifies one endpoint's content in an ordered configuration manifest.</summary>
+/// <param name="Id">The full stable endpoint ID, unchanged by edits.</param>
+/// <param name="ContentHash">The first 128 bits of SHA-256 over canonical endpoint JSON, encoded as 32 uppercase hexadecimal characters.</param>
+public sealed record EndpointFingerprint(Guid Id, string ContentHash);
 
 /// <summary>Identifies the outcome of an optimistic complete-configuration replacement.</summary>
 public enum ConfigurationUpdateStatus
