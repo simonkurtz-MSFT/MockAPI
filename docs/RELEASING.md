@@ -1,9 +1,32 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.8.0. This version decision publishes only after
+MockAPI's next stable application version is 1.9.0. This version decision publishes only after
 the quality, public-release audit, and native image validation gates below succeed.
 
-## 1.8.0 release summary
+## 1.9.0 release summary
+
+The planned release date is **2026-10-22**, with the immutable tag **`1.9.0`**.
+The [1.9.0 changelog entry](../CHANGELOG.md#190---2026-10-22) supplies the GitHub release notes.
+
+- Both developer CLIs add `azure-generate-key` for initial local environment-file key setup
+  without printing the key or overwriting a non-empty value.
+- Interactive menus submit unambiguous choices immediately and retain the `p1` and `p2` pathways.
+- Azure deploy, registry push, and image import refresh existing deployment outputs without
+  provisioning. Composed Azure pathways avoid recursively running developer CLI tests.
+- The dashboard places the accessible bulk group-collapse chevron beside Path sorting.
+
+### Compatibility and upgrade behavior
+
+The new developer CLI command is additive, so 1.9.0 is a minor release. Existing saved endpoint IDs,
+mock routing, management API contracts, authentication, security persistence, and configuration
+schema (`schemaVersion: "1.0"`) remain compatible; no migration is required. Generating a local
+deployment key does not rotate or replace deployed security settings. Interactive menus remove
+conflicting prefixed shortcuts such as `a4` and `c3`; use submenu choices or the unchanged explicit
+command-line actions instead. Unambiguous menu choices no longer require Enter, while redirected
+input remains line-based. Keep pull examples on published image tags until 1.9.0 image validation
+and publication finish.
+
+## 1.8.0 historical release summary
 
 The planned release date is **2026-10-21**, with the immutable tag **`1.8.0`**.
 The [1.8.0 changelog entry](../CHANGELOG.md#180---2026-10-21) supplies the GitHub release notes.

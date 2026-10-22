@@ -7,6 +7,26 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-22
+
+### Added
+
+- Both developer CLIs provide `azure-generate-key` to save a random initial `AZURE_MOCKAPI_KEY`
+  to the selected local environment file without printing it or replacing a non-empty value.
+
+### Changed
+
+- Interactive developer CLI menus submit unambiguous choices immediately, retain Enter for
+  ambiguous choices, and preserve the `p1` and `p2` pathway shortcuts.
+- Dashboard API-group collapse and expansion use an accessible chevron beside the Path header,
+  separate from sorting, while preserving filtered-group scope and endpoint selection.
+
+### Fixed
+
+- Azure deploy, registry push, and image import refresh existing deployment outputs before use
+  and fail explicitly when required outputs are unavailable, without provisioning infrastructure.
+- Composed Azure pathways run application tests without recursively invoking developer CLI tests.
+
 ## [1.8.0] - 2026-10-21
 
 ### Added
@@ -303,7 +323,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.8.0...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.9.0...HEAD
+[1.9.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.8.0...1.9.0
 [1.8.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.7.0...1.8.0
 [1.7.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.6.2...1.7.0
 [1.6.2]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.6.1...1.6.2
