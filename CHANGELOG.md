@@ -7,6 +7,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-10-22
+
 ### Changed
 
 - Updated ASP.NET Core OpenAPI to 10.0.13, OpenAPI.NET to 2.12.2, and Swagger UI to 10.3.0.
@@ -16,6 +18,11 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
   - [Swagger UI](https://github.com/domaindrivendev/Swashbuckle.AspNetCore/releases/tag/v10.3.0):
     corrected relative document URLs containing query strings and serialization of custom UI
     configuration values.
+
+### Fixed
+
+- Consolidated Markdown lint settings in the CLI configuration, preserving existing conventions
+  and allowing the standard MIT license text without a Markdown heading.
 
 ## [1.9.0] - 2026-10-22
 

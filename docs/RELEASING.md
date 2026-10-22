@@ -1,9 +1,27 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.9.0. This version decision publishes only after
+MockAPI's next stable application version is 1.9.1. This version decision publishes only after
 the quality, public-release audit, and native image validation gates below succeed.
 
-## 1.9.0 release summary
+## 1.9.1 release summary
+
+The planned release date is **2026-10-22**, with the immutable tag **`1.9.1`**.
+The [1.9.1 changelog entry](../CHANGELOG.md#191---2026-10-22) supplies the GitHub release notes.
+
+- Updated ASP.NET Core OpenAPI to 10.0.13, OpenAPI.NET to 2.12.2, and Swagger UI to 10.3.0,
+  including upstream nullable-schema serialization and Swagger UI document URL fixes.
+- Consolidated Markdown lint configuration while preserving existing conventions and the
+  standard MIT license text.
+
+### Compatibility and upgrade behavior
+
+These dependency and tooling fixes are backward compatible, so 1.9.1 is a patch release.
+Existing saved endpoint IDs, mock routing, management API contracts, authentication, security
+persistence, and configuration schema (`schemaVersion: "1.0"`) remain compatible; no migration
+is required. Keep pull examples on published image tags until 1.9.1 image validation and
+publication finish.
+
+## 1.9.0 historical release summary
 
 The planned release date is **2026-10-22**, with the immutable tag **`1.9.0`**.
 The [1.9.0 changelog entry](../CHANGELOG.md#190---2026-10-22) supplies the GitHub release notes.
