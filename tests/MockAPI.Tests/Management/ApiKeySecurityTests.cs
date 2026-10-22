@@ -36,21 +36,28 @@ public sealed class ApiKeySecurityTests : IDisposable
         await security.LoadAsync(CancellationToken.None);
         var context = new DefaultHttpContext();
         context.Request.Headers[ApiKeySecurity.HeaderName] = key;
-        for (var index = 0; index < 100; index++)
+        const int iterations = 1_000;
+        for (var index = 0; index < iterations; index++)
         {
             Assert.True(security.Authorizes(context));
         }
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
+        var allocations = new long[5];
         var authorized = true;
-        for (var index = 0; index < 1_000; index++)
+        for (var sample = 0; sample < allocations.Length; sample++)
         {
-            authorized &= security.Authorizes(context);
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var index = 0; index < iterations; index++)
+            {
+                authorized &= security.Authorizes(context);
+            }
+            allocations[sample] = GC.GetAllocatedBytesForCurrentThread() - before;
         }
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         Assert.True(authorized);
-        Assert.InRange(allocated, 0, 1_024);
+        // A batch can include one-off runtime initialization rather than recurring authorization costs.
+        // The lowest of fixed batches still exposes per-call encoding, hashing, or decoding allocations.
+        Assert.InRange(allocations.Min(), 0, 1_024);
     }
 
     [Fact]

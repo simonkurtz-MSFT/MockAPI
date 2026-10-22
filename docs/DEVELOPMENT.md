@@ -53,6 +53,12 @@ The image includes PowerShell, so both developer entry points work.
 ./start.sh --action lint
 ```
 
+The API-key allocation regression test covers 32-, 43-, and 256-character keys. After warmup,
+it measures five synchronous batches of 1,000 authorizations on the current thread and requires
+the lowest batch to stay within 1,024 allocated bytes. This measures steady-state allocation
+without treating a one-off runtime initialization cost as a per-request regression; recurring
+encoding, hashing, or stored-hash decoding allocations still exceed the unchanged limit.
+
 For dashboard or site browser tests, install the browser matching the repository's pinned Playwright:
 
 ```text
