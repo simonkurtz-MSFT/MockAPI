@@ -7,6 +7,11 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Fixed
+
+- API-group collapse and expand buttons include their visible endpoint count in the accessible
+  name, keeping speech-input labels aligned with the displayed text.
+
 ## [1.10.0] - 2026-10-23
 
 ### Added

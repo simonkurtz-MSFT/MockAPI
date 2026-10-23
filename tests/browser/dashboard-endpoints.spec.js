@@ -130,15 +130,15 @@ test("shows all operations with relative paths and sorts within alphabetical API
   await expect(groups).toHaveText(["alpha", "zeta"]);
   await expect(rows.first().locator(".status-badge")).toHaveText("500");
 
-  await page.getByRole("button", { name: "Collapse alpha", exact: true }).click();
+  await page.getByRole("button", { name: "Collapse alpha 12", exact: true }).click();
   await page.locator('[data-sort-key="path"]').click();
   await expect(rows).toHaveCount(12);
   await expect(groups).toHaveText(["alpha", "zeta"]);
-  await expect(page.getByRole("button", { name: "Expand alpha", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Expand alpha 12", exact: true })).toBeVisible();
   await expect(rows.locator(".path-cell")).toHaveText(
     Array.from({ length: 12 }, (_, index) => `/route-${String(index + 1).padStart(2, "0")}`)
   );
-  await page.getByRole("button", { name: "Expand alpha", exact: true }).click();
+  await page.getByRole("button", { name: "Expand alpha 12", exact: true }).click();
   await expect(rows).toHaveCount(24);
   await page.locator("#select-all-endpoints").check();
   await expect(page.locator("#selection-count")).toHaveText("24");
@@ -192,10 +192,12 @@ test("@smoke selects and clears one API without changing other API selections", 
   await expect(count).toHaveText("1");
   await expect(page.getByRole("checkbox", { name: "Select zeta GET", exact: true })).toBeChecked();
 
-  await page.getByRole("button", { name: "Collapse alpha", exact: true }).click();
+  const alphaToggle = page.getByRole("button", { name: "Collapse alpha 2", exact: true });
+  await expect(alphaToggle).toHaveText("alpha 2");
+  await alphaToggle.click();
   await alpha.check();
   await expect(page.locator(".endpoint-row")).toHaveCount(2);
-  await expect(page.getByRole("button", { name: "Expand alpha", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Expand alpha 2", exact: true })).toBeVisible();
   await expect(count).toHaveText("3");
   await selectAll.check();
   await expect(alpha).toBeChecked();
@@ -237,6 +239,7 @@ test("per-API selection respects filters and preserves hidden selections", async
   await page.getByRole("checkbox", { name: "Select alpha POST", exact: true }).check();
   await page.getByRole("checkbox", { name: "Select zeta POST", exact: true }).check();
   await page.locator("#filter-method").selectOption("GET");
+  await expect(page.locator('[data-endpoint-group="alpha"]')).toHaveAccessibleName("Collapse alpha 1");
   await expect(alpha).not.toBeChecked();
   await expect(zeta).not.toBeChecked();
   await alpha.check();
@@ -246,6 +249,7 @@ test("per-API selection respects filters and preserves hidden selections", async
   await alpha.uncheck();
   await expect(count).toHaveText("2");
   await page.locator("#filter-method").selectOption("");
+  await expect(page.locator('[data-endpoint-group="alpha"]')).toHaveAccessibleName("Collapse alpha 2");
   await expect(alpha).toBeChecked({ indeterminate: true });
   await expect(zeta).toBeChecked({ indeterminate: true });
   await expect(page.getByRole("checkbox", { name: "Select alpha POST", exact: true })).toBeChecked();
@@ -310,13 +314,13 @@ test("@smoke collapses and expands all API groups without changing endpoint conf
   await expect(pathHeader).toHaveAttribute("aria-sort", "ascending");
   await expect(page.locator('.endpoint-group-toggle[aria-expanded="true"]')).toHaveCount(3);
   await expect(rows.locator(".selection-checkbox:checked")).toHaveCount(1);
-  await page.getByRole("button", { name: "Collapse inventory", exact: true }).click();
+  await page.getByRole("button", { name: "Collapse inventory 11", exact: true }).click();
   await expect(control).toHaveAccessibleName("Collapse all groups");
   await expect(rows).toHaveCount(30);
   await control.click();
   await expect(rows).toHaveCount(0);
   await expect(control).toHaveAccessibleName("Expand all groups");
-  await page.getByRole("button", { name: "Expand aoai", exact: true }).click();
+  await page.getByRole("button", { name: "Expand aoai 16", exact: true }).click();
   await expect(rows).toHaveCount(16);
   await expect(control).toHaveAccessibleName("Collapse all groups");
   await control.click();
@@ -348,7 +352,7 @@ test("bulk API group collapse applies to filtered groups and preserves hidden gr
   await filter.fill("");
   await expect(rows).toHaveCount(30);
   await expect(control).toHaveAccessibleName("Collapse all groups");
-  await expect(page.getByRole("button", { name: "Expand inventory", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Expand inventory 11", exact: true })).toBeVisible();
   await filter.fill("no matching API group");
   await expect(page.locator(".endpoint-group-toggle")).toHaveCount(0);
   await expect(control).toBeDisabled();
@@ -359,8 +363,8 @@ test("bulk API group collapse applies to filtered groups and preserves hidden gr
   await expect(rows).toHaveCount(0);
   await filter.fill("");
   await expect(rows).toHaveCount(16);
-  await expect(page.getByRole("button", { name: "Expand inventory", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Expand shipping", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Expand inventory 11", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Expand shipping 14", exact: true })).toBeVisible();
   await control.click();
   await expect(rows).toHaveCount(0);
   await control.click();
@@ -371,7 +375,7 @@ test("@smoke loads examples idempotently and filters by status", async ({ page, 
   await page.getByRole("button", { name: "Load examples" }).first().click();
   await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(41);
   await expect(page.locator(".endpoint-group-row")).toHaveCount(3);
-  await expect(page.getByRole("button", { name: "Collapse aoai", exact: true })).toContainText("16");
+  await expect(page.getByRole("button", { name: "Collapse aoai 16", exact: true })).toContainText("16");
   await expect(page.getByRole("navigation", { name: "Endpoint pages" })).toHaveCount(0);
   const responseHeader = page.getByRole("columnheader", { name: "Response" });
   await responseHeader.getByRole("button").click();
@@ -546,13 +550,13 @@ test("keeps column geometry stable through group collapse and sorting, with cent
     expect(buttons[0].x).toBeGreaterThanOrEqual(actionBounds.x);
     expect(buttons.at(-1).x + buttons.at(-1).width).toBeLessThanOrEqual(actionBounds.x + actionBounds.width);
     for (const button of buttons) expect(button.width).toBe(32);
-    await page.getByRole("button", { name: "Collapse inventory", exact: true }).click();
+    await page.getByRole("button", { name: "Collapse inventory 11", exact: true }).click();
     await expect(page.locator(".endpoint-row")).toHaveCount(30);
     const collapsed = await headers.evaluateAll((cells) =>
       cells.map((cell) => ({ x: cell.getBoundingClientRect().x, width: cell.getBoundingClientRect().width }))
     );
     expect(collapsed).toEqual(original);
-    await page.getByRole("button", { name: "Expand inventory", exact: true }).click();
+    await page.getByRole("button", { name: "Expand inventory 11", exact: true }).click();
     await expect(page.locator(".endpoint-row")).toHaveCount(41);
     const expanded = await headers.evaluateAll((cells) =>
       cells.map((cell) => ({ x: cell.getBoundingClientRect().x, width: cell.getBoundingClientRect().width }))

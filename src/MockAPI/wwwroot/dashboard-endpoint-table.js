@@ -258,11 +258,14 @@ export function createDashboardEndpointTable({
     button.dataset.endpointGroup = group.key;
     const expanded = !state.collapsedEndpointGroups.has(group.key);
     button.setAttribute("aria-expanded", String(expanded));
-    button.setAttribute("aria-label", `${expanded ? "Collapse" : "Expand"} ${group.label}`);
+    const count = formatNumber(group.endpoints.length);
+    // Include all visible label text so speech-input users can target the displayed group and count.
+    button.setAttribute("aria-label", `${expanded ? "Collapse" : "Expand"} ${group.label} ${count}`);
     button.append(
       makeElement("span", "endpoint-group-chevron"),
       makeElement("strong", null, group.label),
-      makeElement("span", "endpoint-group-count", formatNumber(group.endpoints.length))
+      " ",
+      makeElement("span", "endpoint-group-count", count)
     );
     rowEvents.listen(button, "click", () => {
       if (expanded) state.collapsedEndpointGroups.add(group.key);

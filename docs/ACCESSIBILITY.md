@@ -6,6 +6,10 @@ MockAPI uses WCAG 2.2 Level AA, including applicable WCAG 2.0 and 2.1 requiremen
 
 Automated semantic, keyboard, responsive, and axe-core checks are part of the Playwright suite. These checks provide repeatable regression evidence but do not, by themselves, establish formal WCAG conformance.
 
+API-group collapse and expand buttons include the visible group name and filtered endpoint count
+in their accessible names. Browser regressions verify these names when groups collapse, expand,
+or change through filtering, alongside the axe label-in-name checks.
+
 ## Automated Evidence
 
 - Frontend unit coverage: `pnpm run test:frontend:coverage`
