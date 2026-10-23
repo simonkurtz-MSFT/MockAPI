@@ -7,6 +7,20 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-10-23
+
+### Added
+
+- Revision-protected endpoint manifest and read-only batch management routes support incremental
+  endpoint synchronization with stable IDs and content hashes.
+
+### Changed
+
+- Dashboard synchronization transfers only added or changed endpoint definitions, keeps its cache
+  in memory, and rechecks the manifest after reconnecting, including across process restarts.
+- Updated development tooling to pnpm 12.14.0, axe-core Playwright 4.14.0, and Vitest and its
+  V8 coverage provider 5.0.5.
+
 ### Fixed
 
 - Fixed endpoint rate limits continuing to return `429` after the rolling window had elapsed.
@@ -345,7 +359,9 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.9.0...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.10.0...HEAD
+[1.10.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.9.1...1.10.0
+[1.9.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.9.0...1.9.1
 [1.9.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.8.0...1.9.0
 [1.8.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.7.0...1.8.0
 [1.7.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.6.2...1.7.0

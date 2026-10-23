@@ -1,9 +1,30 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.9.1. This version decision publishes only after
+MockAPI's next stable application version is 1.10.0. This version decision publishes only after
 the quality, public-release audit, and native image validation gates below succeed.
 
-## 1.9.1 release summary
+## 1.10.0 release summary
+
+The planned release date is **2026-10-23**, with the immutable tag **`1.10.0`**.
+The [1.10.0 changelog entry](../CHANGELOG.md#1100---2026-10-23) supplies the GitHub release notes.
+
+- Revision-protected endpoint manifests and read-only batch routes let the dashboard transfer only
+  added or changed definitions while retaining stable IDs and an in-memory-only cache.
+- Rate-limited endpoints recover as accepted requests leave their rolling window, including after
+  inactivity; rejected requests do not extend the window.
+- Development tooling updates include pnpm 12.14.0, axe-core Playwright 4.14.0, and Vitest and its
+  V8 coverage provider 5.0.5.
+
+### Compatibility and upgrade behavior
+
+The new management routes are additive, so 1.10.0 is a minor release. Existing endpoint list and
+single-endpoint reads remain unchanged. Saved endpoint IDs, mock routing, authentication, security
+persistence, and configuration schema (`schemaVersion: "1.0"`) remain compatible; no migration is
+required. Rate-limit recovery now follows the configured rolling window rather than remaining
+exhausted after it expires. Keep pull examples on published image tags until 1.10.0 image validation
+and publication finish.
+
+## 1.9.1 historical release summary
 
 The planned release date is **2026-10-22**, with the immutable tag **`1.9.1`**.
 The [1.9.1 changelog entry](../CHANGELOG.md#191---2026-10-22) supplies the GitHub release notes.
