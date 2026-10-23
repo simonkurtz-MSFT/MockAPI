@@ -2,7 +2,6 @@ using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Text;
 using System.Text.Unicode;
-using System.Threading.RateLimiting;
 using MockAPI.Configuration;
 
 namespace MockAPI.Runtime;
@@ -117,7 +116,7 @@ public sealed class EndpointRegistrySnapshot
 public sealed class RuntimeEndpoint
 {
     private readonly ReadOnlyMemory<byte> _body;
-    private readonly SlidingWindowRateLimiter? _rateLimiter;
+    private readonly RollingWindowPermitBudget? _rateLimiter;
     private readonly RuntimeSuccessResponse? _successResponse;
 
     private RuntimeEndpoint(
@@ -129,7 +128,7 @@ public sealed class RuntimeEndpoint
         ImmutableArray<RuntimeResponseHeader> headers,
         string? contentType,
         ReadOnlyMemory<byte> body,
-        SlidingWindowRateLimiter? rateLimiter,
+        RollingWindowPermitBudget? rateLimiter,
         RuntimeSuccessResponse? successResponse)
     {
         Id = id;
@@ -175,14 +174,15 @@ public sealed class RuntimeEndpoint
             return new RuntimeResponse(StatusCode!.Value, ReasonPhrase, Headers, ContentType, Body);
         }
 
-        _rateLimiter.TryReplenish();
-        using var lease = _rateLimiter.AttemptAcquire();
-        return lease.IsAcquired
+        return _rateLimiter.TryAcquire()
             ? _successResponse!.Value.Response
             : new RuntimeResponse(StatusCode!.Value, ReasonPhrase, Headers, ContentType, Body);
     }
 
-    internal static RuntimeEndpoint Create(MockEndpointDefinition definition, RuntimeEndpoint? previous = null)
+    internal static RuntimeEndpoint Create(
+        MockEndpointDefinition definition,
+        RuntimeEndpoint? previous = null,
+        TimeProvider? timeProvider = null)
     {
         var response = definition.Response;
         var headers = RuntimeResponseCompilation.CreateHeaders(response.Headers, previous?.Headers ?? default);
@@ -191,14 +191,10 @@ public sealed class RuntimeEndpoint
         // Share only immutable wire data. Each replacement still starts with fresh rate-limit permits.
         var limiter = rateLimit is null
             ? null
-            : new SlidingWindowRateLimiter(new SlidingWindowRateLimiterOptions
-            {
-                PermitLimit = rateLimit.RequestLimit,
-                Window = TimeSpan.FromSeconds(rateLimit.WindowSeconds),
-                SegmentsPerWindow = Math.Min(rateLimit.WindowSeconds, 10),
-                QueueLimit = 0,
-                AutoReplenishment = false
-            });
+            : new RollingWindowPermitBudget(
+                rateLimit.RequestLimit,
+                TimeSpan.FromSeconds(rateLimit.WindowSeconds),
+                timeProvider ?? TimeProvider.System);
         RuntimeSuccessResponse? successResponse = rateLimit is null
             ? null
             : RuntimeSuccessResponse.Create(rateLimit.SuccessResponse, previous?._successResponse);

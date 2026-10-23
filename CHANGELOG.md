@@ -7,6 +7,11 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed endpoint rate limits continuing to return `429` after the rolling window had elapsed.
+  Requests can now succeed as soon as capacity becomes available, including after a period of inactivity.
+
 ## [1.9.1] - 2026-10-22
 
 ### Changed

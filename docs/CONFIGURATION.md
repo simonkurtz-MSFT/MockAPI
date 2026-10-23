@@ -143,6 +143,17 @@ an immediate response. This is useful for testing client-side timeout and cancel
 
 Set `response.rateLimit` on a `429` response to allow `requestLimit` successful requests during a rolling `windowSeconds` interval. Requests up to and including that limit return the configured `successResponse`; later requests in the window return the top-level 429 response. The success status must be from 200 through 299. Counters are process-local, shared by all methods on the endpoint, and reset when configuration is replaced or the process restarts.
 
+The limit applies only to that endpoint definition, not to its API as a whole or to all APIs in the
+instance. Each rate-limited endpoint has an independent budget shared by all clients and all HTTP
+methods configured on that definition. Exhausting one endpoint's budget does not affect any other
+endpoint, even within the same API. Endpoints without `response.rateLimit` have no mock rate-limit
+budget; a plain configured `429` response always returns `429`.
+
+Each request that receives the configured success response counts toward the limit for `windowSeconds`
+seconds. Once that time has elapsed, it no longer counts, so another request can succeed. Requests that
+receive the rate-limit `429` response do not count toward the limit or delay recovery. After a full window
+with no requests, the endpoint can accept another `requestLimit` requests.
+
 ```json
 {
   "statusCode": 429,

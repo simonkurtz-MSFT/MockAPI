@@ -436,11 +436,11 @@ public sealed class MockDispatcherTests
     }
 
     [Fact]
-    public async Task RateLimitedEndpoint_ReturnsSuccessUntilRequestLimitIsExceeded()
+    public async Task RateLimitedEndpoint_SharesRequestLimitAcrossMethods()
     {
         await using var factory = new UnsecuredApplicationFactory();
         var configuration = factory.Services.GetRequiredService<ConfigurationState>();
-        var endpoint = CreateEndpoint(["GET"], "/api/rate-limited", "{\"error\":\"try later\"}") with
+        var endpoint = CreateEndpoint(["GET", "POST"], "/api/rate-limited", "{\"error\":\"try later\"}") with
         {
             Response = new MockResponseDefinition
             {
@@ -466,7 +466,7 @@ public sealed class MockDispatcherTests
         using var client = factory.CreateClient();
 
         using var first = await client.GetAsync("/api/rate-limited", CancellationToken.None);
-        using var second = await client.GetAsync("/api/rate-limited", CancellationToken.None);
+        using var second = await client.PostAsync("/api/rate-limited", null, CancellationToken.None);
         using var third = await client.GetAsync("/api/rate-limited", CancellationToken.None);
 
         Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
@@ -478,8 +478,10 @@ public sealed class MockDispatcherTests
         Assert.Equal("{\"error\":\"try later\"}", await third.Content.ReadAsStringAsync(CancellationToken.None));
     }
 
-    [Fact]
-    public async Task RateLimitedEndpoint_ReturnsSuccessAfterWindowExpires()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task RateLimitedEndpoint_ReturnsSuccessAfterWindowExpires(int windowSeconds)
     {
         await using var factory = new UnsecuredApplicationFactory();
         var configuration = factory.Services.GetRequiredService<ConfigurationState>();
@@ -494,7 +496,7 @@ public sealed class MockDispatcherTests
                 RateLimit = new MockRateLimitDefinition
                 {
                     RequestLimit = 1,
-                    WindowSeconds = 1,
+                    WindowSeconds = windowSeconds,
                     SuccessResponse = new MockSuccessResponseDefinition
                     {
                         StatusCode = 200,
@@ -510,12 +512,16 @@ public sealed class MockDispatcherTests
 
         using var first = await client.GetAsync("/api/rate-window", CancellationToken.None);
         using var limited = await client.GetAsync("/api/rate-window", CancellationToken.None);
-        await Task.Delay(TimeSpan.FromMilliseconds(1100), CancellationToken.None);
+        await Task.Delay(TimeSpan.FromSeconds(windowSeconds) + TimeSpan.FromMilliseconds(100), CancellationToken.None);
         using var replenished = await client.GetAsync("/api/rate-window", CancellationToken.None);
+        using var limitedAgain = await client.GetAsync("/api/rate-window", CancellationToken.None);
 
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
         Assert.Equal(HttpStatusCode.OK, replenished.StatusCode);
+        Assert.Equal("success", await replenished.Content.ReadAsStringAsync(CancellationToken.None));
+        Assert.Equal(HttpStatusCode.TooManyRequests, limitedAgain.StatusCode);
+        Assert.Equal("limited", await limitedAgain.Content.ReadAsStringAsync(CancellationToken.None));
     }
 
     [Fact]
