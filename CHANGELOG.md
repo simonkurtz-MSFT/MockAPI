@@ -7,14 +7,26 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.10.1] - 2026-10-27
+
+### Changed
+
+- Updated Playwright and its matching CI images to 1.64.1.
+
 ### Fixed
 
 - API-group collapse and expand buttons include their visible endpoint count in the accessible
   name, keeping speech-input labels aligned with the displayed text.
+- Documentation-site buttons retain readable text contrast throughout light and dark theme changes.
 - Corrected stale prerelease and pending-publication guidance, updated container quick starts to
   the published stable image, and aligned Azure import documentation with project-version tags.
 - Refreshed documentation screenshots with current sample definitions and endpoint group controls.
   Version and build metadata are hidden only in captures; the live dashboard footer is unchanged.
+
+### Security
+
+- Updated the Native AOT SDK to 10.0.403 and runtime-deps image to 10.0.14 for Brotli and musl
+  security fixes, and pinned build-only curl and libcurl to 8.23.0-r0 for their security fixes.
 
 ## [1.10.0] - 2026-10-23
 
@@ -368,7 +380,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.10.0...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.10.1...HEAD
+[1.10.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.10.0...1.10.1
 [1.10.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.9.1...1.10.0
 [1.9.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.9.0...1.9.1
 [1.9.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.8.0...1.9.0
