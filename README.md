@@ -16,7 +16,7 @@ _**From a developer, for developers!**_
 
 ## Get started in two minutes
 
-**Recommended: run the current source.** Install the stable [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+**Run from source for local development.** Install the stable [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 and use PowerShell 7 or Bash. Node.js is not needed just to run MockAPI.
 
 ```text
@@ -62,9 +62,12 @@ Keep administrative access on localhost or a protected network unless you config
 | Container runtime only          | [Published Docker Hub tags](https://hub.docker.com/r/simonkurtzmsft/mockapi/tags) and the [container quick start](#23-run-a-local-container) |
 | Contribute or prepare a release | [Development container](docs/DEVELOPMENT.md) · [Versioning and approved publication](docs/RELEASING.md)                                      |
 
-> [!IMPORTANT]
-> MockAPI is pre-1.0. The published `v1.0.0-alpha.1` image is an older preview, not the current beta source.
-> Use the source quick start for current features. A version in the project does not mean that image has been published.
+> [!NOTE]
+> MockAPI has stable releases. The published `1.10.0` image supports Linux AMD64 and ARM64.
+> See [GitHub releases](https://github.com/simonkurtz-MSFT/MockAPI/releases) for release notes and
+> [Docker Hub tags](https://hub.docker.com/r/simonkurtzmsft/mockapi/tags) for available images.
+> Use an explicit published version tag; there is no `latest` image alias. Source on `main` can include
+> unreleased changes listed in the [changelog](CHANGELOG.md#unreleased).
 
 ![MockAPI dashboard showing Trailhead Supply inventory and shipping examples, configuration commands, live request metrics, the last-60-minutes activity graph, and recent request outcomes.](docs/images/01-dashboard-overview.png)
 
@@ -322,19 +325,19 @@ restore write access and select **Retry save**.
 The fastest way to run MockAPI is to pull the published image from [Docker Hub](https://hub.docker.com/r/simonkurtzmsft/mockapi). No build, .NET SDK, Node.js, or repository checkout is required:
 
 ```powershell
-docker run --rm -p 127.0.0.1:8080:8080 simonkurtzmsft/mockapi:v1.0.0-alpha.1
+docker run --rm -p 127.0.0.1:8080:8080 simonkurtzmsft/mockapi:1.10.0
 ```
 
 The tag is a single multi-architecture manifest that supports **`linux/amd64`** and **`linux/arm64`**. Docker automatically selects the image that matches the host architecture, so the same command and tag work on Intel/AMD and ARM hosts. Confirm the available platforms for a tag with:
 
 ```powershell
-docker manifest inspect simonkurtzmsft/mockapi:v1.0.0-alpha.1
+docker manifest inspect simonkurtzmsft/mockapi:1.10.0
 ```
 
 Open `http://localhost:8080/`, then [complete the first-use workflow](#26-complete-the-first-use-workflow). Add a named volume to keep dashboard saves across restarts:
 
 ```powershell
-docker run --rm -p 127.0.0.1:8080:8080 -v mockapi-data:/data simonkurtzmsft/mockapi:v1.0.0-alpha.1
+docker run --rm -p 127.0.0.1:8080:8080 -v mockapi-data:/data simonkurtzmsft/mockapi:1.10.0
 ```
 
 The image runs as a non-root user and supports a read-only root filesystem; `/data` is the only writable path required for persistence. To build and run the image from source instead—for example when changing MockAPI itself—use the developer CLI.
@@ -539,11 +542,8 @@ After the initial deployment:
 # Build and push without changing the running Container App.
 .\start.ps1 -Action azure-push
 
-# Import latest from Docker Hub into ACR, deploy without building, and verify readiness.
+# Import the project version from Docker Hub into ACR, deploy without building, and verify readiness.
 .\start.ps1 -Action azure-import
-
-# Or select a published version tag.
-.\start.ps1 -Action azure-import -AzureImageTag <version>
 
 # Confirm resource-group deletion, submit it, and return without waiting.
 .\start.ps1 -Action azure-down
@@ -564,11 +564,8 @@ After the initial deployment:
 # Build and push without changing the running Container App.
 ./start.sh --action azure-push
 
-# Import latest from Docker Hub into ACR, deploy without building, and verify readiness.
+# Import the project version from Docker Hub into ACR, deploy without building, and verify readiness.
 ./start.sh --action azure-import
-
-# Or select a published version tag.
-./start.sh --action azure-import --azure-image-tag <version>
 
 # Confirm resource-group deletion, submit it, and return without waiting.
 ./start.sh --action azure-down
@@ -578,7 +575,13 @@ After the initial deployment:
 
 Choices `1` and `2` in the Azure submenu run these same pathways; `p1` and `p2` remain global aliases. The initial pathway runs the test suite and managed build before `azure-up`, which validates configuration, builds the native container, previews infrastructure changes, and requests confirmation before provisioning. The update pathway runs the test suite and managed build before `azure-deploy`, which updates existing resources and verifies readiness. Use the individual `azure-*` actions when only one stage is needed.
 
-Azure submenu choice `8` (global shortcut `a6`) runs `azure-import` and prompts for a Docker Hub tag; press Enter to use `latest`. Command-line actions do not prompt for a tag: use `-AzureImageTag <version>` in PowerShell or `--azure-image-tag <version>` in Bash to override `latest`. The action imports `docker.io/simonkurtzmsft/mockapi:<tag>` as `mockapi:<tag>` in the provisioned ACR without Docker Hub credentials and updates the existing Container App without building. Each deployment creates a new revision; importing `latest` refreshes that mutable ACR tag, while version tags are not overwritten. This is an explicit import, not a persistent upstream cache, and requires the Azure environment to be provisioned first.
+Azure submenu choice `8` runs `azure-import`, using the application version from
+[`MockAPI.csproj`](src/MockAPI/MockAPI.csproj) without prompting for a tag or accepting a tag override.
+The matching version must already be published on Docker Hub. The action imports
+`docker.io/simonkurtzmsft/mockapi:<Version>` as `mockapi:<Version>` in the provisioned ACR without
+Docker Hub credentials and updates the existing Container App without building. Existing version tags
+are not overwritten. There is no `latest` image alias. This is an explicit import, not a persistent
+upstream cache, and requires the Azure environment to be provisioned first.
 
 Set both dashboard credential values to protect administration, including key generation in Settings. Leaving
 them empty leaves administration and security setup unauthenticated but does not unlock mock calls.

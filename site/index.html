@@ -330,7 +330,7 @@
         <h2 id="start-title">Run your mock API locally or in a container</h2>
         <div class="cards start-cards">
           <article class="card">
-            <span class="badge">Recommended &middot; Current source</span>
+            <span class="badge">Local development</span>
             <h3>Run locally</h3>
             <p>Install the stable .NET 10 SDK, then clone and run. No Node.js tooling is needed just to use MockAPI.</p>
             <pre><code>git clone https://github.com/simonkurtz-MSFT/MockAPI.git
@@ -352,7 +352,18 @@ cd MockAPI</code></pre>
           <article class="card">
             <span class="badge">Isolated runtime</span>
             <h3>Use a container</h3>
-            <p>Choose an existing version from Docker Hub.</p>
+            <p>
+              Run a published stable image without an SDK or source checkout. The same tag supports Linux AMD64 and
+              ARM64.
+            </p>
+            <pre><code>docker run --rm -p 127.0.0.1:8080:8080 -v mockapi-data:/data simonkurtzmsft/mockapi:1.10.0</code></pre>
+            <p>
+              Open
+              <a href="http://localhost:8080/__mockapi/">localhost:8080/__mockapi/</a>
+              . The named volume preserves configuration across restarts. Use an explicit published version; there is no
+              <code>latest</code>
+              image alias.
+            </p>
             <a
               class="button"
               href="https://hub.docker.com/r/simonkurtzmsft/mockapi/tags"
@@ -361,7 +372,7 @@ cd MockAPI</code></pre>
             >
               Browse published images
             </a>
-            <p>For current source, build with Docker:</p>
+            <p>To develop container changes from source, build with Docker instead:</p>
             <details open>
               <summary>PowerShell 7</summary>
               <pre><code>.\start.ps1 -Action container-build -ContainerEngine docker

@@ -1,11 +1,18 @@
 # Versioning and Releases
 
-MockAPI's next stable application version is 1.10.0. This version decision publishes only after
-the quality, public-release audit, and native image validation gates below succeed.
+MockAPI has stable releases. Version **1.10.0** was released on **2026-10-23** and is available as
+[`simonkurtzmsft/mockapi:1.10.0`](https://hub.docker.com/r/simonkurtzmsft/mockapi/tags?name=1.10.0)
+for Linux AMD64 and ARM64. The [GitHub release](https://github.com/simonkurtz-MSFT/MockAPI/releases/tag/1.10.0)
+contains release notes and per-architecture image, SBOM, scan, and validation evidence.
+
+Check [GitHub releases](https://github.com/simonkurtz-MSFT/MockAPI/releases) and
+[Docker Hub tags](https://hub.docker.com/r/simonkurtzmsft/mockapi/tags) for published artifacts.
+A source version alone does not establish image availability. Images use explicit version tags
+without a `v` prefix; there is no `latest` image alias. The gates below apply to future releases.
 
 ## 1.10.0 release summary
 
-The planned release date is **2026-10-23**, with the immutable tag **`1.10.0`**.
+The release date was **2026-10-23**, with the immutable tag **`1.10.0`**.
 The [1.10.0 changelog entry](../CHANGELOG.md#1100---2026-10-23) supplies the GitHub release notes.
 
 - Revision-protected endpoint manifests and read-only batch routes let the dashboard transfer only
@@ -21,12 +28,11 @@ The new management routes are additive, so 1.10.0 is a minor release. Existing e
 single-endpoint reads remain unchanged. Saved endpoint IDs, mock routing, authentication, security
 persistence, and configuration schema (`schemaVersion: "1.0"`) remain compatible; no migration is
 required. Rate-limit recovery now follows the configured rolling window rather than remaining
-exhausted after it expires. Keep pull examples on published image tags until 1.10.0 image validation
-and publication finish.
+exhausted after it expires.
 
 ## 1.9.1 historical release summary
 
-The planned release date is **2026-10-22**, with the immutable tag **`1.9.1`**.
+The release date was **2026-10-22**, with the immutable tag **`1.9.1`**.
 The [1.9.1 changelog entry](../CHANGELOG.md#191---2026-10-22) supplies the GitHub release notes.
 
 - Updated ASP.NET Core OpenAPI to 10.0.13, OpenAPI.NET to 2.12.2, and Swagger UI to 10.3.0,
@@ -39,12 +45,11 @@ The [1.9.1 changelog entry](../CHANGELOG.md#191---2026-10-22) supplies the GitHu
 These dependency and tooling fixes are backward compatible, so 1.9.1 is a patch release.
 Existing saved endpoint IDs, mock routing, management API contracts, authentication, security
 persistence, and configuration schema (`schemaVersion: "1.0"`) remain compatible; no migration
-is required. Keep pull examples on published image tags until 1.9.1 image validation and
-publication finish.
+is required.
 
 ## 1.9.0 historical release summary
 
-The planned release date is **2026-10-22**, with the immutable tag **`1.9.0`**.
+The release date was **2026-10-22**, with the immutable tag **`1.9.0`**.
 The [1.9.0 changelog entry](../CHANGELOG.md#190---2026-10-22) supplies the GitHub release notes.
 
 - Both developer CLIs add `azure-generate-key` for initial local environment-file key setup
@@ -62,12 +67,11 @@ schema (`schemaVersion: "1.0"`) remain compatible; no migration is required. Gen
 deployment key does not rotate or replace deployed security settings. Interactive menus remove
 conflicting prefixed shortcuts such as `a4` and `c3`; use submenu choices or the unchanged explicit
 command-line actions instead. Unambiguous menu choices no longer require Enter, while redirected
-input remains line-based. Keep pull examples on published image tags until 1.9.0 image validation
-and publication finish.
+input remains line-based.
 
 ## 1.8.0 historical release summary
 
-The planned release date is **2026-10-21**, with the immutable tag **`1.8.0`**.
+The release date was **2026-10-21**, with the immutable tag **`1.8.0`**.
 The [1.8.0 changelog entry](../CHANGELOG.md#180---2026-10-21) supplies the GitHub release notes.
 
 - Dashboard event streams accept `deltas=true` for sequenced, absolute statistics state patches
@@ -87,12 +91,11 @@ Existing saved endpoint IDs, mock routing, management writes, authentication, se
 and configuration schema (`schemaVersion: "1.0"`) remain compatible; no migration is required.
 Configuration replacements still create fresh rate-limit permits, and statistics retain their
 existing counting, bounded retention, and reset semantics. Allocation reductions do not guarantee
-lower resident memory in every environment. Keep pull examples on published image tags until
-1.8.0 image validation and publication finish.
+lower resident memory in every environment.
 
 ## 1.7.0 historical release summary
 
-The planned release date is **2026-10-21**, with the immutable tag **`1.7.0`**.
+The release date was **2026-10-21**, with the immutable tag **`1.7.0`**.
 The [1.7.0 changelog entry](../CHANGELOG.md#170---2026-10-21) supplies the GitHub release notes.
 
 - Deployments can supply the initial mock API key through `MockApi__ApiKey`, including Azure
@@ -117,7 +120,6 @@ when adopting the Trailhead files. Upgrading does not activate examples or rewri
 **Load examples** remains an explicit merge with conflict review before forced updates.
 The optional deployment key seeds only missing security settings and never replaces an existing
 key, rotation, or explicit protection opt-out. Existing deployments need not supply it.
-Keep pull examples on published image tags until 1.7.0 image validation and publication finish.
 
 ## 1.6.2 historical release summary
 
@@ -161,9 +163,9 @@ These fixes do not change mock routing, management API contracts, authentication
 configuration schema (`schemaVersion: "1.0"`), so 1.6.1 is a patch release. Existing endpoint IDs
 and configuration documents remain compatible; no migration is required.
 
-## 1.6.0 release summary
+## 1.6.0 historical release summary
 
-The planned release date is **2026-10-14**, with the immutable tag **`1.6.0`**.
+The release date was **2026-10-14**, with the immutable tag **`1.6.0`**.
 The [1.6.0 changelog entry](../CHANGELOG.md#160---2026-10-14) supplies the GitHub release notes.
 
 - Dashboard and management API exports can select enabled endpoints by stable endpoint ID in
@@ -262,8 +264,8 @@ schema (`schemaVersion: "1.0"`), so 1.4.2 is a patch release. Existing endpoint 
 documents, API-key enforcement, and stored UTC statistics remain unchanged. No configuration
 migration is required. Azure deployments retain one running replica and its associated baseline cost.
 
-The validated version tag starts container publication after the GitHub release is created. Keep
-pull examples on already-published image tags until native image validation and publication finish.
+This release introduced automatic container publication after the validated version tag and
+GitHub release are created.
 
 ## One version, automatic release notes and images
 
@@ -327,8 +329,8 @@ before tagging.
 
 Use the [versioning skill](../.github/skills/versioning/SKILL.md) and
 [versioning agent](../.github/agents/versioning.agent.md) for compatibility decisions.
-The historical `1.4.3` tag remains immutable. The next approved application-version bump uses
-the exact project version as its tag without a prefix.
+All published tags remain immutable. Future approved application-version bumps use the exact
+project version as their tag without a prefix.
 
 ## Reviewed changelog contract
 
@@ -405,8 +407,11 @@ The pipeline independently refuses to move tags, overwrite notes, or replace exi
 5. Confirm both architecture checks, Docker Hub index membership, and attached release evidence.
    If automatic publication fails after tag creation, fix the cause and rerun **Quality engineering**
    or manually dispatch **Publish release container** with the existing tag.
-6. Only then update
-   README pull examples to the newly available tag. Keep prereleases marked as prereleases.
+6. Only then update the [README](../README.md) pull examples, the
+   [documentation-site quick start](../site/index.html), and this page's release status to the newly
+   available tag. Confirm both platforms in Docker Hub, change completed release summaries from
+   planned to historical wording, and remove their pending-publication notices. Keep prereleases
+   marked as prereleases and preserve historical changelog entries and synthetic version-test fixtures.
 
 The workflow requires successful quality evidence for the exact commit, verifies the project/tag
 match before building, tests native AMD64 and ARM64 images, generates SBOMs, and blocks all HIGH
