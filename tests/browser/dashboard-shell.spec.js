@@ -39,6 +39,8 @@ test("@smoke displays the glassy Mock API logo and favicon", async ({ page, requ
 });
 
 test("@smoke explains how MockAPI works and starts endpoint creation", async ({ page }) => {
+  await page.emulateMedia({ forcedColors: "none" });
+
   for (const name of ["Load", "Save", "Create"]) {
     await expect(page.getByRole("group", { name })).toBeVisible();
   }
@@ -92,6 +94,7 @@ test("@smoke explains how MockAPI works and starts endpoint creation", async ({ 
 
 test("starts, dismisses, persists, and repeats the dashboard tour", async ({ browser }) => {
   const freshPage = await browser.newPage();
+  await freshPage.emulateMedia({ forcedColors: "none" });
   await freshPage.goto("/");
 
   const tour = freshPage.locator("#tutorial-card");

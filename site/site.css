@@ -189,9 +189,8 @@ figcaption {
   border-radius: 0.625rem;
   background: var(--cp-surface);
   box-shadow: var(--cp-shadow-control);
+  /* Theme colors must change together to preserve contrast during theme switches. */
   transition:
-    background-color 120ms ease,
-    border-color 120ms ease,
     box-shadow 120ms ease,
     transform 120ms ease;
 }

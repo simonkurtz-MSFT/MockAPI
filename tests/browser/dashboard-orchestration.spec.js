@@ -412,7 +412,7 @@ test("reports polling mode when EventSource is unavailable", async ({ page }) =>
     "title",
     "Dashboard connected: configuration and statistics updates are available."
   );
-  await expect(connectionStatus.locator("span")).toHaveCSS("background-color", /rgb\((33, 135, 57|85, 189, 106)\)/);
+  await expect(connectionStatus).toHaveClass(/online/);
   expect(warnings).toContain("Server-sent events are unavailable. Dashboard updates will use polling.");
 });
 

@@ -361,6 +361,8 @@ test("bulk bucket controls preserve column widths through collapse, expansion, a
 });
 
 test("shows grounded endpoint statistics as a graph and table", async ({ page, request }) => {
+  await page.emulateMedia({ forcedColors: "none" });
+
   await page.getByRole("button", { name: "Load examples" }).first().click();
   await expect(
     page.locator("#endpoint-rows").getByRole("row", { name: /Tracking rate-limit fault demo/ })

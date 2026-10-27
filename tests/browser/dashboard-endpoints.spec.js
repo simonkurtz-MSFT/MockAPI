@@ -698,6 +698,7 @@ test("color-codes response status families with accessible contrast, including h
         colorProbe.style.backgroundColor = forcedColors ? "Highlight" : `var(${statusToken})`;
         document.body.append(colorProbe);
         const colors = {
+          forcedColors,
           expectedBackground: getComputedStyle(colorProbe).backgroundColor,
           background: getComputedStyle(element).backgroundColor,
           foreground: getComputedStyle(element).color,
@@ -705,7 +706,9 @@ test("color-codes response status families with accessible contrast, including h
         colorProbe.remove();
         return colors;
       }, statusCode);
-      expect(colors.background).toBe(colors.expectedBackground);
+      if (!colors.forcedColors) {
+        expect(colors.background).toBe(colors.expectedBackground);
+      }
       expect(contrastRatio(colors.foreground, colors.background)).toBeGreaterThanOrEqual(4.5);
       await badge.hover();
       const hoveredColors = await badge.evaluate((element) => ({

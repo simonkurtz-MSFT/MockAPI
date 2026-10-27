@@ -13,6 +13,39 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
+test("button text remains readable throughout theme changes", async ({ page }) => {
+  const { contrastRatio } = await import("../browser/dashboard-fixtures.js");
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "no-preference" });
+  await page.goto("./");
+
+  for (const mode of ["dark", "light"]) {
+    const samples = await page.evaluate(async (nextTheme) => {
+      const buttons = [...document.querySelectorAll("a.button")];
+      buttons.forEach((button) => getComputedStyle(button).backgroundColor);
+      document.documentElement.dataset.theme = nextTheme;
+
+      const frames = [];
+      const start = performance.now();
+      do {
+        await new Promise(requestAnimationFrame);
+        frames.push(
+          buttons.map((button) => {
+            const style = getComputedStyle(button);
+            return { text: style.color, background: style.backgroundColor, label: button.textContent.trim() };
+          })
+        );
+      } while (performance.now() - start < 200);
+      return frames;
+    }, mode);
+
+    for (const frame of samples) {
+      for (const button of frame) {
+        expect(contrastRatio(button.text, button.background), `${mode}: ${button.label}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  }
+});
+
 test("uniform header, styled links and arrow controls meet contrast and keyboard requirements in both themes", async ({
   page,
 }) => {
