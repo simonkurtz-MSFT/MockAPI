@@ -9,6 +9,48 @@ For the version-bump, automatic-tag, Docker Hub, and GitHub release procedure, u
 tag and always builds the exact tagged commit. The [development container](DEVELOPMENT.md) is for
 editing and testing, not distribution.
 
+## Security refresh (2026-10-27)
+
+The production Dockerfile uses .NET SDK `10.0.403` and runtime-deps `10.0.14`.
+[Microsoft's Brotli advisory](https://github.com/dotnet/runtime/security/advisories/GHSA-p3jp-9v83-76w9)
+requires rebuilding Native AOT applications with the patched compiler/runtime; changing only the
+runtime-deps image cannot patch code already compiled into the executable. The serviced Alpine
+SDK also fixes `brotli-libs` CVE-2026-111497, and the runtime base fixes musl CVE-2026-107891.
+The SDK still needs an exact build-only `curl`/`libcurl` `8.23.0-r0` patch. None of those build tools
+are copied into the runtime image.
+
+The production images, curl packages, and refreshed Playwright image have explicit, expiring
+security cooldown exceptions approved on 2026-10-27 in
+[the exception register](../.github/dependency-age-exceptions.json).
+Alpine package publication ages were checked against the repository index; the automated
+dependency-age validator does not inspect APK versions.
+
+Development and CI images are separate from production. The development pin is refreshed to
+`devcontainers/dotnet:2.3.2-10.0-noble`, and both Playwright CI jobs use `v1.64.1-noble` paired with
+`@playwright/test` `1.64.1`. These are **pin refreshes, not full remediation**: scans still find
+vulnerable Ubuntu `libbrotli1` in both images, old .NET components in the development image,
+and other upstream findings. Updating setup scripts or building custom patched tooling images
+was explicitly deferred. Do not treat these image updates as an accepted production release
+vulnerability exception or claim those tooling images are clean.
+
+The checked production SBOMs and pinned-image package inventories do not contain PHP.
+PHP CVE-2026-109618 and CVE-2026-109619 therefore do not apply to those installed packages;
+this is not a statement about unrelated deployments or future image contents.
+
+Trivy `0.76.0`, using its 2026-10-27 vulnerability database, found zero vulnerabilities in the
+rebuilt ARM64 production image and its patched SDK build stage. The pinned AMD64 runtime base
+also scanned clean; a rebuilt AMD64 application and patched build stage still need native CI.
+The ARM64 image passed the published-application and Native AOT content checks, default API-key
+enforcement, non-root configuration, graceful shutdown, and persistence after recreation under
+`0.5` CPU and `256 MiB` limits. Observed memory was `32.34 MiB` after the route tests and
+`22.31 MiB` after recreation; these snapshots are not steady-state benchmarks. Read-only-root
+enforcement and multi-platform index validation remain CI checks.
+
+The refreshed development image still reports 23 critical and 516 high package/advisory findings
+per architecture; the refreshed Playwright image reports seven high findings per architecture.
+These counts include upstream packages and are not counts of demonstrated exploitable application
+paths. Both tooling images retain the Brotli finding, and neither is claimed fully remediated.
+
 ## WSLC Capabilities
 
 | Capability                                      | WSLC 2.9.3.0        | MockAPI use                                               |
@@ -66,8 +108,8 @@ The developer CLI uses the first enabled HTTPS source reported by `dotnet nuget 
 A browser opening an MCR artifact page proves that Windows can reach the catalog and that the tag exists. It does not prove that the WSLC Linux environment can reach the registry. When a build reports `dial tcp ... connect: network is unreachable`, isolate the engine path with the exact pinned images:
 
 ```powershell
-wslc pull mcr.microsoft.com/dotnet/sdk:10.0.402-alpine3.24-aot@sha256:574e01812ecd2f33a79cb61b0398320abbd0589125b1e0a6fea00806ba630cb4
-wslc pull mcr.microsoft.com/dotnet/runtime-deps:10.0.13-alpine3.24@sha256:1a5dbee0a1d2bb1d038e212e8ccdbc12783b5cfbed866fe75d126ee80178a52a
+wslc pull mcr.microsoft.com/dotnet/sdk:10.0.403-alpine3.24-aot@sha256:8a339f2175a99aad64cd618450303b8361d565eebbdf8aad95cdf8e6b54ab9d3
+wslc pull mcr.microsoft.com/dotnet/runtime-deps:10.0.14-alpine3.24@sha256:752897bc0b19f05fd5849897815180752103293ffc3b68bd404a4db1e5c3705c
 ```
 
 If Windows can reach `mcr.microsoft.com:443` but either pull fails, the fault is in WSLC networking rather than the Dockerfile or image tag. Recreate the current user's independent WSLC session and retry the pulls:

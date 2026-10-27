@@ -1,6 +1,6 @@
 {
   "name": "MockAPI (.NET 10)",
-  "image": "mcr.microsoft.com/devcontainers/dotnet:2.2.3-10.0-noble@sha256:9eb314432a5fa67773a53ab754cdc381cae614906162f9fc44cdb7f7837b91c7",
+  "image": "mcr.microsoft.com/devcontainers/dotnet:2.3.2-10.0-noble@sha256:694076b55f447d4b9f5b49bc6616c2e904d63e1a61e43680b2bbea46011b6783",
   "remoteUser": "vscode",
   "containerEnv": {
     "MOCKAPI_NODE_VERSION": "26.9.0"

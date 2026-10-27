@@ -3,20 +3,47 @@
     {
       "ecosystem": "Docker",
       "name": "mcr.microsoft.com/dotnet/sdk",
-      "version": "10.0.402-alpine3.24-aot@sha256:574e01812ecd2f33a79cb61b0398320abbd0589125b1e0a6fea00806ba630cb4",
-      "reason": "Use the matching .NET servicing SDK while urgently updating the runtime image for the Alpine zlib CVE-2026-85091 fix.",
+      "version": "10.0.403-alpine3.24-aot@sha256:8a339f2175a99aad64cd618450303b8361d565eebbdf8aad95cdf8e6b54ab9d3",
+      "reason": "Approved on 2026-10-27 to rebuild Native AOT with .NET 10.0.14 for the Brotli decoder CVE-2026-111497 fix before the eight-day cooldown.",
       "approver": "simonkurtz-MSFT",
-      "evidence": "https://nvd.nist.gov/vuln/detail/CVE-2026-85091",
-      "expiresUtc": "2026-10-22T00:00:00Z"
+      "evidence": "https://github.com/dotnet/runtime/security/advisories/GHSA-p3jp-9v83-76w9",
+      "expiresUtc": "2026-11-03T00:00:00Z"
     },
     {
       "ecosystem": "Docker",
       "name": "mcr.microsoft.com/dotnet/runtime-deps",
-      "version": "10.0.13-alpine3.24@sha256:1a5dbee0a1d2bb1d038e212e8ccdbc12783b5cfbed866fe75d126ee80178a52a",
-      "reason": "Urgently consume Alpine zlib 1.3.2-r1, which fixes CVE-2026-85091, before the normal dependency cooldown completes.",
+      "version": "10.0.14-alpine3.24@sha256:752897bc0b19f05fd5849897815180752103293ffc3b68bd404a4db1e5c3705c",
+      "reason": "Approved on 2026-10-27 to pair the Brotli-serviced SDK with the current runtime-deps image and fix musl CVE-2026-107891 before the eight-day cooldown.",
       "approver": "simonkurtz-MSFT",
-      "evidence": "https://nvd.nist.gov/vuln/detail/CVE-2026-85091",
-      "expiresUtc": "2026-10-22T00:00:00Z"
+      "evidence": "https://secdb.alpinelinux.org/v3.24/main.json",
+      "expiresUtc": "2026-11-03T00:00:00Z"
+    },
+    {
+      "ecosystem": "Docker",
+      "name": "mcr.microsoft.com/playwright",
+      "version": "sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea",
+      "reason": "Approved on 2026-10-27 to refresh the CI image together with the age-eligible Playwright 1.64.1 package. This reduces known findings but does not remediate all upstream image vulnerabilities.",
+      "approver": "simonkurtz-MSFT",
+      "evidence": "https://github.com/microsoft/playwright/releases/tag/v1.64.1",
+      "expiresUtc": "2026-11-01T00:00:00Z"
+    },
+    {
+      "ecosystem": "Alpine",
+      "name": "curl",
+      "version": "8.23.0-r0",
+      "reason": "Approved on 2026-10-27 to patch the build-only SDK's curl findings, including high-severity CVE-2026-92392, before the eight-day cooldown. APK exceptions document manual publication-age verification; the automated validator does not inspect APK packages.",
+      "approver": "simonkurtz-MSFT",
+      "evidence": "https://secdb.alpinelinux.org/v3.24/main.json",
+      "expiresUtc": "2026-11-04T00:00:00Z"
+    },
+    {
+      "ecosystem": "Alpine",
+      "name": "libcurl",
+      "version": "8.23.0-r0",
+      "reason": "Approved on 2026-10-27 with the matching build-only curl security patch. APK exceptions document manual publication-age verification; the automated validator does not inspect APK packages.",
+      "approver": "simonkurtz-MSFT",
+      "evidence": "https://secdb.alpinelinux.org/v3.24/main.json",
+      "expiresUtc": "2026-11-04T00:00:00Z"
     }
   ]
 }
