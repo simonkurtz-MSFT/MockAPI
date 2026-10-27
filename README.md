@@ -190,7 +190,7 @@ MockAPI is intentionally narrower than a general-purpose API virtualization plat
 
 The endpoint registry lists every mock with its method, exact path, configured response, and live request count, and offers per-row test, edit, duplicate, and delete actions. Use the checkbox beside an API heading to select or clear all of that API's endpoints matching the current filters, even while its group is collapsed. Partial selections show a mixed checkbox state; selections in other APIs and endpoints hidden by filters are preserved. Selected endpoints can be enabled, disabled, or deleted together.
 
-![Per-endpoint statistics table showing request counts, request rate per minute, last observed status, total response bytes, and a plain-language explanation of each configured response.](docs/images/05-statistics.png)
+![Overall statistics table showing total, matched, and unmatched attempts, failed writes, response status classes, response bytes, and explanations of each measure.](docs/images/05-statistics.png)
 
 Process-local statistics report aggregate and per-endpoint activity — request counts, rate, last status, and response bytes — with a plain-language note explaining each configured response. The dashboard also shows the 100 most recent request outcomes newest first. It retains only timestamp, method, normalized path, endpoint identity, outcome, status, and response byte count; never request or response content, headers, cookies, or query values.
 
@@ -620,7 +620,7 @@ The same workflow applies to every execution model:
 
 The built-in example merge adds missing endpoints, skips identical ones, preserves unrelated configuration, and requires explicit confirmation before replacing a conflicting example.
 
-![Endpoint editor for /inventory/items/SKU-1001 showing its description, GET and HEAD methods, exact path, response behavior, status code, headers, body, enabled toggle, and the apply-endpoint action.](docs/images/03-endpoint-editor.png)
+![Endpoint editor for /inventory/items/SKU-1001 showing its description, selected GET method, exact path, response behavior, status code, headers, body, enabled toggle, and the apply-endpoint action.](docs/images/03-endpoint-editor.png)
 
 The endpoint editor defines everything a response returns: methods, exact path, status code, reason phrase, headers, content type, and body. Valid changes apply immediately.
 
@@ -806,7 +806,9 @@ not shown in these captures. Use the left/right arrow
 buttons, the named view buttons, or the left/right arrow keys within the gallery to switch screenshots.
 Images open at full size in a new tab. The carousel does not advance automatically; without JavaScript,
 all three screenshots remain visible. Captures use only the checked-in example configuration and
-generated local requests, not a running deployment's data.
+generated local requests, not a running deployment's data. Hide the footer's version and build date
+only during screenshot capture so images do not advertise an outdated release; keep that metadata
+visible in the live dashboard.
 
 Gallery screenshots use lossless WebP at their original dimensions, with a combined 160 KiB transfer budget checked by tests. A PNG overview is retained for social previews. Documentation images are published only with the static site, not with the application container.
 

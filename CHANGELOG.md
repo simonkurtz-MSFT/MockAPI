@@ -13,6 +13,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
   name, keeping speech-input labels aligned with the displayed text.
 - Corrected stale prerelease and pending-publication guidance, updated container quick starts to
   the published stable image, and aligned Azure import documentation with project-version tags.
+- Refreshed documentation screenshots with current sample definitions and endpoint group controls.
+  Version and build metadata are hidden only in captures; the live dashboard footer is unchanged.
 
 ## [1.10.0] - 2026-10-23
 
