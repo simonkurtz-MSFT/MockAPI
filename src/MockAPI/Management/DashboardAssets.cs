@@ -27,7 +27,8 @@ internal static class DashboardAssets
         string sourceName,
         string contentType,
         string version,
-        bool replaceVersionPlaceholder = false)
+        bool replaceVersionPlaceholder = false,
+        string? serviceWorkerScope = null)
     {
         var bytes = File.ReadAllBytes(Path.Combine(app.Environment.WebRootPath, sourceName));
         if (replaceVersionPlaceholder)
@@ -40,8 +41,14 @@ internal static class DashboardAssets
         var etag = new EntityTagHeaderValue($"\"{Convert.ToHexString(SHA256.HashData(bytes))}\"");
         app.MapGet(route, (HttpContext context) =>
         {
+            if (serviceWorkerScope is not null)
+            {
+                // The dashboard lives at /; the worker handles only that navigation, never mock or API traffic.
+                context.Response.Headers["Service-Worker-Allowed"] = serviceWorkerScope;
+            }
             var requestedVersion = context.Request.Query["v"].ToString();
-            context.Response.Headers.CacheControl = string.Equals(requestedVersion, version, StringComparison.Ordinal)
+            context.Response.Headers.CacheControl = serviceWorkerScope is null
+                && string.Equals(requestedVersion, version, StringComparison.Ordinal)
                 ? "private, max-age=31536000, immutable"
                 : "private, no-cache";
             return Results.File(bytes, contentType, entityTag: etag);

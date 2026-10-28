@@ -696,3 +696,13 @@ pageEvents.listen(window, "pagehide", (event) => {
 dashboardSynchronizer.start().then(() => {
   tutorialController.startIfNeeded(window.location.search);
 });
+
+if (window.isSecureContext && "serviceWorker" in navigator) {
+  // Keep the worker URL stable so deployments update one registration instead of accumulating workers.
+  navigator.serviceWorker
+    .register("/__mockapi/service-worker.js", { scope: "/", updateViaCache: "none" })
+    .catch((error) => {
+      console.error("Dashboard offline support could not be registered.", error);
+      showToast("Dashboard offline support is unavailable. The live dashboard still works.", true);
+    });
+}

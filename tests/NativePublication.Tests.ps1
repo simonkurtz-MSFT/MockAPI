@@ -97,4 +97,15 @@ try {
 finally {
   Remove-Item -LiteralPath $publicationFixture -Recurse -Force
 }
+$flattenedDockerfile = Get-Content -LiteralPath (Join-Path $repositoryRoot 'Dockerfile.flattened') -Raw
+Assert-True ($flattenedDockerfile.Contains('ARG SOURCE_IMAGE=mockapi:dev') -and $flattenedDockerfile.Contains('FROM ${SOURCE_IMAGE} AS source')) 'The flattening experiment must reuse an existing application image rather than recompile it.'
+Assert-True ($flattenedDockerfile.Contains("FROM scratch AS final") -and $flattenedDockerfile.Contains('COPY --from=source / /')) 'The flattening experiment must copy the complete merged filesystem into scratch.'
+Assert-True ($flattenedDockerfile -notmatch '(?m)^RUN ') 'The flattening experiment must not change installed packages or application files.'
+$productionDockerfile = Get-Content -LiteralPath (Join-Path $repositoryRoot 'Dockerfile') -Raw
+foreach ($directive in @('WORKDIR /app', 'USER app', 'EXPOSE 8080', 'VOLUME ["/data"]', 'ENTRYPOINT ["./MockAPI"]')) {
+  Assert-True ($productionDockerfile.Contains($directive) -and $flattenedDockerfile.Contains($directive)) "Both Dockerfiles must preserve the runtime directive: $directive."
+}
+foreach ($setting in @('APP_UID=1654', 'ASPNETCORE_HTTP_PORTS=8080', 'DOTNET_RUNNING_IN_CONTAINER=true', 'DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true', 'DOTNET_EnableDiagnostics=0')) {
+  Assert-True ($flattenedDockerfile.Contains($setting)) "The scratch image must restore runtime environment setting $setting."
+}
 Write-Host 'Native publication and release workflow contract tests passed.'

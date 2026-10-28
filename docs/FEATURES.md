@@ -1,5 +1,26 @@
 # Feature Readiness
 
+## Installable dashboard
+
+The MockAPI dashboard is a progressive web app. Open your instance over HTTPS (or loopback HTTP
+for development) and use your browser's **Install app** command. On iPhone or iPad, use Safari's
+**Share > Add to Home Screen**. Availability and wording depend on the browser and operating system.
+Installation opens the same instance in a standalone window; existing administrator authentication
+still applies. Each origin identifies a separate installation.
+
+The dashboard requires a live connection. After the first successful visit activates its service
+worker, an offline launch shows a generic **Connection unavailable** page with a **Reconnect to
+MockAPI** link. It stores no dashboard pages, endpoint definitions, statistics, credentials, or
+request/response content in service-worker caches. Offline changes are not supported or queued.
+Mock requests, management API calls, event streams, and health probes are never intercepted.
+Live server errors and authentication challenges remain unchanged.
+
+The service worker updates through the browser's normal lifecycle; close existing dashboard windows
+and reopen after a deployment to activate a waiting update. Browsers without service-worker support,
+and non-loopback HTTP deployments, retain the ordinary live dashboard without offline support.
+Disabling the dashboard also disables its manifest, icons, and service-worker routes; an already
+installed app is not remotely uninstalled.
+
 ## Azure Container Apps Express
 
 This matrix tracks the Azure Container Apps features MockAPI currently needs and their availability in the existing Consumption deployment versus Container Apps Express. Express is in preview, and its status is a documentation snapshot as of July 14, 2026. **Available** means the required capability is supported, **Partial** means it is not fully supported, and **In development** means MockAPI must not depend on it in an Express deployment yet.

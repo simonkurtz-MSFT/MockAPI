@@ -316,6 +316,17 @@ Both Automatic and Columns when space allows must fall back to the single-column
 command groups wrap; preserve the saved preference when resizing. Cap the endpoint search field
 at 220px and align the collapse control with the first filter row when filters wrap.
 
+### Installable dashboard
+
+Offer a web app manifest, local PNG icons, and a standalone launch at `/`. Register a stable,
+root-scoped service worker only in secure contexts; it handles only same-origin GET dashboard
+navigations at `/`, including query strings. All mock, management, health, and asset requests bypass
+the worker. Preserve live HTTP errors and authentication challenges; only a failed network navigation
+receives a generic, non-storable reconnect page. Never cache dashboard HTML, endpoint definitions,
+statistics, credentials, or request/response content, and never queue or replay offline writes.
+Keep all PWA assets under the authenticated, reserved `/__mockapi/` namespace and disable them
+with the dashboard. Revalidate the worker on updates rather than using immutable caching.
+
 ### Endpoint management
 
 - API-level descriptions are separate from operation descriptions. Use the existing first path segment
