@@ -1,5 +1,42 @@
 import { test, expect, expectNoUnreviewedAccessibilityViolations } from "./dashboard-fixtures.js";
 
+test("header identifies the instance without protocol, port, or path @smoke", async ({ page }) => {
+  await page.goto("/?tutorial=skip");
+  const domain = page.locator("#instance-domain");
+  await expect(domain).toHaveText(new URL(page.url()).hostname);
+  await expect(domain).toBeVisible();
+  await expectNoUnreviewedAccessibilityViolations(page, ".app-header");
+});
+
+test("long instance domains remain readable without overflowing the header", async ({ page }) => {
+  const hostname = `${"instance-".repeat(7)}example.test`;
+  // Keep requests on the test server while exercising the label with a deployment-sized hostname.
+  await page.route("**/app.js?*", async (route) => {
+    const response = await route.fetch();
+    const script = await response.text();
+    await route.fulfill({
+      response,
+      body: script.replace("window.location.hostname", JSON.stringify(hostname)),
+    });
+  });
+  await page.goto("/?tutorial=skip");
+  const domain = page.locator("#instance-domain");
+  await expect(domain).toHaveText(hostname);
+  await expect(domain).toBeVisible();
+  const fits = await domain.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    const header = element.closest("header").getBoundingClientRect();
+    return (
+      element.scrollWidth <= element.clientWidth &&
+      bounds.left >= header.left &&
+      bounds.right <= header.right &&
+      bounds.top >= header.top &&
+      bounds.bottom <= header.bottom
+    );
+  });
+  expect(fits).toBe(true);
+});
+
 test("PWA manifest and icons support standalone installation @smoke", async ({ page, browser }, testInfo) => {
   const manifestLink = page.locator('link[rel="manifest"]');
   await expect(manifestLink).toHaveAttribute("crossorigin", "use-credentials");

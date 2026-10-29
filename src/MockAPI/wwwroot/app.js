@@ -46,6 +46,7 @@ const elements = getDashboardElements(document, {
   "how-it-works-new-endpoint": "button",
   "import-button": "button",
   "import-file": "input",
+  "instance-domain": "span",
   "load-example-button": "button",
   "save-button": "button",
   "settings-button": "button",
@@ -68,6 +69,8 @@ const elements = getDashboardElements(document, {
   "tutorial-progress": "span",
   "tutorial-title": "h2",
 });
+
+elements["instance-domain"].textContent = window.location.hostname;
 
 const API = "/__mockapi/api";
 // Access storage inside the store's guarded operations; the localStorage getter itself can throw.

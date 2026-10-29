@@ -7,6 +7,8 @@ for development) and use your browser's **Install app** command. On iPhone or iP
 **Share > Add to Home Screen**. Availability and wording depend on the browser and operating system.
 Installation opens the same instance in a standalone window; existing administrator authentication
 still applies. Each origin identifies a separate installation.
+The header displays the current instance's hostname, without protocol, port, or path, in both
+browser tabs and installed app windows, including on mobile.
 
 The dashboard requires a live connection. After the first successful visit activates its service
 worker, an offline launch shows a generic **Connection unavailable** page with a **Reconnect to
