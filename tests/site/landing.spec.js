@@ -655,7 +655,7 @@ test("dashboard gallery supports named views, wrapping controls, keyboard naviga
       .evaluateAll((images) => images.map((image) => [image.naturalWidth, image.naturalHeight]))
   ).toEqual([
     [1905, 1500],
-    [915, 1833],
+    [915, 2083],
     [915, 807],
   ]);
   expect(

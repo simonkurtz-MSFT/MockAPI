@@ -69,7 +69,7 @@ Keep administrative access on localhost or a protected network unless you config
 > Use an explicit published version tag; there is no `latest` image alias. Source on `main` can include
 > unreleased changes listed in the [changelog](CHANGELOG.md#unreleased).
 
-![MockAPI dashboard showing Trailhead Supply inventory and shipping examples, configuration commands, live request metrics, the last-60-minutes activity graph, and recent request outcomes.](docs/images/01-dashboard-overview.png)
+![MockAPI dashboard showing Trailhead Supply example API groups, expanded inventory endpoints, configuration commands, live request metrics, the last-60-minutes activity graph, and recent request outcomes with an unexpected-request filter.](docs/images/01-dashboard-overview.png)
 
 The browser dashboard is the operations console: load or import a configuration, watch live request metrics, and manage every mock endpoint in one place.
 
@@ -186,7 +186,7 @@ MockAPI is intentionally narrower than a general-purpose API virtualization plat
   credentials protect security Settings, while anonymous local administration can perform initial setup.
 - **Hardened portable runtime:** Run as a trimmed, non-root Linux container on `amd64` and `arm64`, including with a read-only root filesystem.
 
-![Endpoint registry table listing Trailhead Supply examples with their methods, group-relative paths, configured responses, attempt counts, and enabled state, plus per-row test, edit, duplicate, and delete actions.](docs/images/02-endpoints.png)
+![Endpoint registry table listing Trailhead Supply examples with their methods, group-relative paths, configured responses, attempt counts, and enabled state, plus per-row test, edit, duplicate, delete, and cURL copy actions.](docs/images/02-endpoints.png)
 
 The endpoint registry lists every mock with its method, exact path, configured response, and live request count, and offers per-row test, edit, duplicate, and delete actions. Use the checkbox beside an API heading to select or clear all of that API's endpoints matching the current filters, even while its group is collapsed. Partial selections show a mixed checkbox state; selections in other APIs and endpoints hidden by filters are preserved. Selected endpoints can be enabled, disabled, or deleted together.
 
