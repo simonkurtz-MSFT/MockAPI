@@ -161,6 +161,21 @@ test("quick starts, assets and accessibility work under the Pages repository pre
   expect(failures).toEqual([]);
 });
 
+test("external links open in new tabs while internal navigation stays in the current tab", async ({ page }) => {
+  await page.goto("./");
+  const externalLinks = page.locator('a[href^="https://"], a[href^="http://"]');
+  expect(await externalLinks.count()).toBeGreaterThan(0);
+  for (const link of await externalLinks.all()) {
+    await expect(link).toHaveAttribute("target", "_blank");
+    await expect(link).toHaveAttribute("rel", /\bnoopener\b/);
+  }
+  const internalLinks = page.locator('a[href^="#"], a[href="./"]');
+  expect(await internalLinks.count()).toBeGreaterThan(0);
+  for (const link of await internalLinks.all()) {
+    await expect(link).not.toHaveAttribute("target", "_blank");
+  }
+});
+
 test("Docker Hub badge links to the published image and is keyboard accessible", async ({ page }) => {
   await page.goto("./");
   const badge = page.getByRole("link", { name: "MockAPI on Docker Hub", exact: true });

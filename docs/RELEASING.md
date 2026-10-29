@@ -1,8 +1,8 @@
 # Versioning and Releases
 
-MockAPI has stable releases. Version **1.10.0** was released on **2026-10-23** and is available as
-[`simonkurtzmsft/mockapi:1.10.0`](https://hub.docker.com/r/simonkurtzmsft/mockapi/tags?name=1.10.0)
-for Linux AMD64 and ARM64. The [GitHub release](https://github.com/simonkurtz-MSFT/MockAPI/releases/tag/1.10.0)
+MockAPI has stable releases. Version **1.11.0** was released on **2026-10-29** and is available as
+[`simonkurtzmsft/mockapi:1.11.0`](https://hub.docker.com/r/simonkurtzmsft/mockapi/tags?name=1.11.0)
+for Linux AMD64 and ARM64. The [GitHub release](https://github.com/simonkurtz-MSFT/MockAPI/releases/tag/1.11.0)
 contains release notes and per-architecture image, SBOM, scan, and validation evidence.
 
 Check [GitHub releases](https://github.com/simonkurtz-MSFT/MockAPI/releases) and
@@ -10,7 +10,25 @@ Check [GitHub releases](https://github.com/simonkurtz-MSFT/MockAPI/releases) and
 A source version alone does not establish image availability. Images use explicit version tags
 without a `v` prefix; there is no `latest` image alias. The gates below apply to future releases.
 
-## 1.10.0 release summary
+## 1.11.0 release summary
+
+The release date was **2026-10-29**, with the immutable tag **`1.11.0`**.
+The [1.11.0 changelog entry](../CHANGELOG.md#1110---2026-10-29) supplies the GitHub release notes.
+
+- The dashboard is installable as a progressive web app, with an offline reconnect page that does not
+  cache dashboard data or queue writes.
+- Dashboard rows can copy portable cURL commands; the header identifies the current instance, and
+  statistics can hide unexpected request summaries without changing the underlying data.
+- API-group expanded/collapsed state can persist across refreshes within the same tab.
+
+### Compatibility and upgrade behavior
+
+These are backward-compatible dashboard additions, so 1.11.0 is a minor release. Existing endpoint
+IDs, mock routing, management API contracts, authentication, security persistence, and configuration
+schema (`schemaVersion: "1.0"`) remain compatible; no migration is required. The service worker
+handles only same-origin dashboard navigations and does not cache or replay API traffic.
+
+## 1.10.0 historical release summary
 
 The release date was **2026-10-23**, with the immutable tag **`1.10.0`**.
 The [1.10.0 changelog entry](../CHANGELOG.md#1100---2026-10-23) supplies the GitHub release notes.

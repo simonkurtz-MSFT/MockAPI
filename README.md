@@ -63,7 +63,7 @@ Keep administrative access on localhost or a protected network unless you config
 | Contribute or prepare a release | [Development container](docs/DEVELOPMENT.md) · [Versioning and approved publication](docs/RELEASING.md)                                      |
 
 > [!NOTE]
-> MockAPI has stable releases. The published `1.10.0` image supports Linux AMD64 and ARM64.
+> MockAPI has stable releases. The published `1.11.0` image supports Linux AMD64 and ARM64.
 > See [GitHub releases](https://github.com/simonkurtz-MSFT/MockAPI/releases) for release notes and
 > [Docker Hub tags](https://hub.docker.com/r/simonkurtzmsft/mockapi/tags) for available images.
 > Use an explicit published version tag; there is no `latest` image alias. Source on `main` can include
@@ -325,19 +325,19 @@ restore write access and select **Retry save**.
 The fastest way to run MockAPI is to pull the published image from [Docker Hub](https://hub.docker.com/r/simonkurtzmsft/mockapi). No build, .NET SDK, Node.js, or repository checkout is required:
 
 ```powershell
-docker run --rm -p 127.0.0.1:8080:8080 simonkurtzmsft/mockapi:1.10.0
+docker run --rm -p 127.0.0.1:8080:8080 simonkurtzmsft/mockapi:1.11.0
 ```
 
 The tag is a single multi-architecture manifest that supports **`linux/amd64`** and **`linux/arm64`**. Docker automatically selects the image that matches the host architecture, so the same command and tag work on Intel/AMD and ARM hosts. Confirm the available platforms for a tag with:
 
 ```powershell
-docker manifest inspect simonkurtzmsft/mockapi:1.10.0
+docker manifest inspect simonkurtzmsft/mockapi:1.11.0
 ```
 
 Open `http://localhost:8080/`, then [complete the first-use workflow](#26-complete-the-first-use-workflow). Add a named volume to keep dashboard saves across restarts:
 
 ```powershell
-docker run --rm -p 127.0.0.1:8080:8080 -v mockapi-data:/data simonkurtzmsft/mockapi:1.10.0
+docker run --rm -p 127.0.0.1:8080:8080 -v mockapi-data:/data simonkurtzmsft/mockapi:1.11.0
 ```
 
 The image runs as a non-root user and supports a read-only root filesystem; `/data` is the only writable path required for persistence. To build and run the image from source instead—for example when changing MockAPI itself—use the developer CLI.
