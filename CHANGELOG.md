@@ -7,6 +7,21 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-10-29
+
+### Added
+
+- Installable dashboard support with a generic reconnect page for offline launches; dashboard data,
+  credentials, and request content are never cached, and offline writes are never queued.
+- A dashboard cURL-copy action that targets the current instance and uses an environment variable
+  for protected requests instead of embedding the API key.
+- Instance-hostname display and an option to filter unexpected request summaries without changing
+  aggregate statistics or retained request data.
+
+### Changed
+
+- API-group expanded/collapsed state can persist across refreshes within the same tab.
+
 ## [1.10.1] - 2026-10-27
 
 ### Changed
@@ -380,7 +395,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.10.1...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.11.0...HEAD
+[1.11.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.10.1...1.11.0
 [1.10.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.10.0...1.10.1
 [1.10.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.9.1...1.10.0
 [1.9.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.9.0...1.9.1
