@@ -840,6 +840,21 @@
               </p>
             </div>
             <div class="settings-field">
+              <label class="settings-checkbox-control" for="settings-remember-endpoint-groups">
+                <input
+                  id="settings-remember-endpoint-groups"
+                  type="checkbox"
+                  checked
+                  aria-describedby="settings-remember-endpoint-groups-description"
+                />
+                Remember expanded/collapsed API groups for this session
+              </label>
+              <p id="settings-remember-endpoint-groups-description">
+                Restores API groups in the Endpoints table after a page refresh in this tab. Group state uses session
+                storage, not local storage. Turning this off clears saved group state without changing the current view.
+              </p>
+            </div>
+            <div class="settings-field">
               <label class="settings-checkbox-control" for="settings-show-curl-action">
                 <input id="settings-show-curl-action" type="checkbox" checked />
                 Show endpoint cURL copy action

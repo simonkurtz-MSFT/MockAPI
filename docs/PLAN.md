@@ -353,7 +353,10 @@ with the dashboard. Revalidate the worker on updates rather than using immutable
   switching to **Expand all groups** when all
   filtered API groups are collapsed. Apply it only to the current filtered groups, preserving hidden
   groups' state and endpoint selection. Keep individual toggles, start new groups expanded, and disable
-  the bulk group control when no groups match. Collapse state is page-local and never changes configuration.
+  the bulk group control when no groups match. Default **Remember expanded/collapsed API groups for this
+  session** on in Settings. Persist group identities only in tab-scoped session storage, never local
+  storage or configuration. Disabling clears saved group state but preserves the current view;
+  subsequent refreshes start expanded. Keep the existing whole-panel preference independent.
 - Display each supported HTTP method in its own bordered badge to keep adjacent method names visually distinct.
 - Show endpoint descriptions behind the same information button before each endpoint name, not inline.
   Preserve original casing and whitespace in both previews; treat all preview content as inert text.

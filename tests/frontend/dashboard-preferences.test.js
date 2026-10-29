@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createDashboardPreferencesStore,
+  createEndpointGroupSessionStore,
   DASHBOARD_PREFERENCES_KEY,
+  ENDPOINT_GROUP_SESSION_KEY,
 } from "../../src/MockAPI/wwwroot/dashboard-preferences.js";
 
 const defaults = {
@@ -9,6 +11,7 @@ const defaults = {
   dashboardLayout: "auto",
   endpointTestDialogAlignment: "right",
   endpointsCollapsed: false,
+  rememberEndpointGroups: true,
   kjUiStyle: false,
   requestLogCollapsed: false,
   showUnexpectedRequests: true,
@@ -26,6 +29,7 @@ function createStorage(values = {}) {
     entries,
     getItem: vi.fn((key) => entries.get(key) ?? null),
     setItem: vi.fn((key, value) => entries.set(key, value)),
+    removeItem: vi.fn((key) => entries.delete(key)),
   };
 }
 
@@ -46,6 +50,7 @@ describe("createDashboardPreferencesStore", () => {
         endpointTestDialogAlignment: "left",
         endpointPageSize: 50,
         endpointsCollapsed: true,
+        rememberEndpointGroups: false,
         kjUiStyle: true,
         requestLogCollapsed: true,
         showUnexpectedRequests: false,
@@ -63,6 +68,7 @@ describe("createDashboardPreferencesStore", () => {
       dashboardLayout: "columns",
       endpointTestDialogAlignment: "left",
       endpointsCollapsed: true,
+      rememberEndpointGroups: false,
       kjUiStyle: true,
       requestLogCollapsed: true,
       showUnexpectedRequests: false,
@@ -72,6 +78,48 @@ describe("createDashboardPreferencesStore", () => {
       statisticsView: "table",
       statisticsCollapsed: true,
       tutorialDismissed: true,
+    });
+  });
+
+  describe("endpoint group session storage", () => {
+    it("defaults to expanded, round-trips case-sensitive group identities, and clears stored state", () => {
+      const storage = createStorage();
+      const onError = vi.fn();
+      const store = createEndpointGroupSessionStore(storage, onError);
+      expect(store.read()).toEqual([]);
+      store.write(["inventory", "Inventory", "/"]);
+      expect(storage.entries.get(ENDPOINT_GROUP_SESSION_KEY)).toBe('["inventory","Inventory","/"]');
+      const restored = store.read();
+      expect(restored).toEqual(["inventory", "Inventory", "/"]);
+      restored.push("not-persisted");
+      expect(store.read()).toEqual(["inventory", "Inventory", "/"]);
+      store.write(null);
+      expect(store.read()).toEqual([]);
+      expect(onError).not.toHaveBeenCalled();
+    });
+
+    it.each(["{invalid", "null", "{}", '["inventory",42]', '"inventory"'])(
+      "reports invalid session data %s without restoring group state",
+      (stored) => {
+        const onError = vi.fn();
+        const store = createEndpointGroupSessionStore(createStorage({ [ENDPOINT_GROUP_SESSION_KEY]: stored }), onError);
+        expect(store.read()).toEqual([]);
+        expect(onError).toHaveBeenCalledWith(expect.stringContaining("Unable to restore"));
+      }
+    );
+
+    it("reports blocked reads, writes, and removals", () => {
+      const fail = () => {
+        throw new Error("Storage blocked");
+      };
+      const onError = vi.fn();
+      const store = createEndpointGroupSessionStore({ getItem: fail, setItem: fail, removeItem: fail }, onError);
+      expect(store.read()).toEqual([]);
+      store.write(["inventory"]);
+      store.write(null);
+      expect(onError).toHaveBeenCalledTimes(3);
+      expect(onError.mock.calls[0][0]).toContain("Unable to restore");
+      expect(onError.mock.calls[1][0]).toContain("Unable to save");
     });
   });
 

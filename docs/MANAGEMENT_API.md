@@ -260,7 +260,11 @@ groups in the current filtered result are collapsed. With a mixture of expanded 
 the action collapses them all. Groups hidden by filters retain their state; new API groups start
 expanded. The control is disabled when there are no matching groups. Individual group controls remain
 available, and endpoint selection, sorting, configuration, and persistence are unchanged.
-Group collapse state lasts for the current page, independently of the saved whole-panel collapse preference.
+Settings defaults **Remember expanded/collapsed API groups for this session** to enabled.
+Group collapse state survives refreshes in the same tab using `sessionStorage`, not `localStorage`
+or server configuration. The on/off preference itself is browser-local. Turning it off clears the
+saved group state without expanding the current view; refreshes then start all groups expanded.
+New tab sessions start expanded. The existing whole-panel collapse preference remains independent.
 
 The request log offers **Collapse all buckets**, switching to **Expand all buckets** when all
 current buckets are collapsed. New minute buckets start expanded; additional requests in an

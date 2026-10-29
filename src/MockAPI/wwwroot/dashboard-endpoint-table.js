@@ -25,6 +25,7 @@ import {
  * @property {() => string[]} getSelectedEndpointIds Returns a detached snapshot of selected stable IDs.
  * @property {() => void} clearSelection Clears selected IDs and renders.
  * @property {() => void} render Renders from the current inputs and view state.
+ * @property {(enabled: boolean) => void} setGroupPersistenceEnabled Saves current group state or clears saved session state without changing the displayed groups.
  * @property {() => void} dispose Removes static/row listeners. The coordinator must stop supplying updates after disposal.
  */
 /**
@@ -33,6 +34,7 @@ import {
  * @param {object} options Dependencies.
  * @param {Document} options.documentRoot Dashboard document.
  * @param {import("./dashboard-preferences.js").DashboardPreferencesStore} options.preferencesStore View preferences.
+ * @param {import("./dashboard-preferences.js").EndpointGroupSessionStore} [options.groupSessionStore] Tab-scoped API-group state; omit for in-memory-only views.
  * @param {(endpoint: import("./dashboard-core.js").MockEndpoint) => void} options.onEdit Opens the editor.
  * @param {(endpoint: import("./dashboard-core.js").MockEndpoint) => void} options.onDuplicate Opens a duplicate draft.
  * @param {(endpoint: import("./dashboard-core.js").MockEndpoint) => void} options.onDelete Requests confirmation.
@@ -48,6 +50,7 @@ import {
 export function createDashboardEndpointTable({
   documentRoot,
   preferencesStore,
+  groupSessionStore,
   onEdit,
   onDuplicate,
   onDelete,
@@ -104,7 +107,7 @@ export function createDashboardEndpointTable({
     statistics: null,
     statisticsByEndpoint: new Map(),
     selectedEndpointIds: new Set(),
-    collapsedEndpointGroups: new Set(),
+    collapsedEndpointGroups: new Set(preferences.rememberEndpointGroups ? groupSessionStore?.read() : []),
     endpointSort: { key: "path", direction: "ascending" },
     endpointsLoaded: false,
     endpointsCollapsed: preferences.endpointsCollapsed,
@@ -167,7 +170,14 @@ export function createDashboardEndpointTable({
       if (collapse) state.collapsedEndpointGroups.add(group.key);
       else state.collapsedEndpointGroups.delete(group.key);
     }
+    saveEndpointGroups();
     renderEndpoints();
+  }
+
+  function saveEndpointGroups() {
+    if (preferencesStore.get().rememberEndpointGroups) {
+      groupSessionStore?.write([...state.collapsedEndpointGroups]);
+    }
   }
 
   function updateSelectionCheckbox(selection, endpoints) {
@@ -273,6 +283,7 @@ export function createDashboardEndpointTable({
     rowEvents.listen(button, "click", () => {
       if (expanded) state.collapsedEndpointGroups.add(group.key);
       else state.collapsedEndpointGroups.delete(group.key);
+      saveEndpointGroups();
       renderEndpoints();
       /** @type {HTMLButtonElement|null} */
       const toggle = document.querySelector(`[data-endpoint-group="${CSS.escape(group.key)}"]`);
@@ -555,6 +566,9 @@ export function createDashboardEndpointTable({
       renderEndpoints();
     },
     render: renderEndpoints,
+    setGroupPersistenceEnabled(enabled) {
+      groupSessionStore?.write(enabled ? [...state.collapsedEndpointGroups] : null);
+    },
     dispose() {
       hideApiDescriptions();
       events.clear();

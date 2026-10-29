@@ -15,6 +15,10 @@ applyTo: "src/MockAPI/wwwroot/**/*.{js,html,css},tests/{frontend,browser}/**/*.j
   with API-group chevrons and separate from Path sorting. Keep its accessible name, tooltip, and
   expanded state synchronized for the current filtered result. Preserve
   hidden groups' state and endpoint selection, keep individual toggles, and start new groups expanded.
+  Default the Settings option to remember API-group collapse state on; store only group identities in
+  tab-scoped sessionStorage, never localStorage or configuration. Keep the on/off preference in the
+  existing browser preference store. Disabling clears session state without changing the current
+  view; unavailable storage reports a visible warning and leaves page-local interactions working.
   Disable the bulk group control when no groups match; mixed state offers collapse-all.
   Keep per-API selection checkboxes scoped to filtered endpoints, including collapsed groups; show
   partial selection and synchronize with row and table-wide selection without clearing hidden selections.

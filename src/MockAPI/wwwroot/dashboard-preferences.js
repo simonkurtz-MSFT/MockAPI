@@ -2,6 +2,8 @@
 
 /** Storage key for the versioned dashboard preference document. @type {string} */
 export const DASHBOARD_PREFERENCES_KEY = "mockapi.preferences";
+/** Session-only storage key for collapsed endpoint API groups. @type {string} */
+export const ENDPOINT_GROUP_SESSION_KEY = "mockapi.endpointGroups";
 const LEGACY_THEME_KEY = "mockapi.theme";
 const VERSION = 1;
 
@@ -17,6 +19,7 @@ const VERSION = 1;
  * @property {DashboardLayout} dashboardLayout Preferred dashboard workspace layout.
  * @property {TestBladeAlignment} endpointTestDialogAlignment Preferred endpoint test dialog alignment.
  * @property {boolean} endpointsCollapsed Whether the endpoint section is collapsed.
+ * @property {boolean} rememberEndpointGroups Whether API-group collapse state survives refreshes in this tab's session.
  * @property {boolean} kjUiStyle Whether the dashboard uses hard corners throughout.
  * @property {boolean} requestLogCollapsed Whether the request log section is collapsed.
  * @property {boolean} showUnexpectedRequests Whether unexpected dispatch outcomes appear in the request log.
@@ -48,6 +51,7 @@ function normalizePreferences(value, legacyTheme = null) {
       ? supported.endpointTestDialogAlignment
       : "right",
     endpointsCollapsed: typeof supported.endpointsCollapsed === "boolean" ? supported.endpointsCollapsed : false,
+    rememberEndpointGroups: supported.rememberEndpointGroups !== false,
     kjUiStyle: supported.kjUiStyle === true,
     requestLogCollapsed: typeof supported.requestLogCollapsed === "boolean" ? supported.requestLogCollapsed : false,
     showUnexpectedRequests: supported.showUnexpectedRequests !== false,
@@ -58,6 +62,46 @@ function normalizePreferences(value, legacyTheme = null) {
     statisticsCollapsed: typeof supported.statisticsCollapsed === "boolean" ? supported.statisticsCollapsed : false,
     tutorialDismissed: supported.tutorialDismissed === true,
   });
+}
+
+/**
+ * @typedef {object} EndpointGroupSessionStore
+ * @property {() => string[]} read Reads collapsed group identities; invalid or unavailable storage reports an error and returns an empty list.
+ * @property {(groups: readonly string[]|null) => void} write Saves collapsed group identities, or removes them when null; storage failures are reported without changing page state.
+ */
+
+/**
+ * Persists only API-group identities in tab-scoped session storage, never endpoint definitions or request data.
+ * Storage access stays inside guarded adapter calls because the sessionStorage getter itself can throw.
+ * @param {{getItem: (key: string) => string|null, setItem: (key: string, value: string) => void, removeItem: (key: string) => void}} storage Session storage adapter.
+ * @param {(message: string) => void} onError Reports unavailable or invalid session storage to the operator.
+ * @returns {EndpointGroupSessionStore} Session-only read/write operations.
+ */
+export function createEndpointGroupSessionStore(storage, onError) {
+  return {
+    read() {
+      try {
+        const stored = storage.getItem(ENDPOINT_GROUP_SESSION_KEY);
+        if (stored === null) return [];
+        const groups = JSON.parse(stored);
+        if (!Array.isArray(groups) || !groups.every((group) => typeof group === "string")) {
+          throw new TypeError("Invalid endpoint group session data.");
+        }
+        return groups;
+      } catch {
+        onError("Unable to restore endpoint groups for this session. Groups start expanded.");
+        return [];
+      }
+    },
+    write(groups) {
+      try {
+        if (groups === null) storage.removeItem(ENDPOINT_GROUP_SESSION_KEY);
+        else storage.setItem(ENDPOINT_GROUP_SESSION_KEY, JSON.stringify(groups));
+      } catch {
+        onError("Unable to save endpoint groups for this session. Changes remain active on this page.");
+      }
+    },
+  };
 }
 
 /**

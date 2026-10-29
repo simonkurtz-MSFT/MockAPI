@@ -94,6 +94,10 @@ test("explains unexpected requests with the shared hover and keyboard-focus info
   await info.hover();
   await expect(hint).toBeVisible();
   await expect(hint).toHaveClass("api-description-tooltip");
+  for (const paragraph of await hint.locator("p").all()) {
+    await expect(paragraph).toHaveCSS("white-space", "normal");
+    await expect(paragraph).toHaveCSS("text-align", "start");
+  }
   await expect(hint).toContainText("HTTP method and path (404)");
   await expect(hint).toContainText("400, 413, or 415");
   await expect(hint).toContainText("failed before completion");

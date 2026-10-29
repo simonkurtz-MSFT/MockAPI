@@ -568,6 +568,9 @@ html[data-request-log-collapsed="true"] #request-log-body {
   display: flex;
   align-items: center;
 }
+.request-log-filter .api-description-tooltip p {
+  white-space: normal;
+}
 .request-log-unexpected-label {
   display: block;
   color: var(--cp-text);

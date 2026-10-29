@@ -1,7 +1,10 @@
 "use strict";
 
 import { formatMergeResult, formatNumber, formatProblem } from "./dashboard-core.js?v={{ASSET_VERSION}}";
-import { createDashboardPreferencesStore } from "./dashboard-preferences.js?v={{ASSET_VERSION}}";
+import {
+  createDashboardPreferencesStore,
+  createEndpointGroupSessionStore,
+} from "./dashboard-preferences.js?v={{ASSET_VERSION}}";
 import { createDashboardLayoutController } from "./dashboard-layout.js?v={{ASSET_VERSION}}";
 import { createDashboardSynchronizer } from "./dashboard-sync.js?v={{ASSET_VERSION}}";
 import {
@@ -57,6 +60,7 @@ const elements = getDashboardElements(document, {
   "settings-endpoint-test-dialog-alignment": "select",
   "settings-kj-ui-style": "input",
   "settings-show-curl-action": "input",
+  "settings-remember-endpoint-groups": "input",
   "settings-request-log-time-zone": "select",
   "settings-response-body-presentation": "select",
   "start-tutorial-button": "button",
@@ -138,6 +142,14 @@ const testBlade = createDashboardTestBlade({
 const endpointTable = createDashboardEndpointTable({
   documentRoot: document,
   preferencesStore: dashboardPreferencesStore,
+  groupSessionStore: createEndpointGroupSessionStore(
+    {
+      getItem: (key) => window.sessionStorage.getItem(key),
+      setItem: (key, value) => window.sessionStorage.setItem(key, value),
+      removeItem: (key) => window.sessionStorage.removeItem(key),
+    },
+    (message) => showToast(message, true)
+  ),
   onEdit: (endpoint) => endpointEditor.open(endpoint, state.etag),
   onDuplicate: (endpoint) => endpointEditor.duplicate(endpoint, state.etag),
   onDelete: requestDelete,
@@ -509,6 +521,7 @@ function bindEvents() {
     elements["settings-endpoint-test-dialog-alignment"].value = preferences.endpointTestDialogAlignment;
     elements["settings-kj-ui-style"].checked = preferences.kjUiStyle;
     elements["settings-show-curl-action"].checked = preferences.showCurlAction;
+    elements["settings-remember-endpoint-groups"].checked = preferences.rememberEndpointGroups;
     elements["settings-request-log-time-zone"].value = preferences.requestLogTimeZone;
     elements["settings-response-body-presentation"].value = preferences.responseBodyPresentation;
     elements["settings-dialog"].showModal();
@@ -543,6 +556,11 @@ function bindEvents() {
   pageEvents.listen(elements["settings-show-curl-action"], "change", (event) => {
     dashboardPreferencesStore.update({ showCurlAction: event.currentTarget.checked });
     endpointTable.render();
+  });
+  pageEvents.listen(elements["settings-remember-endpoint-groups"], "change", (event) => {
+    const enabled = event.currentTarget.checked;
+    dashboardPreferencesStore.update({ rememberEndpointGroups: enabled });
+    endpointTable.setGroupPersistenceEnabled(enabled);
   });
   pageEvents.listen(elements["settings-request-log-time-zone"], "change", (event) => {
     const preferences = dashboardPreferencesStore.update({

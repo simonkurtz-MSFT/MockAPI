@@ -415,6 +415,81 @@ test("@smoke collapses and expands all API groups without changing endpoint conf
   await expectNoUnreviewedAccessibilityViolations(page, ".workspace");
 });
 
+test("remembers API group state across refreshes only in the tab session and honors the Settings opt-out", async ({
+  page,
+  context,
+}) => {
+  await page.getByRole("button", { name: "Load examples" }).first().click();
+  const rows = page.locator(".endpoint-row");
+  await expect(rows).toHaveCount(41);
+  await page.getByRole("button", { name: "Collapse inventory 11", exact: true }).click();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Expand inventory 11", exact: true })).toBeVisible();
+  await expect(rows).toHaveCount(30);
+  expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem("mockapi.endpointGroups")))).toEqual([
+    "inventory",
+  ]);
+  const preferences = await page.evaluate(() => JSON.parse(localStorage.getItem("mockapi.preferences")));
+  expect(preferences).not.toHaveProperty("collapsedEndpointGroups");
+  expect(await page.evaluate(() => localStorage.getItem("mockapi.endpointGroups"))).toBeNull();
+
+  const otherTab = await context.newPage();
+  await otherTab.goto("/");
+  await expect(otherTab.locator(".endpoint-row")).toHaveCount(41);
+  await otherTab.close();
+
+  await page.locator("#filter-text").fill("/shipping/");
+  await page.locator("#endpoint-toggle-groups").click();
+  await page.reload();
+  await expect(rows).toHaveCount(16);
+  await expect(page.getByRole("button", { name: "Expand shipping 14", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const remember = page.getByRole("checkbox", { name: "Remember expanded/collapsed API groups for this session" });
+  await expect(remember).toBeChecked();
+  await remember.uncheck();
+  expect(await page.evaluate(() => sessionStorage.getItem("mockapi.endpointGroups"))).toBeNull();
+  await page.locator("#settings-close").click();
+  await expect(rows).toHaveCount(16);
+  await page.reload();
+  await expect(rows).toHaveCount(41);
+  await page.getByRole("button", { name: "Collapse inventory 11", exact: true }).click();
+  await page.reload();
+  await expect(rows).toHaveCount(41);
+  await page.getByRole("button", { name: "Collapse inventory 11", exact: true }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(remember).not.toBeChecked();
+  await remember.check();
+  await page.locator("#settings-close").click();
+  await page.reload();
+  await expect(rows).toHaveCount(30);
+  await page.locator("#endpoint-toggle-groups").click();
+  await page.reload();
+  await expect(page.locator("#endpoint-toggle-groups")).toHaveAccessibleName("Expand all groups");
+  await expect(rows).toHaveCount(0);
+  await page.locator("#endpoint-toggle-groups").click();
+  await page.reload();
+  await expect(rows).toHaveCount(41);
+});
+
+test("reports unavailable session storage while keeping API group controls usable", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "sessionStorage", {
+      get() {
+        throw new Error("Session storage unavailable");
+      },
+    });
+  });
+  await page.reload();
+  await expect(page.locator("#toast-region")).toContainText("Unable to restore endpoint groups");
+  await expect(page.locator("#connection-status")).toHaveText("Live");
+  await page.getByRole("button", { name: "Load examples" }).first().click();
+  await expect(page.locator(".endpoint-row")).toHaveCount(41);
+  await page.getByRole("button", { name: "Collapse inventory 11", exact: true }).click();
+  await expect(page.locator("#toast-region")).toContainText("Unable to save endpoint groups");
+  await expect(page.locator(".endpoint-row")).toHaveCount(30);
+  await expect(page.getByRole("button", { name: "Expand inventory 11", exact: true })).toBeVisible();
+});
+
 test("bulk API group collapse applies to filtered groups and preserves hidden group state", async ({ page }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
   const control = page.locator("#endpoint-toggle-groups");
