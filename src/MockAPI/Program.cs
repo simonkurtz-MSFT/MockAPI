@@ -57,6 +57,7 @@ if (options.EnableDashboard)
         "dashboard-api-description.js",
         "dashboard-api-security.js",
         "dashboard-core.js",
+        "dashboard-curl.js",
         "dashboard-dom.js",
         "dashboard-editor-dialog.js",
         "dashboard-endpoint-editor.js",
@@ -92,7 +93,7 @@ if (options.EnableDashboard)
         .Replace("{{LOG_ANALYTICS_WORKSPACE_LINK}}", logAnalyticsWorkspaceLink, StringComparison.Ordinal);
 
     DashboardAssets.Map(app, "/app.css", "app.css", "text/css; charset=utf-8", assetVersion);
-    foreach (var script in new[] { "app.js", "dashboard-api-description.js", "dashboard-api-security.js", "dashboard-core.js", "dashboard-dom.js", "dashboard-editor-dialog.js",
+    foreach (var script in new[] { "app.js", "dashboard-api-description.js", "dashboard-api-security.js", "dashboard-core.js", "dashboard-curl.js", "dashboard-dom.js", "dashboard-editor-dialog.js",
         "dashboard-endpoint-editor.js", "dashboard-endpoint-table.js", "dashboard-layout.js", "dashboard-management.js",
         "dashboard-preferences.js", "dashboard-statistics.js", "dashboard-sync.js", "dashboard-test-blade.js",
         "dashboard-test-request.js", "dashboard-tutorial.js" })

@@ -130,7 +130,7 @@
  * @property {string} path Normalized path without query values.
  * @property {string|null} endpointId Matched stable ID, or null when unmatched.
  * @property {number|null} statusCode Selected response status, or null for aborts and failures before response selection.
- * @property {"response"|"unmatched"|"failedWrite"|"aborted"} outcome Dispatch outcome.
+ * @property {"response"|"unmatched"|"rejected"|"failedWrite"|"aborted"} outcome Dispatch outcome.
  * @property {number} responseBytes Completed response-body byte count.
  * @property {number} transportAttempts Physical dispatches coalesced into this logical request.
  */
@@ -462,7 +462,9 @@ export function formatRequestLogResult(request) {
   if (request.outcome === "aborted") return { label: "Aborted", className: "error" };
   if (request.outcome === "failedWrite") return { label: "Write failed", className: "error" };
   const statusCode = request.outcome === "unmatched" ? (request.statusCode ?? 404) : request.statusCode;
-  const label = request.outcome === "unmatched" ? `${statusCode} · Unmatched` : String(statusCode ?? "Response");
+  let label = String(statusCode ?? "Response");
+  if (request.outcome === "unmatched") label = `${statusCode} · Unmatched`;
+  if (request.outcome === "rejected") label = `${statusCode} · Rejected`;
   const className = statusCode ? `status-${Math.floor(statusCode / 100)}xx` : "response";
   return { label, className };
 }

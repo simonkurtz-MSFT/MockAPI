@@ -881,7 +881,7 @@ public sealed class RemainingManagementApiTests : IDisposable
             CreateDocument(endpoint),
             "\"0\"");
         using var matched = await client.GetAsync("/counted?secret=not-retained");
-        using var unmatched = await client.GetAsync("/missing");
+        using var unmatched = await client.GetAsync("/missing?secret=not-retained");
 
         using var response = await client.GetAsync($"{BasePath}/statistics");
         using var json = await ReadJsonAsync(response);
@@ -890,7 +890,13 @@ public sealed class RemainingManagementApiTests : IDisposable
         Assert.Equal(1, json.RootElement.GetProperty("unmatchedRequests").GetInt64());
         Assert.Equal(endpoint.Id, json.RootElement.GetProperty("endpoints")[0].GetProperty("endpointId").GetGuid());
         var recentRequests = json.RootElement.GetProperty("recentRequests");
-        var recentRequest = Assert.Single(recentRequests.EnumerateArray());
+        Assert.Equal(2, recentRequests.GetArrayLength());
+        var unmatchedRequest = recentRequests[0];
+        Assert.Equal("/missing", unmatchedRequest.GetProperty("path").GetString());
+        Assert.Equal("unmatched", unmatchedRequest.GetProperty("outcome").GetString());
+        Assert.Equal(404, unmatchedRequest.GetProperty("statusCode").GetInt32());
+        Assert.Equal(JsonValueKind.Null, unmatchedRequest.GetProperty("endpointId").ValueKind);
+        var recentRequest = recentRequests[1];
         Assert.Equal("/counted", recentRequest.GetProperty("path").GetString());
         Assert.Equal("response", recentRequest.GetProperty("outcome").GetString());
         Assert.Equal(1, recentRequest.GetProperty("transportAttempts").GetInt32());

@@ -50,6 +50,7 @@ public sealed class DashboardAuthenticationTests
     [InlineData("/dashboard-api-security.js")]
     [InlineData("/dashboard-endpoint-editor.js")]
     [InlineData("/dashboard-endpoint-table.js")]
+    [InlineData("/dashboard-curl.js")]
     [InlineData("/dashboard-layout.js")]
     [InlineData("/dashboard-management.js")]
     [InlineData("/dashboard-preferences.js")]

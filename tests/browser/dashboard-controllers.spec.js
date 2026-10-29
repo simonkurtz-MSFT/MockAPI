@@ -582,6 +582,7 @@ test("endpoint table owns selection snapshots and releases controls and obsolete
       onToggle: record("toggle"),
       onBulkOperation: record("bulk"),
       onBulkDelete: record("bulkDelete"),
+      onCopyCurl: record("curl"),
     });
     window.table.updateEndpoints([definition]);
     window.originalRow = document.querySelector(".endpoint-row");
@@ -660,6 +661,107 @@ test("endpoint table owns selection snapshots and releases controls and obsolete
   await frame.locator("#filter-text").fill("does not match");
   expect(await frame.evaluate(() => window.actions.length)).toBe(2);
   await expect(frame.locator(".endpoint-row")).toHaveCount(1);
+});
+
+test("unexpected request filtering preserves hidden bucket state and releases its listener on disposal", async ({
+  page,
+  request,
+}) => {
+  const frame = await createFixture(page, request);
+  const statistics = await (await request.get("/__mockapi/api/statistics")).json();
+  await frame.evaluate(async (statistics) => {
+    const { createDashboardStatistics } = await import("/dashboard-statistics.js");
+    const { createDashboardPreferencesStore } = await import("/dashboard-preferences.js");
+    window.preferences = createDashboardPreferencesStore({ getItem: () => null, setItem() {} });
+    window.panel = createDashboardStatistics({
+      documentRoot: document,
+      preferencesStore: window.preferences,
+      onReset() {},
+    });
+    window.panel.updateStatistics({
+      ...statistics,
+      recentRequests: [
+        {
+          timestampUtc: "2026-10-29T12:01:00Z",
+          method: "POST",
+          path: "/missing",
+          outcome: "unmatched",
+          statusCode: 404,
+        },
+        {
+          timestampUtc: "2026-10-29T12:01:01Z",
+          method: "POST",
+          path: "/invalid",
+          outcome: "rejected",
+          statusCode: 400,
+        },
+        {
+          timestampUtc: "2026-10-29T12:01:02Z",
+          method: "GET",
+          path: "/failed",
+          outcome: "failedWrite",
+          statusCode: 503,
+        },
+        {
+          timestampUtc: "2026-10-29T12:00:00Z",
+          method: "GET",
+          path: "/configured",
+          outcome: "response",
+          statusCode: 500,
+        },
+        { timestampUtc: "2026-10-29T12:00:01Z", method: "GET", path: "/abort", outcome: "aborted", statusCode: null },
+      ],
+    });
+  }, statistics);
+  const filter = frame.locator("#request-log-show-unexpected");
+  const buckets = frame.locator(".request-log-bucket-toggle");
+  await expect(frame.locator('[data-unexpected="true"]')).toHaveCount(3);
+  await buckets.first().click();
+  await filter.uncheck();
+  await expect(frame.locator(".request-log-entry")).toHaveCount(2);
+  await expect(frame.locator(".request-log-entry")).not.toContainText(["Unexpected", "Unexpected"]);
+  await expect(buckets).toHaveCount(1);
+  await frame.locator("#request-log-toggle-buckets").click();
+  await frame.locator("#request-log-toggle-buckets").click();
+  await filter.check();
+  await expect(buckets).toHaveCount(2);
+  await expect(buckets.first()).toHaveAttribute("aria-expanded", "false");
+  await filter.uncheck();
+  await frame.evaluate(
+    (statistics) =>
+      window.panel.updateStatistics({
+        ...statistics,
+        recentRequests: [
+          {
+            timestampUtc: "2026-10-29T12:01:00Z",
+            method: "POST",
+            path: "/missing",
+            outcome: "unmatched",
+            statusCode: 404,
+          },
+        ],
+      }),
+    statistics
+  );
+  await expect(frame.locator(".request-log-empty")).toHaveText("No requests match this filter");
+  await expect(frame.locator("#request-log-count")).toHaveText("0");
+  await expect(frame.locator("#request-log-toggle-buckets")).toBeDisabled();
+  await frame.evaluate(
+    (statistics) => window.panel.updateStatistics({ ...statistics, recentRequests: [] }),
+    statistics
+  );
+  await expect(frame.locator(".request-log-empty")).toHaveText("No requests recorded");
+  const info = frame.locator("#request-log-unexpected-info");
+  const hint = frame.locator("#request-log-unexpected-hint");
+  await info.click();
+  await expect(hint).toBeVisible();
+  await frame.evaluate(() => window.panel.dispose());
+  await expect(hint).not.toBeVisible();
+  await info.click();
+  await expect(hint).not.toBeVisible();
+  await filter.check();
+  expect(await frame.evaluate(() => window.preferences.get().showUnexpectedRequests)).toBe(false);
+  await expect(frame.locator(".request-log-entry")).toHaveCount(0);
 });
 
 test("statistics controller retains current chart listeners and releases replaced chart listeners", async ({

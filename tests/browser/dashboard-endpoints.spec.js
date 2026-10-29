@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   expect,
   test,
@@ -6,6 +7,82 @@ import {
   expectNoUnreviewedAccessibilityViolations,
   contrastRatio,
 } from "./dashboard-fixtures.js";
+
+test("copies an OS-aware cURL command and persists its optional fifth endpoint action", async ({ page, request }) => {
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (text) => {
+          window.copiedCommand = text;
+        },
+      },
+    });
+  });
+  await importDocument(request, {
+    ...emptyDocument,
+    endpoints: [
+      {
+        id: "c7635742-b795-4587-9c69-f72853b39d6c",
+        name: "Copy request",
+        enabled: true,
+        methods: ["POST", "PUT"],
+        path: "/inventory/reservations",
+        response: { statusCode: 201, headers: {}, contentType: "application/json", body: "{}" },
+      },
+    ],
+  });
+  const row = page.locator(".endpoint-row");
+  await expect(row.locator(".row-actions button")).toHaveCount(5);
+  const duplicateIcon = await row.getByRole("button", { name: "Duplicate", exact: true }).locator("svg").innerHTML();
+  expect(duplicateIcon).not.toBe(await page.locator("#copy-url svg").innerHTML());
+  const copy = row.getByRole("button", { name: "Copy cURL command", exact: true });
+  await copy.click();
+  await expect(page.locator("#toast-region")).toContainText("cURL command copied");
+  const command = await page.evaluate(() => window.copiedCommand);
+  const windows = await page.evaluate(() => /win/i.test(navigator.platform));
+  expect(command.startsWith(windows ? "curl.exe " : "curl ")).toBe(true);
+  expect(command).toContain("--request 'POST'");
+  expect(command).toContain("/inventory/reservations'");
+  expect(command).toContain('--data-raw \'{"sku":"SKU-1001","quantity":2,"warehouseId":"WH-DEMO-01"}\'');
+  expect(command).not.toContain("X-MockAPI-Key");
+  const shell = process.platform === "win32" ? "pwsh" : "sh";
+  const shellArguments = process.platform === "win32" ? ["-NoProfile", "-NonInteractive", "-Command"] : ["-c"];
+  const responseBody = execFileSync(shell, [...shellArguments, command], { encoding: "utf8", timeout: 10_000 });
+  expect(responseBody.trim()).toBe("{}");
+
+  await page.route("**/__mockapi/api/security/", (route) =>
+    route.fulfill({
+      json: { enabled: true, configured: true, etag: '"1"' },
+    })
+  );
+  await copy.click();
+  await expect
+    .poll(() => page.evaluate(() => window.copiedCommand))
+    .toContain(windows ? "${env:MOCKAPI_KEY}" : "${MOCKAPI_KEY}");
+  await page.evaluate(() => {
+    navigator.clipboard.writeText = async () => {
+      throw new Error("Denied");
+    };
+  });
+  await copy.click();
+  await expect(page.locator("#toast-region")).toContainText("Clipboard access was denied");
+
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const preference = page.getByRole("checkbox", { name: "Show endpoint cURL copy action" });
+  await expect(preference).toBeChecked();
+  await preference.uncheck();
+  await expect(row.locator(".row-actions button")).toHaveCount(4);
+  await page.locator("#settings-close").click();
+  await page.reload();
+  await expect(row.locator(".row-actions button")).toHaveCount(4);
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(preference).not.toBeChecked();
+  await preference.check();
+  await page.locator("#settings-close").click();
+  await expect(copy).toBeVisible();
+  await expectNoUnreviewedAccessibilityViolations(page, ".workspace");
+});
 
 test("displays each supported HTTP method in a separate bordered badge", async ({ page, request }) => {
   await importDocument(request, {
@@ -531,7 +608,7 @@ test("keeps column geometry stable through group collapse and sorting, with cent
       [4, 80],
       [5, 80],
       [6, 72],
-      [7, 160],
+      [7, 196],
     ]) {
       expect(original[column].width).toBeLessThanOrEqual(maximumWidth + 1);
     }
@@ -563,6 +640,13 @@ test("keeps column geometry stable through group collapse and sorting, with cent
     );
     // Clicking a sort button may scroll the table horizontally; compare column widths.
     expect(expanded.map((cell) => cell.width)).toEqual(original.map((cell) => cell.width));
+    await page.locator("#endpoint-toggle-groups").click();
+    await expect(page.locator(".endpoint-row")).toHaveCount(0);
+    expect(await headers.evaluateAll((cells) => cells.map((cell) => cell.getBoundingClientRect().width))).toEqual(
+      original.map((cell) => cell.width)
+    );
+    await page.locator("#endpoint-toggle-groups").click();
+    await expect(page.locator(".endpoint-row")).toHaveCount(41);
     const attempts = page.locator("[data-endpoint-requests]").first();
     await expect(attempts).toHaveCSS("text-align", "center");
     await expect(attempts).toHaveAttribute("title", "Last attempt: Never");

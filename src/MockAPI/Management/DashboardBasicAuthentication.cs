@@ -98,6 +98,7 @@ internal sealed class DashboardBasicAuthentication(RequestDelegate next, MockApi
         || path == "/dashboard-api-security.js"
         || path == "/dashboard-core.js"
         || path == "/dashboard-dom.js"
+        || path == "/dashboard-curl.js"
         || path == "/dashboard-editor-dialog.js"
         || path == "/dashboard-endpoint-editor.js"
         || path == "/dashboard-endpoint-table.js"

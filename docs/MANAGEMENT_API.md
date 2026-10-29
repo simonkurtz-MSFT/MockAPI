@@ -132,7 +132,21 @@ separate. Other portable request/test formats remain endpoint-focused and omit A
 
 Bulk endpoint requests provide one or more unique stable endpoint IDs and an `operation` of `enable`, `disable`, or `delete`. Every ID must exist. The complete operation uses one configuration revision and leaves the active snapshot unchanged when validation, endpoint lookup, or ETag checks fail.
 
-Statistics counters record every transport attempt seen by the mock dispatcher. For wire compatibility, fields such as `totalRequests`, `matchedRequests`, `unmatchedRequests`, and `recentMinutes[].requests` retain their existing names but contain transport-attempt counts. Statistics snapshots include at most 100 recent logical request summaries for configured endpoints in newest-first order; unmatched requests remain in aggregate statistics but are excluded from the request log. Dashboard-generated retries with the same request ID are coalesced into one summary whose `transportAttempts` value reports the physical dispatch count. Each summary contains the timestamp, method, normalized path, matched endpoint ID, outcome, HTTP status when available, and completed response byte count. The process never retains request or response bodies, headers, cookies, authorization values, or query values. Resetting all statistics clears the feed; resetting one endpoint removes its summaries.
+Statistics snapshots include at most 100 recent logical request summaries in newest-first order,
+including unmatched requests with a null endpoint ID and a `404` status. Dashboard-generated retries
+with the same request ID are coalesced into one summary whose `transportAttempts` value reports the
+physical dispatch count; aggregate and endpoint counters count that logical request once.
+Each summary contains the timestamp, method, normalized path, matched endpoint ID, outcome, HTTP
+status when available, and completed response byte count. Outcomes are `response` (configured HTTP
+response, including configured errors), `aborted` (configured connection abort), `unmatched` (no
+enabled method/path match), `rejected` (payload validation returned `400`, `413`, or `415`), and
+`failedWrite` (uncompleted matched dispatch). The last three outcomes are labeled **Unexpected**
+in the dashboard and can be hidden with **Show unexpected requests**, which defaults to on and is
+saved only in this browser. Filtering never changes aggregate statistics or the retained feed.
+The information button beside **Show unexpected requests** explains these categories using the
+shared dashboard tooltip, available on hover, keyboard focus, or tap.
+The process never retains request or response bodies, headers, cookies, authorization values, or
+query values. Resetting all statistics clears the feed; resetting one endpoint removes only its summaries.
 
 Cancellation during a configured delay records a matched `failedWrite` attempt with zero completed
 bytes and no HTTP status. These attempts contribute to request and failure totals, but not HTTP status
@@ -252,6 +266,16 @@ The request log offers **Collapse all buckets**, switching to **Expand all bucke
 current buckets are collapsed. New minute buckets start expanded; additional requests in an
 existing bucket retain its state. Table columns use stable widths and reserved scrollbar space,
 with long values wrapping and horizontal scrolling available on narrow panels.
+
+Endpoint rows use separate duplication and clipboard icons. A fifth **Copy cURL command** action
+copies the first configured method, current instance origin, and the same illustrative JSON payload
+as the test blade for POST/PUT/PATCH. HEAD uses `--head`. Commands use `curl.exe` and PowerShell 7
+quoting on Windows, or `curl` and POSIX shell quoting on macOS/Linux. Protected requests reference
+the caller's `MOCKAPI_KEY` environment variable rather than copying the dashboard key. Set it before
+running the command (`$env:MOCKAPI_KEY = '<your-key>'` in PowerShell, or
+`export MOCKAPI_KEY='<your-key>'` in bash). Settings > Workspace preferences can hide or restore
+this action; it defaults to visible and is saved only in this browser. Clipboard failures are
+reported in the dashboard.
 
 ### Statistics Allocation Diagnostic
 

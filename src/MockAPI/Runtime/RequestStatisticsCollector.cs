@@ -21,8 +21,6 @@ public sealed class RequestStatisticsCollector
     private readonly object _endpointGate = new();
     private readonly Queue<RecentRequestRecord> _recentRequests = new(MaximumRecentRequests);
     private readonly HashSet<string> _recentRequestIds = new(StringComparer.Ordinal);
-    private readonly Queue<string> _recentUnmatchedRequestIds = new(MaximumRecentRequests);
-    private readonly HashSet<string> _recentUnmatchedRequestIdSet = new(StringComparer.Ordinal);
     private readonly object _recentRequestsGate = new();
     private long _totalRequests;
     private long _matchedRequests;
@@ -65,7 +63,9 @@ public sealed class RequestStatisticsCollector
     public void RecordUnmatched(string method, string path, string? requestId = null)
     {
         var now = _timeProvider.GetUtcNow();
-        if (!TryRecordUnmatchedRequest(requestId))
+        var request = new RequestLogEntrySnapshot(
+            now, method, path, null, StatusCodes.Status404NotFound, RequestLogOutcome.Unmatched, 0);
+        if (!TryRecordRecentRequest(request, requestId))
         {
             return;
         }
@@ -99,7 +99,18 @@ public sealed class RequestStatisticsCollector
         int statusCode,
         long responseBytes,
         string? requestId = null) =>
-        RecordMatchedCore(endpointId, method, path, statusCode, responseBytes, failedToWrite: false, requestId);
+        RecordMatchedCore(endpointId, method, path, statusCode, responseBytes, RequestLogOutcome.Response, requestId);
+
+    /// <summary>Records a matched request rejected by payload validation rather than configured response behavior.</summary>
+    /// <param name="endpointId">The stable matched endpoint ID.</param>
+    /// <param name="method">The HTTP method.</param>
+    /// <param name="path">The request path without query values.</param>
+    /// <param name="statusCode">The validation problem status.</param>
+    /// <param name="responseBytes">Completed problem-response body bytes.</param>
+    /// <param name="requestId">Optional logical request ID for transport retry coalescing.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="responseBytes"/> is negative.</exception>
+    public void RecordRejectedRequest(Guid endpointId, string method, string path, int statusCode, long responseBytes, string? requestId = null) =>
+        RecordMatchedCore(endpointId, method, path, statusCode, responseBytes, RequestLogOutcome.Rejected, requestId);
 
     /// <summary>Records a matched attempt that failed before completion and contributed no completed body bytes.</summary>
     /// <param name="endpointId">The stable ID of the matched endpoint.</param>
@@ -119,7 +130,7 @@ public sealed class RequestStatisticsCollector
         string path,
         int? statusCode,
         string? requestId = null) =>
-        RecordMatchedCore(endpointId, method, path, statusCode, responseBytes: 0, failedToWrite: true, requestId);
+        RecordMatchedCore(endpointId, method, path, statusCode, responseBytes: 0, RequestLogOutcome.FailedWrite, requestId);
 
     /// <summary>Records a matched request whose configured behavior intentionally aborted the connection.</summary>
     /// <param name="endpointId">The stable ID of the matched endpoint.</param>
@@ -205,8 +216,6 @@ public sealed class RequestStatisticsCollector
         {
             _recentRequests.Clear();
             _recentRequestIds.Clear();
-            _recentUnmatchedRequestIds.Clear();
-            _recentUnmatchedRequestIdSet.Clear();
         }
         Interlocked.Increment(ref _resetVersion);
         Interlocked.Increment(ref _version);
@@ -258,7 +267,7 @@ public sealed class RequestStatisticsCollector
         string path,
         int? statusCode,
         long responseBytes,
-        bool failedToWrite,
+        RequestLogOutcome outcome,
         string? requestId = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(responseBytes);
@@ -270,7 +279,7 @@ public sealed class RequestStatisticsCollector
             path,
             endpointId,
             statusCode,
-            failedToWrite ? RequestLogOutcome.FailedWrite : RequestLogOutcome.Response,
+            outcome,
             responseBytes);
         if (!TryRecordRecentRequest(request, requestId))
         {
@@ -279,7 +288,7 @@ public sealed class RequestStatisticsCollector
 
         Interlocked.Increment(ref _totalRequests);
         Interlocked.Increment(ref _matchedRequests);
-        if (failedToWrite)
+        if (outcome == RequestLogOutcome.FailedWrite)
         {
             Interlocked.Increment(ref _failedWrites);
         }
@@ -296,17 +305,15 @@ public sealed class RequestStatisticsCollector
         var boundedRequestId = string.IsNullOrWhiteSpace(requestId) || requestId.Length > 128 ? null : requestId;
         lock (_recentRequestsGate)
         {
-            if (boundedRequestId is not null && _recentUnmatchedRequestIdSet.Contains(boundedRequestId))
-            {
-                Interlocked.Increment(ref _version);
-                return false;
-            }
-
             if (boundedRequestId is not null && !_recentRequestIds.Add(boundedRequestId))
             {
                 var recentRequest = _recentRequests.First(request =>
                     string.Equals(request.RequestId, boundedRequestId, StringComparison.Ordinal));
-                recentRequest.RecordTransportAttempt();
+                // Retries keep the first routing classification even if configuration changes between attempts.
+                if ((recentRequest.Entry.Outcome == RequestLogOutcome.Unmatched) == (request.Outcome == RequestLogOutcome.Unmatched))
+                {
+                    recentRequest.RecordTransportAttempt();
+                }
                 Interlocked.Increment(ref _version);
                 return false;
             }
@@ -321,34 +328,6 @@ public sealed class RequestStatisticsCollector
             }
 
             _recentRequests.Enqueue(new RecentRequestRecord(request, boundedRequestId));
-            return true;
-        }
-    }
-
-    private bool TryRecordUnmatchedRequest(string? requestId)
-    {
-        var boundedRequestId = string.IsNullOrWhiteSpace(requestId) || requestId.Length > 128 ? null : requestId;
-        if (boundedRequestId is null)
-        {
-            return true;
-        }
-
-        lock (_recentRequestsGate)
-        {
-            if (_recentRequestIds.Contains(boundedRequestId) ||
-                !_recentUnmatchedRequestIdSet.Add(boundedRequestId))
-            {
-                Interlocked.Increment(ref _version);
-                return false;
-            }
-
-            if (_recentUnmatchedRequestIds.Count == MaximumRecentRequests)
-            {
-                var removedRequestId = _recentUnmatchedRequestIds.Dequeue();
-                _recentUnmatchedRequestIdSet.Remove(removedRequestId);
-            }
-
-            _recentUnmatchedRequestIds.Enqueue(boundedRequestId);
             return true;
         }
     }
@@ -650,7 +629,11 @@ public enum RequestLogOutcome
 
     /// <summary>The configured endpoint intentionally aborted the connection.</summary>
     [JsonStringEnumMemberName("aborted")]
-    Aborted
+    Aborted,
+
+    /// <summary>Payload validation rejected the request before configured behavior ran.</summary>
+    [JsonStringEnumMemberName("rejected")]
+    Rejected
 }
 
 /// <summary>Represents privacy-safe metadata for one recently completed dispatch.</summary>

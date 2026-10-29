@@ -50,7 +50,7 @@ public static class MockRequestDispatcher
                 var problemBytes = JsonSerializer.SerializeToUtf8Bytes(problem, MockRuntimeJsonContext.Default.MockRequestProblem);
                 await context.Response.Body.WriteAsync(problemBytes, context.RequestAborted);
                 responseBytes = problemBytes.Length;
-                outcome = RequestLogOutcome.Response;
+                outcome = RequestLogOutcome.Rejected;
                 return;
             }
 
@@ -100,6 +100,9 @@ public static class MockRequestDispatcher
             // Account once even when the delay or response write is cancelled.
             switch (outcome)
             {
+                case RequestLogOutcome.Rejected:
+                    statistics.RecordRejectedRequest(endpoint.Id, context.Request.Method, path, statusCode!.Value, responseBytes, requestId);
+                    break;
                 case RequestLogOutcome.Response:
                     statistics.RecordMatched(endpoint.Id, context.Request.Method, path, statusCode!.Value, responseBytes, requestId);
                     break;

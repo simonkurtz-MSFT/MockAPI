@@ -17,6 +17,7 @@ import { createDashboardEditorDialog } from "./dashboard-editor-dialog.js?v={{AS
 import { createApiDescriptionEditor } from "./dashboard-api-description.js?v={{ASSET_VERSION}}";
 import { createDashboardApiSecurity } from "./dashboard-api-security.js?v={{ASSET_VERSION}}";
 import { createDashboardEndpointTable } from "./dashboard-endpoint-table.js?v={{ASSET_VERSION}}";
+import { createEndpointCurlCommand } from "./dashboard-curl.js?v={{ASSET_VERSION}}";
 import { createDashboardStatistics } from "./dashboard-statistics.js?v={{ASSET_VERSION}}";
 import { createDashboardTestBlade } from "./dashboard-test-blade.js?v={{ASSET_VERSION}}";
 import {
@@ -55,6 +56,7 @@ const elements = getDashboardElements(document, {
   "settings-dialog": "dialog",
   "settings-endpoint-test-dialog-alignment": "select",
   "settings-kj-ui-style": "input",
+  "settings-show-curl-action": "input",
   "settings-request-log-time-zone": "select",
   "settings-response-body-presentation": "select",
   "start-tutorial-button": "button",
@@ -144,6 +146,15 @@ const endpointTable = createDashboardEndpointTable({
   onBulkOperation: runBulkEndpointOperation,
   onBulkDelete: requestBulkDelete,
   onEditApiDescription: (path, description) => apiDescriptionEditor.open(path, description, state.etag),
+  onCopyCurl: async (endpoint) => {
+    try {
+      const security = await apiSecurity.getStatus();
+      const command = createEndpointCurlCommand(endpoint, window.location.origin, navigator.platform, security.enabled);
+      await copyToClipboard(command, "cURL command copied");
+    } catch (error) {
+      showToast(formatProblem(error), true);
+    }
+  },
 });
 const statisticsPanel = createDashboardStatistics({
   documentRoot: document,
@@ -497,6 +508,7 @@ function bindEvents() {
     elements["settings-dashboard-layout"].value = preferences.dashboardLayout;
     elements["settings-endpoint-test-dialog-alignment"].value = preferences.endpointTestDialogAlignment;
     elements["settings-kj-ui-style"].checked = preferences.kjUiStyle;
+    elements["settings-show-curl-action"].checked = preferences.showCurlAction;
     elements["settings-request-log-time-zone"].value = preferences.requestLogTimeZone;
     elements["settings-response-body-presentation"].value = preferences.responseBodyPresentation;
     elements["settings-dialog"].showModal();
@@ -527,6 +539,10 @@ function bindEvents() {
   pageEvents.listen(elements["settings-kj-ui-style"], "change", (event) => {
     const preferences = dashboardPreferencesStore.update({ kjUiStyle: event.currentTarget.checked });
     document.documentElement.dataset.kjUiStyle = String(preferences.kjUiStyle);
+  });
+  pageEvents.listen(elements["settings-show-curl-action"], "change", (event) => {
+    dashboardPreferencesStore.update({ showCurlAction: event.currentTarget.checked });
+    endpointTable.render();
   });
   pageEvents.listen(elements["settings-request-log-time-zone"], "change", (event) => {
     const preferences = dashboardPreferencesStore.update({

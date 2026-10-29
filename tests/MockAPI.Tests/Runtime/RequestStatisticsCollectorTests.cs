@@ -211,7 +211,7 @@ public sealed class RequestStatisticsCollectorTests
     }
 
     [Fact]
-    public void RecordUnmatched_CoalescesTransportRetriesWithoutAddingARecentRequest()
+    public void RecordUnmatched_CoalescesTransportRetriesInOneRecentRequest()
     {
         var collector = new RequestStatisticsCollector();
 
@@ -222,7 +222,14 @@ public sealed class RequestStatisticsCollectorTests
         Assert.Equal(1, snapshot.TotalRequests);
         Assert.Equal(1, snapshot.UnmatchedRequests);
         Assert.Equal(1, snapshot.RecentMinutes[^1].Requests);
-        Assert.Empty(snapshot.RecentRequests);
+        var entry = Assert.Single(snapshot.RecentRequests);
+        Assert.Equal(RequestLogOutcome.Unmatched, entry.Outcome);
+        Assert.Null(entry.EndpointId);
+        Assert.Equal(404, entry.StatusCode);
+        Assert.Equal("GET", entry.Method);
+        Assert.Equal("/missing", entry.Path);
+        Assert.Equal(0, entry.ResponseBytes);
+        Assert.Equal(2, entry.TransportAttempts);
     }
 
     [Fact]
@@ -239,7 +246,7 @@ public sealed class RequestStatisticsCollectorTests
         Assert.Equal(1, snapshot.UnmatchedRequests);
         Assert.Equal(0, snapshot.MatchedRequests);
         Assert.Empty(snapshot.Endpoints);
-        Assert.Empty(snapshot.RecentRequests);
+        Assert.Equal(RequestLogOutcome.Unmatched, Assert.Single(snapshot.RecentRequests).Outcome);
     }
 
     [Fact]
@@ -278,6 +285,8 @@ public sealed class RequestStatisticsCollectorTests
         var snapshot = collector.GetSnapshot();
         Assert.Equal(RequestStatisticsCollector.MaximumRecentRequests + 2, snapshot.TotalRequests);
         Assert.Equal(snapshot.TotalRequests, snapshot.UnmatchedRequests);
+        Assert.Equal(RequestStatisticsCollector.MaximumRecentRequests, snapshot.RecentRequests.Length);
+        Assert.Equal(1, snapshot.RecentRequests[0].TransportAttempts);
     }
 
     [Fact]
@@ -433,7 +442,9 @@ public sealed class RequestStatisticsCollectorTests
 
         collector.RecordMatched(retainedEndpointId, "GET", "/retained", 200, 0, "retained-request");
         var retainedRequests = collector.GetSnapshot().RecentRequests;
-        var retainedRequest = Assert.Single(retainedRequests);
+        Assert.Equal(2, retainedRequests.Length);
+        Assert.Contains(retainedRequests, entry => entry.Outcome == RequestLogOutcome.Unmatched);
+        var retainedRequest = Assert.Single(retainedRequests, entry => entry.EndpointId == retainedEndpointId);
         Assert.Equal(retainedEndpointId, retainedRequest.EndpointId);
         Assert.Equal(2, retainedRequest.TransportAttempts);
     }

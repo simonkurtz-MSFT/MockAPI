@@ -10,6 +10,7 @@ export default defineConfig({
       provider: "v8",
       include: [
         "src/MockAPI/wwwroot/dashboard-core.js",
+        "src/MockAPI/wwwroot/dashboard-curl.js",
         "src/MockAPI/wwwroot/dashboard-dom.js",
         "src/MockAPI/wwwroot/dashboard-endpoint-editor.js",
         "src/MockAPI/wwwroot/dashboard-management.js",

@@ -292,7 +292,6 @@
                   Request log
                   <span id="request-log-count" class="count">0</span>
                 </h2>
-                <p>Most recent process-local request outcomes</p>
               </div>
               <button
                 id="request-log-toggle"
@@ -307,6 +306,32 @@
             </div>
             <div id="request-log-body">
               <div class="request-log-bucket-actions">
+                <div class="request-log-filter">
+                  <label class="settings-checkbox-control" for="request-log-show-unexpected">
+                    <input id="request-log-show-unexpected" type="checkbox" checked />
+                    Show unexpected requests
+                  </label>
+                  <button
+                    id="request-log-unexpected-info"
+                    class="api-description-button"
+                    type="button"
+                    aria-label="Unexpected request information"
+                    aria-describedby="request-log-unexpected-hint"
+                  >
+                    i
+                  </button>
+                  <div id="request-log-unexpected-hint" class="api-description-tooltip" role="tooltip" popover="manual">
+                    <strong>Unexpected requests</strong>
+                    <p>
+                      Includes requests with no enabled endpoint matching the HTTP method and path (404), payload
+                      validation rejections (400, 413, or 415), and requests that failed before completion.
+                    </p>
+                    <p>
+                      Configured error responses and intentional connection aborts are expected outcomes. Hiding
+                      unexpected requests only filters this log; overall statistics still include them.
+                    </p>
+                  </div>
+                </div>
                 <button
                   id="request-log-toggle-buckets"
                   class="button quiet"
@@ -812,6 +837,16 @@
               <p id="settings-response-body-presentation-description">
                 Applies to endpoint test responses when valid JSON formatting is available. The response viewer can
                 still switch between raw and pretty text.
+              </p>
+            </div>
+            <div class="settings-field">
+              <label class="settings-checkbox-control" for="settings-show-curl-action">
+                <input id="settings-show-curl-action" type="checkbox" checked />
+                Show endpoint cURL copy action
+              </label>
+              <p>
+                Copies the first configured method for PowerShell on Windows or a POSIX shell on macOS/Linux. Protected
+                requests use the MOCKAPI_KEY environment variable.
               </p>
             </div>
             <div class="settings-field">

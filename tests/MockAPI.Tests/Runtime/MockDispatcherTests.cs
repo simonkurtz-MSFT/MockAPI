@@ -56,6 +56,7 @@ public sealed class MockDispatcherTests
         Assert.Equal(0, snapshot.FailedWrites);
         Assert.Equal(4, snapshot.RecentRequests.Length);
         Assert.All(snapshot.RecentRequests, entry => Assert.Equal(400, entry.StatusCode));
+        Assert.All(snapshot.RecentRequests, entry => Assert.Equal(RequestLogOutcome.Rejected, entry.Outcome));
         Assert.True(snapshot.ResponseBytes > 0);
     }
 
@@ -367,7 +368,7 @@ public sealed class MockDispatcherTests
     }
 
     [Fact]
-    public async Task UnconfiguredBrowserResource_IsNotAddedToRequestLog()
+    public async Task UnconfiguredBrowserResource_IsLoggedAsUnmatched()
     {
         await using var factory = new UnsecuredApplicationFactory();
         var statistics = factory.Services.GetRequiredService<RequestStatisticsCollector>();
@@ -381,7 +382,10 @@ public sealed class MockDispatcherTests
         var snapshot = statistics.GetSnapshot();
         Assert.Equal(1, snapshot.TotalRequests);
         Assert.Equal(1, snapshot.UnmatchedRequests);
-        Assert.Empty(snapshot.RecentRequests);
+        var entry = Assert.Single(snapshot.RecentRequests);
+        Assert.Equal(RequestLogOutcome.Unmatched, entry.Outcome);
+        Assert.Null(entry.EndpointId);
+        Assert.Equal(404, entry.StatusCode);
     }
 
     [Fact]

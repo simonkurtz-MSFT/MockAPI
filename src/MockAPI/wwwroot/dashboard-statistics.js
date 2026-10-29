@@ -12,6 +12,7 @@ import {
   hasScrollableStatisticsHistory,
 } from "./dashboard-core.js?v={{ASSET_VERSION}}";
 import {
+  bindDashboardTooltip,
   createDashboardDom,
   createDashboardEventScope,
   getDashboardElements,
@@ -49,6 +50,9 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
     "request-log-time-heading": "th",
     "request-log-toggle": "button",
     "request-log-toggle-buckets": "button",
+    "request-log-show-unexpected": "input",
+    "request-log-unexpected-info": "button",
+    "request-log-unexpected-hint": "div",
     "reset-statistics-scope": "button",
     "statistics-body": "div",
     "statistics-chart": "div",
@@ -70,7 +74,16 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
   const STATISTICS_RETENTION_MINUTES = 60;
   const STATISTICS_VISIBLE_MINUTES = 30;
   const preferences = preferencesStore.get();
+  elements["request-log-show-unexpected"].checked = preferences.showUnexpectedRequests;
   const events = createDashboardEventScope();
+  const unexpectedRequestHelp = bindDashboardTooltip({
+    trigger: elements["request-log-unexpected-info"],
+    tooltip: elements["request-log-unexpected-hint"],
+    events,
+  });
+  events.listen(document, "keydown", (event) => {
+    if (event.key === "Escape") unexpectedRequestHelp.hide();
+  });
   const logEvents = createDashboardEventScope();
   const { makeElement } = createDashboardDom(document, events);
   /** @type {readonly import("./dashboard-core.js").MockEndpoint[]|null} */
@@ -123,16 +136,23 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
     const formatRequestTime = state.requestLogTimeZone === "local" ? formatTime : formatUtcTime;
     elements["request-log-time-heading"].title =
       state.requestLogTimeZone === "local" ? "Times shown in your browser's local time zone" : "Times shown in UTC";
-    const recentRequests = state.statistics?.recentRequests || [];
+    const recentRequests = visibleRecentRequests();
+    const allRequests = state.statistics?.recentRequests || [];
+    const hasHiddenRequests = allRequests.length > recentRequests.length;
     const groups = groupRequestsByMinute(recentRequests);
-    const bucketKeys = new Set(groups.map((group) => group.minuteUtc));
+    const bucketKeys = new Set(groupRequestsByMinute(allRequests).map((group) => group.minuteUtc));
     for (const key of state.collapsedRequestLogBuckets) {
       if (!bucketKeys.has(key)) state.collapsedRequestLogBuckets.delete(key);
     }
     elements["request-log-count"].textContent = formatNumber(recentRequests.length);
     updateRequestLogBucketControl();
     if (state.requestLogCollapsed) return;
-    const cache = JSON.stringify([recentRequests, [...state.collapsedRequestLogBuckets], state.requestLogTimeZone]);
+    const cache = JSON.stringify([
+      recentRequests,
+      [...state.collapsedRequestLogBuckets],
+      state.requestLogTimeZone,
+      hasHiddenRequests,
+    ]);
     if (requestLogCache === cache) return;
     logEvents.clear();
     requestLogCache = cache;
@@ -143,7 +163,11 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
 
     if (recentRequests.length === 0) {
       const row = document.createElement("tr");
-      const cell = makeElement("td", "request-log-empty", "No requests recorded");
+      const cell = makeElement(
+        "td",
+        "request-log-empty",
+        hasHiddenRequests ? "No requests match this filter" : "No requests recorded"
+      );
       cell.colSpan = 6;
       row.append(cell);
       elements["request-log-rows"].replaceChildren(row);
@@ -194,13 +218,19 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
         const time = makeElement("time", "tabular-numeric", formatRequestTime(request.timestampUtc));
         time.dateTime = request.timestampUtc;
         const result = formatRequestLogResult(request);
+        const unexpected = isUnexpectedRequest(request);
+        row.dataset.unexpected = String(unexpected);
+        const resultCell = makeElement("td", `request-log-result ${result.className}`, result.label);
+        if (unexpected) {
+          resultCell.append(makeElement("small", "request-log-unexpected-label", "Unexpected"));
+        }
         const methodCell = document.createElement("td");
         methodCell.append(makeElement("span", "method-badge", request.method || "—"));
         row.append(
           makeElement("td", null),
           methodCell,
           makeElement("td", "request-log-path", request.path || "—"),
-          makeElement("td", `request-log-result ${result.className}`, result.label),
+          resultCell,
           makeElement("td", "numeric request-log-attempts", formatNumber(request.transportAttempts || 1)),
           makeElement("td", "numeric", formatNumber(request.responseBytes || 0))
         );
@@ -217,6 +247,17 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
       );
       toggle?.focus({ preventScroll: true });
     }
+  }
+
+  function isUnexpectedRequest(request) {
+    return ["unmatched", "rejected", "failedWrite"].includes(request.outcome);
+  }
+
+  function visibleRecentRequests() {
+    const requests = state.statistics?.recentRequests || [];
+    return elements["request-log-show-unexpected"].checked
+      ? requests
+      : requests.filter((request) => !isUnexpectedRequest(request));
   }
 
   function setRequestLogBucketCollapsed(bucketKey, collapsed) {
@@ -242,7 +283,7 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
   }
 
   function updateRequestLogBucketControl() {
-    const groups = groupRequestsByMinute(state.statistics?.recentRequests || []);
+    const groups = groupRequestsByMinute(visibleRecentRequests());
     const allCollapsed =
       groups.length > 0 && groups.every((group) => state.collapsedRequestLogBuckets.has(group.minuteUtc));
     const control = elements["request-log-toggle-buckets"];
@@ -251,9 +292,12 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
   }
 
   function toggleAllRequestLogBuckets() {
-    const groups = groupRequestsByMinute(state.statistics?.recentRequests || []);
+    const groups = groupRequestsByMinute(visibleRecentRequests());
     const collapse = groups.some((group) => !state.collapsedRequestLogBuckets.has(group.minuteUtc));
-    state.collapsedRequestLogBuckets = collapse ? new Set(groups.map((group) => group.minuteUtc)) : new Set();
+    for (const group of groups) {
+      if (collapse) state.collapsedRequestLogBuckets.add(group.minuteUtc);
+      else state.collapsedRequestLogBuckets.delete(group.minuteUtc);
+    }
     renderRequestLog();
   }
 
@@ -306,6 +350,7 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
   }
 
   function setRequestLogCollapsed(collapsed) {
+    if (collapsed) unexpectedRequestHelp.hide();
     state.requestLogCollapsed = collapsed;
     document.documentElement.dataset.requestLogCollapsed = String(collapsed);
     elements["request-log-body"].hidden = collapsed;
@@ -483,7 +528,7 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
     );
     const maximum = Math.max(1, ...recent.map((bucket) => bucket.requests));
     const requestLogBuckets = new Set(
-      groupRequestsByMinute(state.statistics.recentRequests || []).map((group) => minuteBucketKey(group.minuteUtc))
+      groupRequestsByMinute(visibleRecentRequests()).map((group) => minuteBucketKey(group.minuteUtc))
     );
     if (!chartTooltip) {
       chartTooltip = createStatisticsTooltip();
@@ -699,6 +744,11 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
     preferencesStore.update({ requestLogCollapsed: state.requestLogCollapsed });
   });
   events.listen(elements["request-log-toggle-buckets"], "click", toggleAllRequestLogBuckets);
+  events.listen(elements["request-log-show-unexpected"], "change", (event) => {
+    preferencesStore.update({ showUnexpectedRequests: event.currentTarget.checked });
+    renderRequestLog();
+    if (state.statisticsView === "graph") renderDetailedStatistics();
+  });
   events.listen(elements["statistics-endpoint-select"], "change", (event) => {
     state.statisticsEndpointId = event.currentTarget.value;
     renderDetailedStatistics();
@@ -726,6 +776,7 @@ export function createDashboardStatistics({ documentRoot, preferencesStore, onRe
       renderStatistics();
     },
     dispose() {
+      unexpectedRequestHelp.hide();
       events.clear();
       for (const entry of chartColumns.values()) entry.listeners.clear();
       chartColumns.clear();

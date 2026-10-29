@@ -41,6 +41,7 @@ import {
  * @param {(operation: "enable"|"disable", ids: string[]) => Promise<void>} options.onBulkOperation Applies a selection snapshot.
  * @param {(ids: string[]) => void} options.onBulkDelete Confirms a selection snapshot.
  * @param {(path: string, description: string) => void} options.onEditApiDescription Opens the API description editor.
+ * @param {(endpoint: import("./dashboard-core.js").MockEndpoint) => Promise<void>} options.onCopyCurl Copies an OS-aware request without exposing credentials.
  * @returns {DashboardEndpointTable} Endpoint view owner; selection callbacks receive detached ID arrays.
  * @throws {Error} Required dashboard markup is missing or has an incorrect tag.
  */
@@ -55,6 +56,7 @@ export function createDashboardEndpointTable({
   onBulkOperation,
   onBulkDelete,
   onEditApiDescription,
+  onCopyCurl,
 }) {
   const document = documentRoot;
   const window = document.defaultView;
@@ -200,6 +202,7 @@ export function createDashboardEndpointTable({
   }
 
   function renderEndpoints() {
+    elements["endpoint-table-region"].dataset.curlAction = String(preferencesStore.get().showCurlAction);
     elements["endpoint-loading-state"].hidden = state.endpointsLoaded;
     elements["endpoint-table-region"].setAttribute("aria-busy", String(!state.endpointsLoaded));
     if (state.endpointsCollapsed) {
@@ -414,7 +417,7 @@ export function createDashboardEndpointTable({
     const testButton = actionButton("Test", "play", (event) => onTest(endpoint, event.currentTarget), "test");
     testButton.dataset.testEndpointId = endpoint.id;
     const editButton = actionButton("Edit", "edit", () => onEdit(endpoint), "edit");
-    const duplicateButton = actionButton("Duplicate", "copy", () => onDuplicate(endpoint), "copy");
+    const duplicateButton = actionButton("Duplicate", "duplicate", () => onDuplicate(endpoint), "copy");
     const deleteButton = actionButton("Delete", "delete", () => onDelete(endpoint), "delete");
     /** @type {[string, HTMLButtonElement][]} */
     const actionButtons = [
@@ -427,6 +430,11 @@ export function createDashboardEndpointTable({
       button.dataset.endpointFocus = `${endpoint.id}:${action}`;
     }
     actions.append(testButton, editButton, duplicateButton, deleteButton);
+    if (preferencesStore.get().showCurlAction) {
+      const curlButton = actionButton("Copy cURL command", "terminal", () => onCopyCurl(endpoint), "copy");
+      curlButton.dataset.endpointFocus = `${endpoint.id}:curl`;
+      actions.append(curlButton);
+    }
     actionCell.append(actions);
 
     row.append(selectionCell, pathCell, nameCell, methodCell, statusCell, requestsCell, enabledCell, actionCell);

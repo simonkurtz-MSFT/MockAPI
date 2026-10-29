@@ -70,6 +70,14 @@ applyTo: "src/MockAPI/wwwroot/**/*.{js,html,css},tests/{frontend,browser}/**/*.j
 - Align expanded column bottoms through shared grid sizing. On roomy two-column viewports, use spare height above the footer for Endpoints and Request log without growing Statistics or collapsed panels. Empty endpoint tables and request-log tables must fit the supported column width; use automatic horizontal scrolling only for actual overflow, not permanently visible chart scrollbars.
 - Default all panels to expanded when collapse preferences are absent. Honor explicit saved collapse choices on reload and across layout transitions; do not stretch collapsed panels to force column alignment.
 - Show one Time column in Request log, using UTC by default. Keep the browser-only UTC/local time preference in Settings and apply it to entries and minute labels without changing UTC bucket identities or collapse state.
+- Keep routing misses (`unmatched`), payload rejections (`rejected`), and failed writes distinguishable
+  as unexpected; configured errors and intentional aborts remain expected. The saved browser-only
+  show/hide toggle defaults on and filters log rows, counts, buckets, and chart-to-log navigation,
+  never aggregate statistics or retained summaries. Keep hidden buckets' collapse state.
+- Keep endpoint duplication visually distinct from URL copying. Default the optional fifth cURL
+  action on, with a browser-only Settings toggle. Reuse test request samples, choose the first
+  configured method, use PowerShell/curl.exe on Windows and POSIX quoting elsewhere, and reference
+  the caller's API-key environment variable rather than embedding secrets.
 - Apply initial collapse preferences in the HTML bootstrap before the dashboard modules load. Keep root collapse attributes synchronized with runtime hidden states so visibility and grid sizing agree from first paint.
 - Use observable state or network conditions in browser tests instead of fixed waits. Keep browser automation headless unless visible inspection is explicitly requested.
 - Run focused Vitest checks while iterating, then the affected frontend coverage and browser checks when the change set is ready.

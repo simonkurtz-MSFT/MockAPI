@@ -553,11 +553,29 @@ html[data-request-log-collapsed="true"] #request-log-body {
   line-height: 1.45;
 }
 .request-log-bucket-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   padding: 8px 16px;
   border-bottom: 1px solid var(--cp-border);
 }
 .request-log-bucket-actions .button {
   min-width: 180px;
+}
+.request-log-filter {
+  display: flex;
+  align-items: center;
+}
+.request-log-unexpected-label {
+  display: block;
+  color: var(--cp-text);
+  font-size: 10px;
+  font-weight: 600;
+}
+.request-log-entry[data-unexpected="true"] .request-log-path {
+  border-left: 2px solid var(--cp-warning);
 }
 .request-log-table {
   overflow: auto;
@@ -1072,6 +1090,9 @@ textarea {
 }
 .table-wrap:has(.endpoint-group-row) .endpoint-actions-column {
   width: 160px;
+}
+.table-wrap[data-curl-action="true"]:has(.endpoint-group-row) .endpoint-actions-column {
+  width: 196px;
 }
 .table-wrap:has(.endpoint-group-row) th,
 .table-wrap:has(.endpoint-group-row) td {

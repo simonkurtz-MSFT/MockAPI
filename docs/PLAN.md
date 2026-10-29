@@ -366,6 +366,10 @@ with the dashboard. Revalidate the worker on updates rather than using immutable
   receive their own IDs when applied.
 - Create/edit form with a response/connection-abort behavior selector, optional delay, header rows, status code, reason phrase caveat, content type, and a payload editor.
 - Enable/disable toggle, edit action, delete confirmation, and endpoint duplication.
+- Use a distinct duplication icon and an optional fifth endpoint action to copy a cURL request.
+  Default it on with a browser-only Settings preference; use the first configured method,
+  shared illustrative request samples, PowerShell on Windows and POSIX quoting elsewhere,
+  and caller-supplied environment variables instead of embedded API keys.
 - Stable-ID row selection with select-all for the current filtered result set and bulk enable, disable, and confirmed delete actions.
 - Provide a select-all checkbox in each API group header for that API's filtered endpoints, including
   when collapsed. Show a mixed state for partial selection, preserve selections in other APIs and
@@ -435,6 +439,10 @@ The UI must be keyboard usable and responsive, with WCAG 2.2 AA as the design an
   Bound rendering caches to the current data, dispose replaced listeners, and preserve focus,
   timeline scroll, and immediate endpoint-history switching.
 - Retain at most 100 newest-first request summaries containing only timestamp, method, normalized path, stable endpoint ID, outcome, status, and response byte count.
+- Include unmatched requests in that bounded feed. Distinguish unexpected routing misses,
+  payload-validation rejections, and failed writes from configured HTTP errors and intentional
+  aborts. Default **Show unexpected requests** on, persist its browser-only choice, and filter
+  only the displayed request log without altering counters or retained summaries.
 - Do not retain request or response bodies, authorization headers, cookies, or query values.
 - Treat statistics as process-local and reset them on restart in the initial release.
 - Document that multiple replicas have independent configuration and statistics. Configure one minimum and one maximum replica so the application remains continuously available without inconsistent process-local state; do not enable scale-to-zero or multiple replicas unless an approved design changes these requirements.

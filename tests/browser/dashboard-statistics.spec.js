@@ -86,7 +86,38 @@ test("uses the consolidated Statistics reset control for overall and endpoint sc
   await expect(page.locator("#metric-rate")).toHaveText("0.0 attempts/min");
 });
 
-test("shows only configured endpoint requests without retaining query values", async ({ page, request }) => {
+test("explains unexpected requests with the shared hover and keyboard-focus information tooltip", async ({ page }) => {
+  const info = page.getByRole("button", { name: "Unexpected request information", exact: true });
+  const hint = page.locator("#request-log-unexpected-hint");
+  const filter = page.getByRole("checkbox", { name: "Show unexpected requests" });
+  await expect(hint).not.toBeVisible();
+  await info.hover();
+  await expect(hint).toBeVisible();
+  await expect(hint).toHaveClass("api-description-tooltip");
+  await expect(hint).toContainText("HTTP method and path (404)");
+  await expect(hint).toContainText("400, 413, or 415");
+  await expect(hint).toContainText("failed before completion");
+  await expect(hint).toContainText("intentional connection aborts are expected");
+  await expect(hint).toContainText("overall statistics still include them");
+  await filter.hover();
+  await expect(hint).not.toBeVisible();
+  await info.focus();
+  await expect(hint).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(hint).not.toBeVisible();
+  await expect(info).toBeFocused();
+  await info.click();
+  await expect(hint).toBeVisible();
+  await expect(filter).toBeChecked();
+  await expectNoUnreviewedAccessibilityViolations(page, ".request-log-workspace");
+  await page.getByRole("button", { name: "Collapse request log", exact: true }).click();
+  await expect(hint).not.toBeVisible();
+});
+
+test("distinguishes unexpected requests and filters them without hiding configured errors or retaining query values", async ({
+  page,
+  request,
+}) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
   await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(41);
   await request.post("/__mockapi/api/statistics/reset");
@@ -95,10 +126,30 @@ test("shows only configured endpoint requests without retaining query values", a
   expect(matchedResponse.status()).toBe(200);
   const unmatchedResponse = await request.get("/missing-latest?token=private-value");
   expect(unmatchedResponse.status()).toBe(404);
+  expect((await request.post("/inventory/items")).status()).toBe(404);
+  expect((await request.get("/inventory/items/unknown")).status()).toBe(404);
+  expect(
+    (
+      await request.post("/inventory/reservations", {
+        headers: { "Content-Type": "application/json" },
+        data: Buffer.from("{broken"),
+      })
+    ).status()
+  ).toBe(400);
 
   const log = page.getByRole("region", { name: "Recent request log" });
   const rows = log.locator("tbody .request-log-entry");
-  await expect(rows).toHaveCount(1);
+  await expect(rows).toHaveCount(5);
+  await expect(log.locator('[data-unexpected="true"]')).toHaveCount(3);
+  await expect(rows.filter({ hasText: "/missing-latest" })).toContainText("404 · Unmatched");
+  await expect(rows.filter({ hasText: "/inventory/reservations" })).toContainText("400 · Rejected");
+  const unexpectedToggle = page.getByRole("checkbox", { name: "Show unexpected requests" });
+  await expect(unexpectedToggle).toBeChecked();
+  await unexpectedToggle.uncheck();
+  await expect(rows).toHaveCount(2);
+  await expect(log.locator('[data-unexpected="true"]')).toHaveCount(0);
+  await expect(rows.filter({ hasText: "/inventory/items/unknown" })).toContainText("404");
+  await expect(rows.filter({ hasText: "/inventory/items/unknown" })).not.toContainText("Unexpected");
   await expect(log.getByRole("columnheader", { name: "Time", exact: true })).toBeVisible();
   await expect(log.getByRole("columnheader")).toHaveCount(6);
   await expect(rows.nth(0).locator("td")).toHaveCount(6);
@@ -112,18 +163,25 @@ test("shows only configured endpoint requests without retaining query values", a
   await expect(log.locator(".request-log-bucket")).toContainText("Bucket:");
   const bucketToggle = log.locator(".request-log-bucket-toggle");
   await expect(bucketToggle).toHaveAttribute("aria-expanded", "true");
-  await expect(bucketToggle).toContainText("1 request");
+  await expect(bucketToggle).toContainText("2 requests");
   await bucketToggle.click();
   await expect(bucketToggle).toHaveAttribute("aria-expanded", "false");
   await expect(rows.nth(0)).toBeHidden();
   await bucketToggle.click();
   await expect(rows.nth(0)).toBeVisible();
-  await expect(rows.nth(0)).toContainText("/inventory/items");
-  await expect(rows.nth(0).locator(".request-log-result")).toHaveClass(/status-2xx/);
+  await expect(rows.nth(1)).toContainText("/inventory/items");
+  await expect(rows.nth(1).locator(".request-log-result")).toHaveClass(/status-2xx/);
   await expect(rows.nth(0).locator(".request-log-result")).toHaveCSS("text-align", "center");
-  await expect(page.locator("#metric-unmatched")).toHaveText("1");
+  await expect(page.locator("#metric-unmatched")).toHaveText("2");
   await expect(log).not.toContainText("/missing-latest");
   await expect(log).not.toContainText("private-value");
+  await page.reload();
+  await expect(unexpectedToggle).not.toBeChecked();
+  await expect(rows).toHaveCount(2);
+  await unexpectedToggle.check();
+  await expect(rows).toHaveCount(5);
+  await expect(log).not.toContainText("private-value");
+  await expect(page.getByText("Most recent process-local request outcomes", { exact: true })).toHaveCount(0);
   await expectNoUnreviewedAccessibilityViolations(page);
 });
 

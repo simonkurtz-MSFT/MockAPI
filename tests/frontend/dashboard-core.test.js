@@ -277,6 +277,14 @@ describe("formatRequestLogResult", () => {
     ],
     [{ outcome: "unmatched" }, { label: "404 · Unmatched", className: "status-4xx" }],
     [
+      { outcome: "rejected", statusCode: 400 },
+      { label: "400 · Rejected", className: "status-4xx" },
+    ],
+    [
+      { outcome: "response", statusCode: 404 },
+      { label: "404", className: "status-4xx" },
+    ],
+    [
       { outcome: "failedWrite", statusCode: 503 },
       { label: "Write failed", className: "error" },
     ],

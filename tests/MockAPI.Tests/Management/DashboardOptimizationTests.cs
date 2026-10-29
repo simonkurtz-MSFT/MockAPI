@@ -24,6 +24,7 @@ public sealed class DashboardOptimizationTests
     [InlineData("/dashboard-editor-dialog.js")]
     [InlineData("/dashboard-api-description.js")]
     [InlineData("/dashboard-endpoint-table.js")]
+    [InlineData("/dashboard-curl.js")]
     [InlineData("/dashboard-layout.js")]
     [InlineData("/dashboard-statistics.js")]
     [InlineData("/dashboard-test-blade.js")]
@@ -85,7 +86,7 @@ public sealed class DashboardOptimizationTests
         Assert.Equal("text/javascript", management.Content.Headers.ContentType!.MediaType);
         AssertVersionedCacheControl(management.Headers.CacheControl);
 
-        foreach (var name in new[] { "dashboard-dom.js", "dashboard-editor-dialog.js", "dashboard-endpoint-table.js",
+        foreach (var name in new[] { "dashboard-curl.js", "dashboard-dom.js", "dashboard-editor-dialog.js", "dashboard-endpoint-table.js",
             "dashboard-layout.js", "dashboard-statistics.js", "dashboard-test-blade.js" })
         {
             Assert.Contains($"./{name}?v={version}", javascript, StringComparison.Ordinal);

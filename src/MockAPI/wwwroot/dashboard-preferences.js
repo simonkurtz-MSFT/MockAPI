@@ -19,6 +19,8 @@ const VERSION = 1;
  * @property {boolean} endpointsCollapsed Whether the endpoint section is collapsed.
  * @property {boolean} kjUiStyle Whether the dashboard uses hard corners throughout.
  * @property {boolean} requestLogCollapsed Whether the request log section is collapsed.
+ * @property {boolean} showUnexpectedRequests Whether unexpected dispatch outcomes appear in the request log.
+ * @property {boolean} showCurlAction Whether endpoint rows offer a cURL clipboard action.
  * @property {RequestLogTimeZone} requestLogTimeZone Time zone used for request-log entries and minute labels; defaults to UTC.
  * @property {ResponseBodyPresentation} responseBodyPresentation Preferred endpoint test response presentation when pretty printing is available.
  * @property {StatisticsView} statisticsView Selected statistics presentation.
@@ -48,6 +50,8 @@ function normalizePreferences(value, legacyTheme = null) {
     endpointsCollapsed: typeof supported.endpointsCollapsed === "boolean" ? supported.endpointsCollapsed : false,
     kjUiStyle: supported.kjUiStyle === true,
     requestLogCollapsed: typeof supported.requestLogCollapsed === "boolean" ? supported.requestLogCollapsed : false,
+    showUnexpectedRequests: supported.showUnexpectedRequests !== false,
+    showCurlAction: supported.showCurlAction !== false,
     requestLogTimeZone: supported.requestLogTimeZone === "local" ? "local" : "utc",
     responseBodyPresentation: supported.responseBodyPresentation === "pretty" ? "pretty" : "raw",
     statisticsView: ["graph", "table"].includes(supported.statisticsView) ? supported.statisticsView : "graph",
