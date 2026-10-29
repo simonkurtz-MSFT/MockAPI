@@ -97,4 +97,5 @@ try {
 finally {
   Remove-Item -LiteralPath $publicationFixture -Recurse -Force
 }
+
 Write-Host 'Native publication and release workflow contract tests passed.'

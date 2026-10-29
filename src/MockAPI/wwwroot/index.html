@@ -40,6 +40,8 @@
     </script>
     <title>MockAPI Console</title>
     <meta name="theme-color" content="#075ea8" />
+    <link rel="manifest" href="/__mockapi/manifest.webmanifest" crossorigin="use-credentials" />
+    <link rel="apple-touch-icon" href="/__mockapi/icon-192.png" />
     <link rel="icon" href="/favicon.svg?v={{ASSET_VERSION}}" type="image/svg+xml" />
     <link rel="stylesheet" href="/app.css?v={{ASSET_VERSION}}" />
     <script src="/app.js?v={{ASSET_VERSION}}" type="module"></script>
@@ -51,7 +53,7 @@
         <img class="brand-mark" src="/brand-mark.svg?v={{ASSET_VERSION}}" alt="" width="42" height="34" />
         <div>
           <strong>MockAPI</strong>
-          <span>Operations console</span>
+          <span id="instance-domain"></span>
         </div>
       </div>
       <div class="header-actions">

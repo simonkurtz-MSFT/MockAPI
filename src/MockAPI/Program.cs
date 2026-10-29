@@ -70,6 +70,10 @@ if (options.EnableDashboard)
         "dashboard-test-request.js",
         "dashboard-tutorial.js",
         "favicon.svg",
+        "manifest.webmanifest",
+        "service-worker.js",
+        "icon-192.png",
+        "icon-512.png",
         "openapi-logo.svg"
     ];
     var assetVersion = DashboardAssets.CreateVersion(app.Environment.WebRootPath, dashboardAssetNames);
@@ -104,6 +108,16 @@ if (options.EnableDashboard)
     DashboardAssets.Map(app, "/favicon.svg", "favicon.svg", "image/svg+xml", assetVersion);
     DashboardAssets.Map(app, "/favicon.ico", "favicon.svg", "image/svg+xml", assetVersion);
     DashboardAssets.Map(app, "/brand-mark.svg", "brand-mark.svg", "image/svg+xml", assetVersion);
+    DashboardAssets.Map(app, "/__mockapi/manifest.webmanifest", "manifest.webmanifest", "application/manifest+json", assetVersion);
+    DashboardAssets.Map(app, "/__mockapi/icon-192.png", "icon-192.png", "image/png", assetVersion);
+    DashboardAssets.Map(app, "/__mockapi/icon-512.png", "icon-512.png", "image/png", assetVersion);
+    DashboardAssets.Map(
+        app,
+        "/__mockapi/service-worker.js",
+        "service-worker.js",
+        "text/javascript; charset=utf-8",
+        assetVersion,
+        serviceWorkerScope: "/");
     DashboardAssets.Map(
         app,
         "/__mockapi/openapi-logo.svg",

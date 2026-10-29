@@ -169,11 +169,11 @@ button:disabled {
 
 /* Page header and configuration commands */
 .app-header {
-  height: 64px;
+  min-height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 28px;
+  padding: 8px 28px;
   border-bottom: 1px solid var(--cp-border);
   background: var(--cp-bg-elevated);
   box-shadow: 0 3px 12px rgba(16, 36, 62, 0.06);
@@ -213,11 +213,13 @@ button:disabled {
 }
 .brand-lockup {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 12px;
 }
 .brand-lockup > div {
   display: grid;
+  min-width: 0;
 }
 .brand-lockup strong {
   font-size: 17px;
@@ -225,9 +227,11 @@ button:disabled {
 .brand-lockup span {
   color: var(--cp-text-muted);
   font-size: 12px;
+  overflow-wrap: anywhere;
 }
 .brand-mark {
   display: block;
+  flex-shrink: 0;
   width: 42px;
   height: 34px;
   border-radius: 8px;
@@ -2698,7 +2702,6 @@ html[data-theme="dark"] button:disabled {
   .header-api-security {
     margin-right: auto;
   }
-  .brand-lockup > div span,
   .connection-status {
     display: none;
   }

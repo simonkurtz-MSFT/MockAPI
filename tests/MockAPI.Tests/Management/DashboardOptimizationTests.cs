@@ -4,6 +4,7 @@ using System.IO.Pipelines;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using MockAPI.Configuration;
@@ -26,6 +27,10 @@ public sealed class DashboardOptimizationTests
     [InlineData("/dashboard-layout.js")]
     [InlineData("/dashboard-statistics.js")]
     [InlineData("/dashboard-test-blade.js")]
+    [InlineData("/__mockapi/manifest.webmanifest")]
+    [InlineData("/__mockapi/service-worker.js")]
+    [InlineData("/__mockapi/icon-192.png")]
+    [InlineData("/__mockapi/icon-512.png")]
     public async Task UnversionedAssets_RevalidateWithContentETagsAndNeverUseSharedCaching(string path)
     {
         await using var factory = new WebApplicationFactory<Program>();
@@ -93,6 +98,37 @@ public sealed class DashboardOptimizationTests
 
         using var stale = await client.GetAsync("/app.css?v=stale");
         Assert.Equal("no-cache, private", stale.Headers.CacheControl!.ToString());
+    }
+
+    [Fact]
+    public async Task ServiceWorker_AllowsRootScopeAndRevalidatesEvenWithAVersionQuery()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        using var client = factory.CreateClient();
+        var html = await client.GetStringAsync("/");
+        var version = Regex.Match(html, "/app\\.css\\?v=([A-F0-9]{64})").Groups[1].Value;
+        using var response = await client.GetAsync($"/__mockapi/service-worker.js?v={version}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("/", Assert.Single(response.Headers.GetValues("Service-Worker-Allowed")));
+        Assert.True(response.Headers.CacheControl!.NoCache);
+        Assert.True(response.Headers.CacheControl.Private);
+        Assert.Equal("text/javascript", response.Content.Headers.ContentType!.MediaType);
+        using var manifest = await client.GetAsync("/__mockapi/manifest.webmanifest");
+        Assert.Equal("application/manifest+json", manifest.Content.Headers.ContentType!.MediaType);
+    }
+
+    [Theory]
+    [InlineData("/__mockapi/manifest.webmanifest")]
+    [InlineData("/__mockapi/service-worker.js")]
+    [InlineData("/__mockapi/icon-192.png")]
+    [InlineData("/__mockapi/icon-512.png")]
+    public async Task DisabledDashboard_DoesNotExposePwaAssets(string path)
+    {
+        await using var factory = new UnsecuredApplicationFactory().WithWebHostBuilder(builder =>
+            builder.UseSetting("MockApi:EnableDashboard", "false"));
+        using var client = factory.CreateClient();
+        using var response = await client.GetAsync(path);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     private static void AssertVersionedCacheControl(CacheControlHeaderValue? cacheControl)

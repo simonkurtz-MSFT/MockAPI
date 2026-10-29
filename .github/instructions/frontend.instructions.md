@@ -52,6 +52,10 @@ applyTo: "src/MockAPI/wwwroot/**/*.{js,html,css},tests/{frontend,browser}/**/*.j
 - Route management requests through `dashboard-management.js`. Configuration commands pass an explicit captured ETag; editor drafts and confirmations keep their reviewed revision despite live updates. Keep the single-flight guard through the authoritative refresh, surface failures, and never automatically replay rejected writes.
 - Consume the synchronizer's explicit completed/failed/inactive refresh result at the command boundary. Background recovery may continue after failure, but a command must not treat a failed or interrupted refresh as successful.
 - Serve scripts and styles with private, content-validated caching; keep dashboard HTML and administrative data non-storable. Do not use immutable caching for unversioned asset URLs.
+- Keep PWA installation assets under authenticated `/__mockapi/` routes. The root-scoped worker handles
+  only same-origin GET navigations to `/`, never API, mock, health, or asset requests. Use a generic
+  reconnect page only on network failure; preserve HTTP errors and never cache administrative content
+  or queue offline writes. Keep the worker URL stable and its updates revalidated.
 - Add JSDoc to every exported function, factory, and reusable exported value. Document parameters, return shapes, callbacks, lifecycle, side effects, thrown errors, and discriminated result variants where applicable.
 - Prefer reusable `@typedef` contracts for shared object shapes. Keep annotations specific enough to help editors and reviewers; do not use `Object` when a meaningful shape is known.
 - Keep shared endpoint, configuration, management-problem, and statistics wire shapes in `dashboard-core.js`, aligned with the backend's nullable and omitted fields. Keep named controller/lifecycle types in their owning modules and reuse shared contracts rather than duplicating payload shapes.
