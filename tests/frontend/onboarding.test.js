@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execFile, execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { once } from "node:events";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -62,12 +62,14 @@ describe("public onboarding boundaries", () => {
     expect(totalBytes).toBeLessThanOrEqual(160 * 1024);
   });
 
-  it("tracks the Bash entry point as executable for Linux checkouts", () => {
-    const entry = execFileSync("git", ["ls-files", "--stage", "--", "start.sh"], {
+  it("tracks the Bash entry point as executable for Linux checkouts", { timeout: 15_000 }, async () => {
+    // Git startup can exceed the default test budget on busy Windows hosts.
+    const { stdout } = await promisify(execFile)("git", ["ls-files", "--stage", "--", "start.sh"], {
       cwd: root,
       encoding: "utf8",
+      timeout: 10_000,
     });
-    expect(entry).toMatch(/^100755 /);
+    expect(stdout).toMatch(/^100755 /);
   });
 
   it(
