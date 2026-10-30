@@ -7,6 +7,13 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-10-30
+
+### Added
+
+- The dashboard checks for newer application releases at startup and hourly, with an accessible,
+  dismissible update notice and reload action. Dismissal is scoped to the current browser session.
+
 ## [1.11.0] - 2026-10-29
 
 ### Added
@@ -395,7 +402,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.11.0...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.12.0...HEAD
+[1.12.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.11.0...1.12.0
 [1.11.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.10.1...1.11.0
 [1.10.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.10.0...1.10.1
 [1.10.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.9.1...1.10.0
