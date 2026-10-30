@@ -584,24 +584,26 @@ test("reports endpoint-test network errors", async ({ page, request }) => {
 
 test("cancels an active endpoint test", async ({ page }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
+  let requestIntercepted = false;
   let releaseRequest;
   const requestHeld = new Promise((resolve) => {
     releaseRequest = resolve;
   });
   await page.route("**/inventory/items", async (route) => {
     // Keep the request active regardless of how long mobile actionability checks take.
+    requestIntercepted = true;
     await requestHeld;
     await route.abort();
   });
   try {
     const row = page.getByRole("row", { name: /Browse inventory/ });
     await row.getByRole("button", { name: "Test" }).click();
-    const requestStarted = page.waitForRequest("**/inventory/items");
     const send = page.getByRole("button", { name: "Send request" });
     const cancel = page.getByRole("button", { name: "Cancel", exact: true });
     await send.click();
-    await requestStarted;
+    await expect.poll(() => requestIntercepted).toBe(true);
     await expect(send).toBeDisabled();
+    await expect(cancel).toBeEnabled();
     await cancel.click();
     await expect(page.locator("#test-status")).toHaveText("Request cancelled.");
     await expect(send).toBeEnabled();

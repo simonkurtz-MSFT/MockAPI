@@ -20,6 +20,8 @@ export default defineConfig({
   outputDir: "artifacts/playwright/results",
   use: {
     baseURL,
+    // Service workers can hide requests from routing; PWA scenarios explicitly opt back in.
+    serviceWorkers: "block",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",

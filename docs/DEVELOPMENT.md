@@ -74,6 +74,16 @@ pnpm run test:site
 pnpm run test:browser:smoke
 ```
 
+The complete dashboard suite keeps one worker because its tests share configuration, statistics,
+and persistence. CI runs the desktop, mobile, and accessibility-preferences profiles in parallel
+on separate runners, each with its own backend and profile-specific diagnostic artifacts.
+Local `pnpm run test:browser` still runs all profiles serially; select one with
+`pnpm run test:browser --project chromium-desktop`.
+Ordinary dashboard tests block service workers so network routing and request observation remain
+deterministic. Installation and offline/reconnect scenarios explicitly enable real service workers.
+Cancellation tests wait until the route is actually held, and import/save assertions wait for the
+import response and command completion before checking persistence.
+
 The site tests check that common-use card headings, descriptions, and links align across desktop
 widths and enlarged text, while narrow viewports retain naturally sized, stacked cards.
 The hero's Docker Hub version badge uses the same Shields.io source as the README and links to the

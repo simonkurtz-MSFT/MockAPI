@@ -35,11 +35,21 @@ test("imports, automatically saves, and exports configuration", async ({ page, r
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify({ ...emptyDocument, endpoints: [endpoint, secondEndpoint] })),
   });
+  // SSE can publish the imported rows before automatic saving and the command response finish.
+  const importResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PUT" && response.url().endsWith("/__mockapi/api/configuration/import")
+  );
   await page.getByRole("button", { name: "Confirm" }).click();
+  const importResponse = await importResponsePromise;
+  expect(importResponse.ok(), await importResponse.text()).toBeTruthy();
   await expect(page.getByRole("row", { name: /Imported endpoint/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Import", exact: true })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Retry save" })).toBeDisabled();
   const status = await request.get("/__mockapi/api/configuration");
   expect((await status.json()).hasUnsavedChanges).toBe(false);
+  const savedDocument = JSON.parse(await readFile(path.resolve("artifacts", "playwright", "mockapi.json"), "utf8"));
+  expect(savedDocument.endpoints.map(({ id }) => id)).toEqual([endpoint.id, secondEndpoint.id]);
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("link", { name: "Export" }).click();

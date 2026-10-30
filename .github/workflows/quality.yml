@@ -223,6 +223,13 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: *runner-x64
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - chromium-desktop
+          - chromium-mobile
+          - chromium-accessibility-preferences
     container:
       image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea
     steps:
@@ -243,10 +250,11 @@ jobs:
       - run: dotnet restore MockAPI.slnx
       - run: dotnet build MockAPI.slnx --configuration Release --no-restore -p:TreatWarningsAsErrors=true
       - name: Run complete browser tests
-        run: pnpm run test:browser
+        # Each runner owns its backend and persistence; keep the configured single worker.
+        run: pnpm run test:browser --project "${{ matrix.project }}"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: playwright-chromium-results
+          name: playwright-${{ matrix.project }}-results
           retention-days: 14
           path: artifacts/playwright/**
