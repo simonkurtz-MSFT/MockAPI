@@ -12,6 +12,7 @@ import {
   createDashboardManagementClient,
 } from "./dashboard-management.js?v={{ASSET_VERSION}}";
 import { createDashboardTutorialController } from "./dashboard-tutorial.js?v={{ASSET_VERSION}}";
+import { createDashboardUpdateMonitor } from "./dashboard-updates.js?v={{ASSET_VERSION}}";
 import {
   createEndpointTestRequestController,
   getEndpointTestSecurityWarning,
@@ -38,6 +39,12 @@ const elements = getDashboardElements(document, {
   "confirm-title": "h2",
   "connection-status": "span",
   "create-button": "button",
+  "dashboard-update-apply": "button",
+  "dashboard-update-button": "button",
+  "dashboard-update-dismiss": "button",
+  "dashboard-update-message": "p",
+  "dashboard-update-prompt": "section",
+  "dashboard-version": "meta",
   "empty-load-example-button": "button",
   "export-button": "a",
   "export-format": "select",
@@ -173,6 +180,53 @@ const statisticsPanel = createDashboardStatistics({
   preferencesStore: dashboardPreferencesStore,
   onReset: requestStatisticsReset,
 });
+const dashboardUpdates = createDashboardUpdateMonitor({
+  currentVersion: elements["dashboard-version"].content,
+  request: (url, options) => fetch(url, options),
+  sessionStorage: {
+    getItem: (key) => window.sessionStorage.getItem(key),
+    setItem: (key, value) => window.sessionStorage.setItem(key, value),
+  },
+  onAvailable(version, showNotice) {
+    elements["dashboard-update-button"].hidden = false;
+    elements["dashboard-update-button"].title = `Update to MockAPI ${version}`;
+    setUpdateNoticeVisible(showNotice);
+    elements["dashboard-update-message"].textContent =
+      `MockAPI ${version} is ready. Update to reload this dashboard. Unsaved form edits and request results will be lost.`;
+  },
+  onError(error) {
+    console.warn("Dashboard release update check failed.", error);
+    showToast(formatProblem(error), true);
+  },
+});
+pageEvents.listen(elements["dashboard-update-button"], "click", () => {
+  setUpdateNoticeVisible(true);
+  elements["dashboard-update-apply"].focus();
+});
+pageEvents.listen(elements["dashboard-update-dismiss"], "click", dismissUpdateNotice);
+pageEvents.listen(elements["dashboard-update-prompt"], "keydown", (event) => {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    dismissUpdateNotice();
+  }
+});
+pageEvents.listen(elements["dashboard-update-apply"], "click", () => {
+  elements["dashboard-update-button"].disabled = true;
+  elements["dashboard-update-apply"].disabled = true;
+  // HTML is non-storable and names content-versioned assets; the network-only worker needs no cache reset.
+  window.location.reload();
+});
+
+function setUpdateNoticeVisible(visible) {
+  elements["dashboard-update-prompt"].hidden = !visible;
+  elements["dashboard-update-button"].setAttribute("aria-expanded", String(visible));
+}
+
+function dismissUpdateNotice() {
+  const restoreFocus = elements["dashboard-update-prompt"].contains(document.activeElement);
+  dashboardUpdates.dismiss();
+  if (restoreFocus) elements["dashboard-update-button"].focus();
+}
 
 function showToast(message, isError = false) {
   const toast = makeElement("div", `toast${isError ? " error" : ""}`, message);
@@ -695,9 +749,13 @@ dashboardSynchronizer = createDashboardSynchronizer({
   onConnection: setConnection,
   onError: (error) => console.error(error),
 });
-if (document.visibilityState === "hidden") dashboardSynchronizer.setVisible(false);
+if (document.visibilityState === "hidden") {
+  dashboardSynchronizer.setVisible(false);
+  dashboardUpdates.setVisible(false);
+}
 pageEvents.listen(document, "visibilitychange", () => {
   dashboardSynchronizer.setVisible(document.visibilityState !== "hidden");
+  dashboardUpdates.setVisible(document.visibilityState !== "hidden");
   if (document.visibilityState !== "hidden") void apiSecurity.refresh();
 });
 pageEvents.listen(window, "focus", () => {
@@ -706,6 +764,7 @@ pageEvents.listen(window, "focus", () => {
 pageEvents.listen(window, "pageshow", (event) => {
   if (event.persisted) {
     dashboardSynchronizer.setVisible(document.visibilityState !== "hidden");
+    dashboardUpdates.setVisible(document.visibilityState !== "hidden");
     if (document.visibilityState !== "hidden") void apiSecurity.refresh();
   }
 });
@@ -713,12 +772,14 @@ pageEvents.listen(window, "pagehide", (event) => {
   // Downloads can fire beforeunload without leaving the page. Cached pages resume instead of being disposed.
   if (event.persisted) {
     dashboardSynchronizer.setVisible(false);
+    dashboardUpdates.setVisible(false);
     testBlade.close();
     return;
   }
   layoutController.dispose();
   tutorialController.dispose();
   dashboardSynchronizer.dispose();
+  dashboardUpdates.dispose();
   endpointEditor.dispose();
   apiDescriptionEditor.dispose();
   endpointTable.dispose();
@@ -733,6 +794,7 @@ pageEvents.listen(window, "pagehide", (event) => {
 dashboardSynchronizer.start().then(() => {
   tutorialController.startIfNeeded(window.location.search);
 });
+dashboardUpdates.start();
 
 if (window.isSecureContext && "serviceWorker" in navigator) {
   // Keep the worker URL stable so deployments update one registration instead of accumulating workers.

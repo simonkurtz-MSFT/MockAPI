@@ -19,6 +19,7 @@ export default defineConfig({
         "src/MockAPI/wwwroot/dashboard-sync.js",
         "src/MockAPI/wwwroot/dashboard-test-request.js",
         "src/MockAPI/wwwroot/dashboard-tutorial.js",
+        "src/MockAPI/wwwroot/dashboard-updates.js",
       ],
       reporter: ["text", "json-summary", "lcov", "cobertura"],
       reportsDirectory: "artifacts/coverage/frontend",

@@ -307,6 +307,33 @@ button:disabled {
   cursor: help;
   white-space: nowrap;
 }
+.dashboard-update-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--cp-border-strong);
+  border-left: 4px solid var(--cp-accent);
+  border-radius: 8px;
+  background: var(--cp-accent-soft);
+}
+.dashboard-update-prompt > div:first-child {
+  flex: 1 1 320px;
+}
+.dashboard-update-prompt p {
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+.dashboard-update-prompt .confirm-actions {
+  flex-wrap: wrap;
+}
+.dashboard-update-button[hidden],
+.dashboard-update-prompt[hidden] {
+  display: none;
+}
 
 /* Workspace shell and pre-module collapse state */
 main {

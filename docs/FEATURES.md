@@ -17,11 +17,25 @@ request/response content in service-worker caches. Offline changes are not suppo
 Mock requests, management API calls, event streams, and health probes are never intercepted.
 Live server errors and authentication challenges remain unchanged.
 
-The service worker updates through the browser's normal lifecycle; close existing dashboard windows
-and reopen after a deployment to activate a waiting update. Browsers without service-worker support,
-and non-loopback HTTP deployments, retain the ordinary live dashboard without offline support.
+The dashboard checks this instance for a newer deployed release at startup and once an hour while
+visible, in both browser tabs and installed app windows. Hidden windows pause checks and check on
+return when the next hourly check is due. Only a newer application release counts: another commit,
+asset change, build timestamp, or rebuild of the same version does not trigger an update notice.
+This does not check GitHub for releases or upgrade the server; deploy the new release first.
+
+When an update is available, a nonmodal notice appears and an **Update** button becomes visible
+beside the right-hand header icons. Further version checks stop until the page reloads. **Update now**
+refreshes the dashboard from the instance; unsaved form edits and request results are lost, but
+saved endpoint configuration and browser preferences remain. **Not now** (or `Escape` within the
+notice) hides it for the current tab/app-window session, including page refreshes. The header button
+remains available to reopen the notice manually. If session storage is blocked, a visible warning
+explains that dismissal applies only to the current page.
+
+The service worker retains the browser's normal activation lifecycle; refreshing the live dashboard
+does not require deleting caches or unregistering it. Browsers without service-worker support, and
+non-loopback HTTP deployments, retain the ordinary live dashboard without offline support.
 Disabling the dashboard also disables its manifest, icons, and service-worker routes; an already
-installed app is not remotely uninstalled.
+installed app is not remotely uninstalled. The release marker is also disabled with the dashboard.
 
 ## Azure Container Apps Express
 

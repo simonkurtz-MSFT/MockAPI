@@ -60,6 +60,11 @@ applyTo: "src/MockAPI/wwwroot/**/*.{js,html,css},tests/{frontend,browser}/**/*.j
   only same-origin GET navigations to `/`, never API, mock, health, or asset requests. Use a generic
   reconnect page only on network failure; preserve HTTP errors and never cache administrative content
   or queue offline writes. Keep the worker URL stable and its updates revalidated.
+- Keep dashboard release checks in `dashboard-updates.js`, using the authenticated, non-storable
+  `/__mockapi/version.txt` assembly version rather than commits, build dates, or asset hashes.
+  Check at startup and hourly while visible, pause hidden/cached pages, and stop entirely while
+  a newer release is pending. Keep the header Update button after session-scoped notice dismissal;
+  refresh only after explicit acceptance without clearing browser data or unregistering the worker.
 - Add JSDoc to every exported function, factory, and reusable exported value. Document parameters, return shapes, callbacks, lifecycle, side effects, thrown errors, and discriminated result variants where applicable.
 - Prefer reusable `@typedef` contracts for shared object shapes. Keep annotations specific enough to help editors and reviewers; do not use `Object` when a meaningful shape is known.
 - Keep shared endpoint, configuration, management-problem, and statistics wire shapes in `dashboard-core.js`, aligned with the backend's nullable and omitted fields. Keep named controller/lifecycle types in their owning modules and reuse shared contracts rather than duplicating payload shapes.

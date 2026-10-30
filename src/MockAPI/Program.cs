@@ -70,6 +70,7 @@ if (options.EnableDashboard)
         "dashboard-test-blade.js",
         "dashboard-test-request.js",
         "dashboard-tutorial.js",
+        "dashboard-updates.js",
         "favicon.svg",
         "manifest.webmanifest",
         "service-worker.js",
@@ -96,7 +97,7 @@ if (options.EnableDashboard)
     foreach (var script in new[] { "app.js", "dashboard-api-description.js", "dashboard-api-security.js", "dashboard-core.js", "dashboard-curl.js", "dashboard-dom.js", "dashboard-editor-dialog.js",
         "dashboard-endpoint-editor.js", "dashboard-endpoint-table.js", "dashboard-layout.js", "dashboard-management.js",
         "dashboard-preferences.js", "dashboard-statistics.js", "dashboard-sync.js", "dashboard-test-blade.js",
-        "dashboard-test-request.js", "dashboard-tutorial.js" })
+        "dashboard-test-request.js", "dashboard-tutorial.js", "dashboard-updates.js" })
     {
         DashboardAssets.Map(
             app,
@@ -125,6 +126,12 @@ if (options.EnableDashboard)
         "openapi-logo.svg",
         "image/svg+xml",
         assetVersion);
+    app.MapGet("/__mockapi/version.txt", (HttpContext context) =>
+    {
+        // Release metadata deliberately excludes asset hashes, build dates, and commit identifiers.
+        context.Response.Headers.CacheControl = "no-store";
+        return Results.Text(version, "text/plain; charset=utf-8");
+    }).ExcludeFromDescription();
     app.MapMethods("/", [HttpMethods.Get, HttpMethods.Head], (HttpContext context) =>
     {
         context.Response.Headers.CacheControl = "no-store";

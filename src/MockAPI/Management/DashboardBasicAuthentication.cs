@@ -110,6 +110,7 @@ internal sealed class DashboardBasicAuthentication(RequestDelegate next, MockApi
         || path == "/dashboard-test-blade.js"
         || path == "/dashboard-test-request.js"
         || path == "/dashboard-tutorial.js"
+        || path == "/dashboard-updates.js"
         || path == "/favicon.ico"
         || path == "/favicon.svg"
         || path.StartsWithSegments("/__mockapi");

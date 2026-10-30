@@ -28,6 +28,7 @@ public sealed class DashboardOptimizationTests
     [InlineData("/dashboard-layout.js")]
     [InlineData("/dashboard-statistics.js")]
     [InlineData("/dashboard-test-blade.js")]
+    [InlineData("/dashboard-updates.js")]
     [InlineData("/__mockapi/manifest.webmanifest")]
     [InlineData("/__mockapi/service-worker.js")]
     [InlineData("/__mockapi/icon-192.png")]
@@ -87,7 +88,7 @@ public sealed class DashboardOptimizationTests
         AssertVersionedCacheControl(management.Headers.CacheControl);
 
         foreach (var name in new[] { "dashboard-curl.js", "dashboard-dom.js", "dashboard-editor-dialog.js", "dashboard-endpoint-table.js",
-            "dashboard-layout.js", "dashboard-statistics.js", "dashboard-test-blade.js" })
+            "dashboard-layout.js", "dashboard-statistics.js", "dashboard-test-blade.js", "dashboard-updates.js" })
         {
             Assert.Contains($"./{name}?v={version}", javascript, StringComparison.Ordinal);
             using var asset = await client.GetAsync($"/{name}?v={version}");
@@ -123,6 +124,8 @@ public sealed class DashboardOptimizationTests
     [InlineData("/__mockapi/service-worker.js")]
     [InlineData("/__mockapi/icon-192.png")]
     [InlineData("/__mockapi/icon-512.png")]
+    [InlineData("/__mockapi/version.txt")]
+    [InlineData("/dashboard-updates.js")]
     public async Task DisabledDashboard_DoesNotExposePwaAssets(string path)
     {
         await using var factory = new UnsecuredApplicationFactory().WithWebHostBuilder(builder =>
@@ -138,6 +141,30 @@ public sealed class DashboardOptimizationTests
         Assert.True(cacheControl.Private);
         Assert.Equal(TimeSpan.FromDays(365), cacheControl.MaxAge);
         Assert.Contains(cacheControl.Extensions, extension => extension.Name == "immutable");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DashboardReleaseMarker_MatchesTheEmbeddedApplicationVersionAndIsNeverStored(bool enableManagementApi)
+    {
+        await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.UseSetting("MockApi:EnableManagementApi", enableManagementApi.ToString()));
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/__mockapi/version.txt");
+        request.Headers.IfNoneMatch.Add(new EntityTagHeaderValue("\"old-release\""));
+        using var response = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.Headers.CacheControl!.NoStore);
+        Assert.Null(response.Headers.ETag);
+        Assert.Equal("text/plain", response.Content.Headers.ContentType!.MediaType);
+
+        var version = await response.Content.ReadAsStringAsync();
+        SemanticVersionAssert.IsValid(version);
+        Assert.Equal(MockApiHostConfiguration.GetVersion(typeof(Program).Assembly), version);
+        Assert.DoesNotContain("+", version, StringComparison.Ordinal);
+        var html = await client.GetStringAsync("/");
+        Assert.Contains($"name=\"mockapi-version\" content=\"{version}\"", html, StringComparison.Ordinal);
     }
 
     [Theory]

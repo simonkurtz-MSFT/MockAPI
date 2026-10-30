@@ -245,6 +245,16 @@ one SHA-256 version derived from the complete dashboard asset set. Matching vers
 asset URLs use `private, no-cache` with content ETags for compatibility and revalidation. Shared
 proxies must not cache authenticated dashboard assets.
 
+Dashboard release checks use `GET /__mockapi/version.txt`, a `text/plain` marker derived from the
+same assembly application version embedded in the HTML, without commit/build metadata. It always
+sends `Cache-Control: no-store`; it is not an asset hash or configuration revision. The route requires
+configured administrative authentication, is disabled with the dashboard, and remains available
+when the management API is disabled. It is not included in the management OpenAPI document.
+The dashboard checks at startup and hourly while visible, stops after detecting a newer release,
+and offers an explicit refresh through the header **Update** button. Same-release rebuilds do not
+prompt. Dismissing the nonmodal notice suppresses automatic notices for that tab/app-window session
+without removing the header button or changing endpoint configuration.
+
 Statistics-only updates preserve endpoint row controls and focus unless the selected sort changes
 row order. Collapsed panels and inactive statistics views are rendered when shown.
 The Statistics table retains rows by stable endpoint ID or aggregate measure and changes only

@@ -327,6 +327,18 @@ statistics, credentials, or request/response content, and never queue or replay 
 Keep all PWA assets under the authenticated, reserved `/__mockapi/` namespace and disable them
 with the dashboard. Revalidate the worker on updates rather than using immutable caching.
 
+Check for dashboard release updates at browser-tab or installed-app startup, then once an hour
+while visible. Serve a non-storable `/__mockapi/version.txt` from the assembly application version,
+with the same administrative authentication and dashboard enablement as the page. Compare SemVer
+release precedence, never asset hashes, commit identifiers, or build dates. A same-version rebuild
+or older deployment is not an update. Hidden/cached pages pause checks and resume only when due.
+Once a newer deployed release is available, stop checking until reload and retain an **Update**
+button near the right-hand header icons. Offer a nonmodal refresh notice without moving focus;
+dismissal suppresses automatic notices for that tab/app-window session, while the header button
+can reopen it. Refresh only after explicit acceptance and warn that unsaved form edits and request
+results are lost. Do not upgrade the server, contact GitHub, clear browser data, or unregister the
+network-only service worker.
+
 ### Endpoint management
 
 - API-level descriptions are separate from operation descriptions. Use the existing first path segment

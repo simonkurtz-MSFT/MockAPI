@@ -39,6 +39,7 @@
       })();
     </script>
     <title>MockAPI Console</title>
+    <meta id="dashboard-version" name="mockapi-version" content="{{VERSION}}" />
     <meta name="theme-color" content="#075ea8" />
     <link rel="manifest" href="/__mockapi/manifest.webmanifest" crossorigin="use-credentials" />
     <link rel="apple-touch-icon" href="/__mockapi/icon-192.png" />
@@ -71,6 +72,17 @@
           <span aria-hidden="true"></span>
           Connecting
         </span>
+        <button
+          id="dashboard-update-button"
+          class="button primary dashboard-update-button"
+          type="button"
+          aria-label="Update dashboard"
+          aria-controls="dashboard-update-prompt"
+          aria-expanded="false"
+          hidden
+        >
+          Update
+        </button>
         <div class="help-menu-shell">
           <button
             id="help-menu-button"
@@ -109,6 +121,21 @@
 
     <main id="main">
       <h1 class="visually-hidden">MockAPI operations console</h1>
+      <section
+        id="dashboard-update-prompt"
+        class="dashboard-update-prompt"
+        aria-labelledby="dashboard-update-title"
+        hidden
+      >
+        <div>
+          <h2 id="dashboard-update-title">Dashboard update available</h2>
+          <p id="dashboard-update-message" role="status" aria-live="polite"></p>
+        </div>
+        <div class="confirm-actions">
+          <button id="dashboard-update-dismiss" class="button secondary" type="button">Not now</button>
+          <button id="dashboard-update-apply" class="button primary" type="button">Update now</button>
+        </div>
+      </section>
       <div class="dashboard-layout">
         <section class="command-bar" aria-label="Configuration commands">
           <div class="command-actions">

@@ -584,13 +584,30 @@ test("reports endpoint-test network errors", async ({ page, request }) => {
 
 test("cancels an active endpoint test", async ({ page }) => {
   await page.getByRole("button", { name: "Load examples" }).first().click();
+  let releaseRequest;
+  const requestHeld = new Promise((resolve) => {
+    releaseRequest = resolve;
+  });
   await page.route("**/inventory/items", async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    // Keep the request active regardless of how long mobile actionability checks take.
+    await requestHeld;
     await route.abort();
   });
-  const row = page.getByRole("row", { name: /Browse inventory/ });
-  await row.getByRole("button", { name: "Test" }).click();
-  await page.getByRole("button", { name: "Send request" }).click();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect(page.locator("#test-status")).toHaveText("Request cancelled.");
+  try {
+    const row = page.getByRole("row", { name: /Browse inventory/ });
+    await row.getByRole("button", { name: "Test" }).click();
+    const requestStarted = page.waitForRequest("**/inventory/items");
+    const send = page.getByRole("button", { name: "Send request" });
+    const cancel = page.getByRole("button", { name: "Cancel", exact: true });
+    await send.click();
+    await requestStarted;
+    await expect(send).toBeDisabled();
+    await cancel.click();
+    await expect(page.locator("#test-status")).toHaveText("Request cancelled.");
+    await expect(send).toBeEnabled();
+    await expect(cancel).toBeDisabled();
+  } finally {
+    releaseRequest();
+    await page.unrouteAll({ behavior: "wait" });
+  }
 });
