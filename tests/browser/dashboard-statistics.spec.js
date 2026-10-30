@@ -1,4 +1,18 @@
-import { expect, test, expectNoUnreviewedAccessibilityViolations } from "./dashboard-fixtures.js";
+import { expect, test, importDocument, expectNoUnreviewedAccessibilityViolations } from "./dashboard-fixtures.js";
+
+async function loadExampleEndpoints(page, request, paths) {
+  const response = await request.get("/__mockapi/api/configuration/example");
+  expect(response.ok(), await response.text()).toBe(true);
+  const example = await response.json();
+  const endpoints = paths.map((path) => {
+    const endpoint = example.endpoints.find((candidate) => candidate.path === path);
+    expect(endpoint, `Missing example endpoint: ${path}`).toBeDefined();
+    return endpoint;
+  });
+  // Keep the real sample behavior without rendering unrelated endpoints in focused statistics checks.
+  await importDocument(request, { ...example, endpoints });
+  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(endpoints.length);
+}
 
 test("integrates aggregate totals and rate into Statistics without a miniature chart", async ({ page }) => {
   await expect(page.locator("#statistics-body .metric-strip")).toHaveCount(1);
@@ -122,8 +136,11 @@ test("distinguishes unexpected requests and filters them without hiding configur
   page,
   request,
 }) => {
-  await page.getByRole("button", { name: "Load examples" }).first().click();
-  await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(41);
+  await loadExampleEndpoints(page, request, [
+    "/inventory/items",
+    "/inventory/items/unknown",
+    "/inventory/reservations",
+  ]);
   await request.post("/__mockapi/api/statistics/reset");
 
   const matchedResponse = await request.get("/inventory/items?token=private-value");
@@ -198,8 +215,7 @@ test.describe("request log time zone", () => {
       request,
     }) => {
       await expect(page.locator(".request-log-empty")).toHaveAttribute("colspan", "6");
-      await page.getByRole("button", { name: "Load examples" }).first().click();
-      await expect(page.locator("#endpoint-rows .endpoint-row")).toHaveCount(41);
+      await loadExampleEndpoints(page, request, ["/inventory/items"]);
       expect((await request.get("/inventory/items")).status()).toBe(200);
       const entryTime = page.locator(".request-log-entry time").first();
       const bucketTime = page.locator(".request-log-bucket time").first();
@@ -425,7 +441,7 @@ test("bulk bucket controls preserve column widths through collapse, expansion, a
 test("shows grounded endpoint statistics as a graph and table", async ({ page, request }) => {
   await page.emulateMedia({ forcedColors: "none" });
 
-  await page.getByRole("button", { name: "Load examples" }).first().click();
+  await loadExampleEndpoints(page, request, ["/shipping/demo-faults/tracking-rate-limit"]);
   await expect(
     page.locator("#endpoint-rows").getByRole("row", { name: /Tracking rate-limit fault demo/ })
   ).toBeVisible();

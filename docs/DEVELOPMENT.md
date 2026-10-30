@@ -83,6 +83,10 @@ Ordinary dashboard tests block service workers so network routing and request ob
 deterministic. Installation and offline/reconnect scenarios explicitly enable real service workers.
 Cancellation tests wait until the route is actually held, and import/save assertions wait for the
 import response and command completion before checking persistence.
+Focused statistics scenarios import only the built-in endpoints they exercise, avoiding unrelated
+table rendering and accessibility-scan work. They retain real mock requests, live statistics updates,
+reload/persistence checks, and accessibility assertions; full-example coverage stays in the example
+and endpoint-information suites.
 
 The site tests check that common-use card headings, descriptions, and links align across desktop
 widths and enlarged text, while narrow viewports retain naturally sized, stacked cards.
