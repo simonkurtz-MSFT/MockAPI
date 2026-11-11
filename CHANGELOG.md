@@ -7,6 +7,11 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Security
+
+- Updated the development-only `re2js` dependency to 2.9.1 to fix lookbehind matching
+  denial of service (CVE-2026-116795 / GHSA-gg6h-894w-4m9c).
+
 ## [1.13.0] - 2026-11-11
 
 ### Changed
