@@ -370,7 +370,7 @@ invoke_build() {
   assert_dotnet
   run_tool "Building solution ($CONFIGURATION)" \
     dotnet build "$REPOSITORY_ROOT/MockAPI.slnx" --configuration "$CONFIGURATION" \
-    -p:TreatWarningsAsErrors=true
+    -mt -p:TreatWarningsAsErrors=true
 }
 
 get_local_application_url() {
@@ -505,6 +505,7 @@ invoke_publish() {
       --configuration "$CONFIGURATION" \
       --runtime "$runtime" \
       --output "$outputDirectory" \
+      -mt \
       -p:PublishAot=false \
       -p:TreatWarningsAsErrors=true
     run_tool "Validating publish contents for $runtime" pwsh -NoProfile -File \

@@ -161,7 +161,7 @@ jobs:
           dotnet-version: 11.0.x
       - run: pnpm install --frozen-lockfile
       - run: dotnet restore MockAPI.slnx
-      - run: dotnet build MockAPI.slnx --configuration Release --no-restore -p:TreatWarningsAsErrors=true
+      - run: dotnet build MockAPI.slnx --configuration Release --no-restore -mt -p:TreatWarningsAsErrors=true
       - name: Run browser smoke tests
         # Feature suites share one mutable backend; retain the configured single worker.
         run: pnpm exec playwright test --project chromium-desktop --grep @smoke
@@ -248,7 +248,7 @@ jobs:
           dotnet-version: 11.0.x
       - run: pnpm install --frozen-lockfile
       - run: dotnet restore MockAPI.slnx
-      - run: dotnet build MockAPI.slnx --configuration Release --no-restore -p:TreatWarningsAsErrors=true
+      - run: dotnet build MockAPI.slnx --configuration Release --no-restore -mt -p:TreatWarningsAsErrors=true
       - name: Run complete browser tests
         # Each runner owns its backend and persistence; keep the configured single worker.
         run: pnpm run test:browser --project "${{ matrix.project }}"

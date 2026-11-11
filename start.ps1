@@ -1138,7 +1138,7 @@ function Invoke-Build {
   Assert-DotNet
   Invoke-Tool -Executable 'dotnet' -Operation "Building solution ($Configuration)" -Arguments @(
     'build', $solutionFile, '--configuration', $Configuration,
-    '-p:TreatWarningsAsErrors=true'
+    '-mt', '-p:TreatWarningsAsErrors=true'
   )
 }
 
@@ -1282,7 +1282,7 @@ function Invoke-Publish {
     $outputDirectory = Join-Path $publishDirectory $runtime
     Invoke-Tool -Executable 'dotnet' -Operation "Publishing $runtime ($Configuration)" -Arguments @(
       'publish', $projectFile, '--configuration', $Configuration, '--runtime', $runtime,
-      '--output', $outputDirectory, '-p:PublishAot=false', '-p:TreatWarningsAsErrors=true'
+      '--output', $outputDirectory, '-mt', '-p:PublishAot=false', '-p:TreatWarningsAsErrors=true'
     )
     & (Join-Path $repositoryRoot 'scripts/Assert-PublishContents.ps1') -PublishDirectory $outputDirectory
     if (-not $?) {

@@ -42,6 +42,10 @@ Stop MockAPI with `Ctrl+C`.
 
 The image includes PowerShell, so both developer entry points work.
 
+The developer `build` and managed `publish` actions, browser-test CI builds, and Native AOT
+container publication opt into MSBuild's experimental multithreaded mode with `-mt`. Compatible
+tasks can run on threads instead of separate processes; build-time improvements depend on the workload.
+
 The application opts into .NET 11's preview Runtime Async compiler feature for its own async methods.
 The separate test project uses the default compiler behavior. Validate changes on both CoreCLR and
 the Native AOT container; do not assume lower memory use or faster requests without measurement.

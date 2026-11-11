@@ -1054,6 +1054,13 @@ try {
   foreach ($command in @('restore', 'publish')) {
     Assert-True ($dockerfileSource -match "dotnet $command [^\r\n]*-p:PublishAot=true") "Container $command must enable Native AOT."
   }
+  Assert-True ($dockerfileSource -match 'dotnet publish [^\r\n]*\s-mt\s') 'Native AOT publication must use multithreaded MSBuild.'
+  foreach ($action in @('Build', 'Publish')) {
+    $powershellFunction = [regex]::Match($cliSource, "(?ms)^function Invoke-$action \{.*?^\}").Value
+    $bashFunction = [regex]::Match($bashCliSource, "(?ms)^invoke_$($action.ToLowerInvariant())\(\) \{.*?^\}").Value
+    Assert-True ($powershellFunction.Contains("'-mt'")) "PowerShell $action must use multithreaded MSBuild."
+    Assert-True ($bashFunction -match '\s-mt\s') "Bash $action must use multithreaded MSBuild."
+  }
   foreach ($source in @($cliSource, $bashCliSource)) {
     Assert-True ($source.Contains('-p:PublishAot=false')) 'Managed cross-publication must remain explicitly separate from native AOT container publication.'
     Assert-True ($source.Contains('Cross-publish trimmed CoreCLR artifacts for managed-code checks, not release images.')) 'Both CLI help surfaces must distinguish diagnostic CoreCLR artifacts from release images.'
