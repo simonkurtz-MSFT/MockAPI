@@ -7,6 +7,21 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-11-11
+
+### Changed
+
+- Updated the application, Native AOT container images, development environment, and CI to .NET 11.
+  Source builds now require the .NET 11 SDK; existing configuration documents need no migration.
+- Enabled runtime-async compilation and multi-threaded MSBuild for builds and publication.
+- Updated ASP.NET Core OpenAPI to 11.0.0 and OpenAPI.NET to 3.11.0, adapting management OpenAPI
+  generation to the updated library API without changing management routes.
+
+### Fixed
+
+- Made the Bash executable-bit onboarding test asynchronous with an explicit timeout to tolerate
+  slower Git startup on busy Windows hosts.
+
 ## [1.12.0] - 2026-10-30
 
 ### Added
@@ -402,7 +417,8 @@ and application versions follow [Semantic Versioning](https://semver.org/spec/v2
 
 - Instance API-key protection for mock routes, with administrative key rotation and fail-closed defaults.
 
-[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.12.0...HEAD
+[Unreleased]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.12.1...HEAD
+[1.13.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.12.0...1.13.0
 [1.12.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.11.0...1.12.0
 [1.11.0]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.10.1...1.11.0
 [1.10.1]: https://github.com/simonkurtz-MSFT/MockAPI/compare/1.10.0...1.10.1
