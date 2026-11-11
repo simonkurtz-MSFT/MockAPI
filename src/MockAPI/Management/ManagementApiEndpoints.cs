@@ -311,9 +311,9 @@ public static class ManagementApiEndpoints
             operation.RequestBody = new OpenApiRequestBody
             {
                 Required = true,
-                Content = new Dictionary<string, OpenApiMediaType>
+                Content = new Dictionary<string, IOpenApiMediaType>
                 {
-                    ["application/json"] = new()
+                    ["application/json"] = new OpenApiMediaType
                     {
                         Schema = new OpenApiSchemaReference(typeof(TRequest).Name, context.Document, null)
                     }

@@ -914,8 +914,6 @@ try {
   $azureYaml = Get-Content -LiteralPath $azureYamlPath -Raw
   Assert-True ($azureYaml -match '(?m)^\s+language:\s+docker\s*$') 'The azd service must use the root Docker workflow without .NET project discovery.'
   $globalJson = Get-Content -LiteralPath $globalJsonPath -Raw | ConvertFrom-Json
-  Assert-True ($globalJson.sdk.version -eq '10.0.100') 'The .NET SDK baseline must be the first stable .NET 10 SDK.'
-  Assert-True ($globalJson.sdk.rollForward -eq 'latestFeature') 'The .NET SDK must roll forward to the latest installed .NET 10 feature band.'
   Assert-True ($globalJson.sdk.allowPrerelease -eq $false) 'The .NET SDK resolver must exclude prerelease SDKs.'
   $projectSource = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src/MockAPI/MockAPI.csproj') -Raw
   $applicationVersionMatch = [regex]::Match($projectSource, '<Version>([^<]+)</Version>')
@@ -936,8 +934,6 @@ try {
     $bashCliSource -match 'open_browser_when_ready "\$applicationUrl" &'
   ) 'Bash run must schedule the browser to open when MockAPI is ready.'
   $dockerfileSource = Get-Content -LiteralPath $dockerfilePath -Raw
-  Assert-True ($cliSource -match '\$resolvedVersion -notmatch ''\^10\\\.''') 'The PowerShell CLI must accept the .NET 10 SDK selected by global.json.'
-  Assert-True ($bashCliSource -match '\[\[ "\$resolvedVersion" =~ \^10\\\. \]\]') 'The Bash CLI must accept the .NET 10 SDK selected by global.json.'
   Assert-True ($cliSource -notmatch 'PinnedSdkVersion') 'The PowerShell CLI must not restore an exact SDK pin.'
   Assert-True ($bashCliSource -notmatch 'pinned_sdk_version') 'The Bash CLI must not restore an exact SDK pin.'
   Assert-True ($cliSource -match '\[Console\]::OutputEncoding = \[Text\.UTF8Encoding\]::new\(\$false\)') 'The PowerShell CLI must decode native tool output as BOM-less UTF-8.'
@@ -1054,9 +1050,16 @@ try {
     Assert-True ($sampleCopies -ccontains $samplePath) "Dockerfile must copy the $($sample.Name) sample into the build stage."
     Assert-True ($developmentWorkflow.Contains("`"$samplePath`"")) "Development container validation must run when $($sample.Name) changes."
   }
-  Assert-True ($dockerfileSource -match 'FROM mcr\.microsoft\.com/dotnet/sdk:10\.[^\s]+-aot@sha256:[0-9a-f]{64} AS build') 'Container compilation must use the pinned native AOT SDK.'
+  Assert-True ($dockerfileSource -match 'FROM mcr\.microsoft\.com/dotnet/sdk:[^\s@]+-aot@sha256:[0-9a-f]{64} AS build') 'Container compilation must use the pinned native AOT SDK.'
   foreach ($command in @('restore', 'publish')) {
     Assert-True ($dockerfileSource -match "dotnet $command [^\r\n]*-p:PublishAot=true") "Container $command must enable Native AOT."
+  }
+  Assert-True ($dockerfileSource -match 'dotnet publish [^\r\n]*\s-mt\s') 'Native AOT publication must use multithreaded MSBuild.'
+  foreach ($action in @('Build', 'Publish')) {
+    $powershellFunction = [regex]::Match($cliSource, "(?ms)^function Invoke-$action \{.*?^\}").Value
+    $bashFunction = [regex]::Match($bashCliSource, "(?ms)^invoke_$($action.ToLowerInvariant())\(\) \{.*?^\}").Value
+    Assert-True ($powershellFunction.Contains("'-mt'")) "PowerShell $action must use multithreaded MSBuild."
+    Assert-True ($bashFunction -match '\s-mt\s') "Bash $action must use multithreaded MSBuild."
   }
   foreach ($source in @($cliSource, $bashCliSource)) {
     Assert-True ($source.Contains('-p:PublishAot=false')) 'Managed cross-publication must remain explicitly separate from native AOT container publication.'

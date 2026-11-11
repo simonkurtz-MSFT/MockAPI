@@ -12,7 +12,7 @@ Use this skill after publication, container, or release-related changes. Derive 
 
 1. Read `docs/PLAN.md` and the container-specific instructions.
 2. Use the `public-release-audit` skill before publishing. Scan the tracked tree and reachable history, inspect the publish and container contents, and report unavailable scanners or unverified scope as release gaps.
-3. Verify current .NET 10 Alpine SDK and runtime-deps tags against official Microsoft documentation before changing pinned images.
+3. Verify current .NET 11 Alpine SDK and runtime-deps tags against official Microsoft documentation before changing pinned images.
 4. Restore, build, and test the solution in Release configuration.
 5. Publish Native AOT `linux-musl-x64` and `linux-musl-arm64` in the pinned Alpine AOT SDK on matching native runners. Pass `PublishAot=true` to restore and publish; use `scripts/Assert-PublishContents.ps1 -NativeAot` to reject debug symbols and managed runtime files. The CLI `publish` action remains a diagnostic CoreCLR check, not release publication.
 6. Treat new compiler, analyzer, trim, and AOT warnings as failures unless a narrow suppression is documented and tested.

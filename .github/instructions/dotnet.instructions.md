@@ -6,7 +6,7 @@ applyTo: "**/*.{cs,csproj,sln,props,targets}"
 
 # .NET Instructions
 
-- Target .NET 10 and keep nullable reference types and implicit usings enabled.
+- Target .NET 11 and keep nullable reference types and implicit usings enabled.
 - Prefer guard clauses, descriptive domain names, and named intermediate values when they make control flow easier to follow. Replace dense LINQ pipelines, nested conditionals, or long fluent chains with clear steps when a junior developer would otherwise need to mentally execute the expression.
 - Keep async, disposal, concurrency, and immutable-state ownership explicit. When correctness depends on ordering, snapshot capture, atomicity, or cancellation behavior that the type system does not reveal, explain the invariant close to the code.
 - Use ASP.NET Core minimal APIs for transport wiring; keep domain validation and state transitions out of route handlers.

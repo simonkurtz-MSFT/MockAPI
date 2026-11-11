@@ -918,12 +918,12 @@ function Get-ApplicationVersion {
 
 function Install-DotNetSdk {
   if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    throw 'The .NET 10 SDK is missing and winget is unavailable. Install it from https://dotnet.microsoft.com/download/dotnet/10.0.'
+    throw 'The .NET 11 SDK is missing and winget is unavailable. Install it from https://dotnet.microsoft.com/download/dotnet/11.0.'
   }
 
-  if ($PSCmdlet.ShouldProcess('Microsoft.DotNet.SDK.10', 'Install with winget')) {
-    Invoke-Tool -Executable 'winget' -Operation 'Installing .NET 10 SDK' -Arguments @(
-      'install', '--id', 'Microsoft.DotNet.SDK.10', '--exact',
+  if ($PSCmdlet.ShouldProcess('Microsoft.DotNet.SDK.11', 'Install with winget')) {
+    Invoke-Tool -Executable 'winget' -Operation 'Installing .NET 11 SDK' -Arguments @(
+      'install', '--id', 'Microsoft.DotNet.SDK.11', '--exact',
       '--accept-package-agreements', '--accept-source-agreements'
     )
   }
@@ -986,7 +986,7 @@ function Assert-DotNet {
     throw 'Unable to resolve the .NET SDK version.'
   }
   $resolvedVersion = ([string] ($versionResult.Output | Select-Object -First 1)).Trim()
-  if ($resolvedVersion -notmatch '^10\.') {
+  if ($resolvedVersion -notmatch '^11\.') {
     if ($InstallMissing) {
       Install-DotNetSdk
       $versionResult = Invoke-NativeTool -Executable 'dotnet' -Arguments @('--version')
@@ -995,8 +995,8 @@ function Assert-DotNet {
       }
       $resolvedVersion = ([string] ($versionResult.Output | Select-Object -First 1)).Trim()
     }
-    if ($resolvedVersion -notmatch '^10\.') {
-      throw "Repository requires a .NET 10 SDK, but this directory resolves $resolvedVersion."
+    if ($resolvedVersion -notmatch '^11\.') {
+      throw "Repository requires a .NET 11 SDK, but this directory resolves $resolvedVersion."
     }
   }
 
@@ -1138,7 +1138,7 @@ function Invoke-Build {
   Assert-DotNet
   Invoke-Tool -Executable 'dotnet' -Operation "Building solution ($Configuration)" -Arguments @(
     'build', $solutionFile, '--configuration', $Configuration,
-    '-p:TreatWarningsAsErrors=true'
+    '-mt', '-p:TreatWarningsAsErrors=true'
   )
 }
 
@@ -1282,7 +1282,7 @@ function Invoke-Publish {
     $outputDirectory = Join-Path $publishDirectory $runtime
     Invoke-Tool -Executable 'dotnet' -Operation "Publishing $runtime ($Configuration)" -Arguments @(
       'publish', $projectFile, '--configuration', $Configuration, '--runtime', $runtime,
-      '--output', $outputDirectory, '-p:PublishAot=false', '-p:TreatWarningsAsErrors=true'
+      '--output', $outputDirectory, '-mt', '-p:PublishAot=false', '-p:TreatWarningsAsErrors=true'
     )
     & (Join-Path $repositoryRoot 'scripts/Assert-PublishContents.ps1') -PublishDirectory $outputDirectory
     if (-not $?) {
@@ -1547,8 +1547,8 @@ function Get-WslcBuildFailureMessage {
           'Windows also cannot reach mcr.microsoft.com:443, so check host networking before WSLC-specific recovery.'
         })
       'Verify the engine path directly with:'
-      '  wslc pull mcr.microsoft.com/dotnet/sdk:10.0.402-alpine3.24-aot@sha256:574e01812ecd2f33a79cb61b0398320abbd0589125b1e0a6fea00806ba630cb4'
-      '  wslc pull mcr.microsoft.com/dotnet/runtime-deps:10.0.13-alpine3.24@sha256:1a5dbee0a1d2bb1d038e212e8ccdbc12783b5cfbed866fe75d126ee80178a52a'
+      '  wslc pull mcr.microsoft.com/dotnet/sdk:11.0.100-alpine3.24-aot@sha256:a6a89666d050f5d4806aa03edbc677291c7fb92191b5b2a8f3bccdec869ab87a'
+      '  wslc pull mcr.microsoft.com/dotnet/runtime-deps:11.0.0-alpine3.24@sha256:5597d4a0c9ea3fb84fc210333013d761fc350d5925fc9042f62992675e15b58b'
       "If those fail, run 'wslc system session terminate' to recreate WSLC's independent network session, then retry the pulls."
       "A stale WSLC session survives 'wsl --shutdown', so shutting down ordinary WSL alone may not repair this failure."
       'If a fresh WSLC session still fails, check VPN, proxy, firewall, and WSL networking policy.'

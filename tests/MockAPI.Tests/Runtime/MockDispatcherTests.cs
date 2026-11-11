@@ -1,5 +1,6 @@
 using System.Net;
 using System.Diagnostics;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
@@ -12,6 +13,15 @@ namespace MockAPI.Tests.Runtime;
 
 public sealed class MockDispatcherTests
 {
+    [Fact]
+    public void Dispatcher_IsCompiledWithRuntimeAsync()
+    {
+        var method = typeof(MockRequestDispatcher).GetMethod(nameof(MockRequestDispatcher.DispatchAsync));
+
+        Assert.NotNull(method);
+        Assert.True((method.GetMethodImplementationFlags() & MethodImplAttributes.Async) != 0);
+    }
+
     [Theory]
     [InlineData("POST")]
     [InlineData("PUT")]

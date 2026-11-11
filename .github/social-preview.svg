@@ -35,7 +35,7 @@
   <g font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="650">
     <g transform="translate(544 414)">
       <rect width="126" height="48" rx="8" fill="#fff" stroke="#919191"/>
-      <text x="63" y="31" text-anchor="middle" fill="#242424">.NET 10</text>
+      <text x="63" y="31" text-anchor="middle" fill="#242424">.NET 11</text>
     </g>
     <g transform="translate(686 414)">
       <rect width="150" height="48" rx="8" fill="#fff" stroke="#919191"/>

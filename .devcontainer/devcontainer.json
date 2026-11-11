@@ -1,11 +1,12 @@
 {
-  "name": "MockAPI (.NET 10)",
+  "name": "MockAPI (.NET 11)",
   "image": "mcr.microsoft.com/devcontainers/dotnet:2.3.2-10.0-noble@sha256:694076b55f447d4b9f5b49bc6616c2e904d63e1a61e43680b2bbea46011b6783",
   "remoteUser": "vscode",
   "containerEnv": {
     "MOCKAPI_NODE_VERSION": "26.9.0"
   },
   "remoteEnv": {
+    "PATH": "/home/vscode/.dotnet:${containerEnv:PATH}",
     "ASPNETCORE_URLS": "http://0.0.0.0:5080",
     "MockApi__ConfigurationPath": "${containerWorkspaceFolder}/artifacts/local-data/mockapi.json",
     "MockApi__AllowEmptyConfiguration": "true"

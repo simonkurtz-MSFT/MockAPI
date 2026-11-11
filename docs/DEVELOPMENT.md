@@ -8,8 +8,9 @@ on your GitHub account or organization.
 
 ## First run
 
-Wait for the post-create setup to finish. It uses the digest-pinned .NET 10 development image,
-installs exact Node.js `26.9.0` through the image's nvm, installs the pnpm version declared in
+Wait for the post-create setup to finish. It uses the digest-pinned development image, installs
+the stable .NET 11.0.100 SDK required by `global.json` and exact Node.js `26.9.0` through the
+image's nvm, installs the pnpm version declared in
 `package.json`, and restores the frozen JavaScript lockfile and .NET solution.
 The setup does not install Playwright browsers or require a container engine inside the workspace.
 
@@ -40,6 +41,14 @@ Stop MockAPI with `Ctrl+C`.
 ## Validation
 
 The image includes PowerShell, so both developer entry points work.
+
+The developer `build` and managed `publish` actions, browser-test CI builds, and Native AOT
+container publication opt into MSBuild's experimental multithreaded mode with `-mt`. Compatible
+tasks can run on threads instead of separate processes; build-time improvements depend on the workload.
+
+The application opts into .NET 11's preview Runtime Async compiler feature for its own async methods.
+The separate test project uses the default compiler behavior. Validate changes on both CoreCLR and
+the Native AOT container; do not assume lower memory use or faster requests without measurement.
 
 ```powershell
 .\start.ps1 -Action build
@@ -111,7 +120,7 @@ No production credentials, Docker socket, or Azure login is needed for ordinary 
 - The development image is deliberately separate from the small Native AOT runtime image.
 - Keep the image digest and exact Node version age-verified with `pnpm run validate:dependency-age`.
   Node `26.10.0` had not completed the eight-day cooldown when this setup was introduced.
-- The image supports Linux AMD64 and ARM64. Its SDK follows `global.json`; no extra SDK pin is introduced.
+- The image supports Linux AMD64 and ARM64. Setup installs the stable .NET 11.0.100 SDK selected by `global.json`; the base image's .NET 10 SDK remains available but is not selected by this repository.
 - Setup uses `pnpm install --frozen-lockfile` and the CLI's `restore` action rather than the full
   `setup` action, which also checks for a local container engine.
 - Keep `start.sh` tracked with Git mode `100755` (executable). Post-create setup and the smoke

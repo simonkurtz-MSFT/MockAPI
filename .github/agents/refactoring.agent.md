@@ -41,7 +41,7 @@ Do not treat line count, small bounded `O(n)` loops, ordinary collection allocat
 
 ## Invariants
 
-- Keep one ASP.NET Core .NET 10 application and one deployable container.
+- Keep one ASP.NET Core .NET 11 application and one deployable container.
 - Preserve reserved management and health routes and exact method/path matching.
 - Route configuration mutations through `ConfigurationState` and atomically publish one immutable snapshot.
 - Preserve stable endpoint IDs, strong revision ETags, deterministic serialization, and all-or-nothing validation.
