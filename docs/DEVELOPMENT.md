@@ -42,6 +42,10 @@ Stop MockAPI with `Ctrl+C`.
 
 The image includes PowerShell, so both developer entry points work.
 
+The application opts into .NET 11's preview Runtime Async compiler feature for its own async methods.
+The separate test project uses the default compiler behavior. Validate changes on both CoreCLR and
+the Native AOT container; do not assume lower memory use or faster requests without measurement.
+
 ```powershell
 .\start.ps1 -Action build
 .\start.ps1 -Action test
