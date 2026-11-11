@@ -8,7 +8,7 @@
 
 ## Architecture
 
-- Build one ASP.NET Core .NET 10 application and one deployable container.
+- Build one ASP.NET Core .NET 11 application and one deployable container.
 - Keep reserved management and health routes separate from the catch-all mock dispatcher.
 - Apply configuration changes by validating a complete candidate and atomically replacing an immutable registry snapshot. Never partially mutate the active configuration.
 - Keep configuration models, registry, dispatcher, persistence, statistics, management API, and dashboard responsibilities distinct.
@@ -55,7 +55,8 @@
 - Keep the issue recipient in one clearly named workflow-level environment variable and use that variable for issue creation and `gh issue edit --add-assignee` calls.
 - When automation deduplicates against an existing open issue, reapply `simonkurtz-MSFT` to that issue before reporting it as the active review item.
 - Do not use the personal `simonua` account for MockAPI issue or pull-request assignment.
-- Pin dependencies, development tools, and package managers to the latest compatible stable release that has completed the eight-day cooldown. Keep exact versions in reviewed manifests and lockfiles, preserve package-manager age enforcement, and verify publication age before selecting a release manually. Use `global.json` with a `10.0.100` baseline, `latestFeature` roll-forward, and prerelease SDKs disabled so local commands select the latest installed stable .NET 10 feature band; keep container base images immutable by digest.
+- Pin dependencies, development tools, and package managers to the latest compatible stable release that has completed the eight-day cooldown. Keep exact versions in reviewed manifests and lockfiles, preserve package-manager age enforcement, and verify publication age before selecting a release manually. Use `global.json` with an `11.0.100` baseline, `latestFeature` roll-forward, and prerelease SDKs disabled so local commands select the latest installed stable .NET 11 feature band; keep container base images immutable by digest.
+- Whenever `.github/dependency-age-exceptions.json` is modified, review all exceptions and remove any that have expired in the same change.
 - Run `pnpm run validate:dependency-security` in quality CI after restoring dependencies. Report known pnpm and direct or transitive NuGet vulnerabilities as visible warnings without failing the build; scanner execution failures and invalid reports must still fail.
 - Treat `pnpm-lock.yaml` as generated output owned by the pinned pnpm version. Regenerate it with pnpm and do not reformat it with Prettier. Keep it registry-neutral by preserving `lockfileIncludeTarballUrl: false` and the post-install and pre-commit normalization that removes redundant tarball URLs only when integrity hashes remain.
 - Keep the mirrored `dependencies-update` and `pnpm-update` developer-CLI actions cooldown-aware. The pnpm updater must select the newest eligible stable release from registry publication metadata and keep `packageManager` and `engines.pnpm` synchronized.

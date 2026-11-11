@@ -9,9 +9,21 @@ For the version-bump, automatic-tag, Docker Hub, and GitHub release procedure, u
 tag and always builds the exact tagged commit. The [development container](DEVELOPMENT.md) is for
 editing and testing, not distribution.
 
-## Security refresh (2026-10-27)
+## Current .NET 11 images
 
-The production Dockerfile uses .NET SDK `10.0.403` and runtime-deps `10.0.14`.
+The production Dockerfile uses .NET SDK `11.0.100` and runtime-deps `11.0.0`, both based on Alpine 3.24.
+Their immutable multi-platform indexes were created on 2026-11-10; exact digests are recorded in
+the Dockerfile. The user-approved early-adoption exceptions expire on 2026-11-18.
+
+The build-stage `curl` and `libcurl` packages remain pinned to `8.23.0-r0`; neither is copied into
+the runtime image. Native AOT must be rebuilt with the matching .NET 11 SDK when servicing compiled
+code, rather than only replacing the runtime-deps image.
+
+## Previous .NET 10 security refresh and validation records (2026-10-27)
+
+The following security details and scan results refer to the former .NET 10 image pins and are
+historical; they do not establish the security posture of the .NET 11 images.
+
 [Microsoft's Brotli advisory](https://github.com/dotnet/runtime/security/advisories/GHSA-p3jp-9v83-76w9)
 requires rebuilding Native AOT applications with the patched compiler/runtime; changing only the
 runtime-deps image cannot patch code already compiled into the executable. The serviced Alpine
@@ -19,14 +31,15 @@ SDK also fixes `brotli-libs` CVE-2026-111497, and the runtime base fixes musl CV
 The SDK still needs an exact build-only `curl`/`libcurl` `8.23.0-r0` patch. None of those build tools
 are copied into the runtime image.
 
-The production images, curl packages, and refreshed Playwright image have explicit, expiring
+The former production images, curl packages, and refreshed Playwright image had explicit, expiring
 security cooldown exceptions approved on 2026-10-27 in
 [the exception register](../.github/dependency-age-exceptions.json).
 Alpine package publication ages were checked against the repository index; the automated
 dependency-age validator does not inspect APK versions.
 
-Development and CI images are separate from production. The development pin is refreshed to
-`devcontainers/dotnet:2.3.2-10.0-noble`, and both Playwright CI jobs use `v1.64.1-noble` paired with
+Development and CI images are separate from production. The development container retains the
+digest-pinned `devcontainers/dotnet:2.3.2-10.0-noble` base; post-create setup installs the stable
+.NET 11.0.100 SDK selected by `global.json`. Both Playwright CI jobs use `v1.64.1-noble` paired with
 `@playwright/test` `1.64.1`. These are **pin refreshes, not full remediation**: scans still find
 vulnerable Ubuntu `libbrotli1` in both images, old .NET components in the development image,
 and other upstream findings. Updating setup scripts or building custom patched tooling images
@@ -108,8 +121,8 @@ The developer CLI uses the first enabled HTTPS source reported by `dotnet nuget 
 A browser opening an MCR artifact page proves that Windows can reach the catalog and that the tag exists. It does not prove that the WSLC Linux environment can reach the registry. When a build reports `dial tcp ... connect: network is unreachable`, isolate the engine path with the exact pinned images:
 
 ```powershell
-wslc pull mcr.microsoft.com/dotnet/sdk:10.0.403-alpine3.24-aot@sha256:8a339f2175a99aad64cd618450303b8361d565eebbdf8aad95cdf8e6b54ab9d3
-wslc pull mcr.microsoft.com/dotnet/runtime-deps:10.0.14-alpine3.24@sha256:752897bc0b19f05fd5849897815180752103293ffc3b68bd404a4db1e5c3705c
+wslc pull mcr.microsoft.com/dotnet/sdk:11.0.100-alpine3.24-aot@sha256:a6a89666d050f5d4806aa03edbc677291c7fb92191b5b2a8f3bccdec869ab87a
+wslc pull mcr.microsoft.com/dotnet/runtime-deps:11.0.0-alpine3.24@sha256:5597d4a0c9ea3fb84fc210333013d761fc350d5925fc9042f62992675e15b58b
 ```
 
 If Windows can reach `mcr.microsoft.com:443` but either pull fails, the fault is in WSLC networking rather than the Dockerfile or image tag. Recreate the current user's independent WSLC session and retry the pulls:

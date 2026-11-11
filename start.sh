@@ -221,7 +221,7 @@ install_with_winget() {
 }
 
 install_dotnet_sdk() {
-  install_with_winget 'Microsoft.DotNet.SDK.10' 'Installing .NET 10 SDK'
+  install_with_winget 'Microsoft.DotNet.SDK.11' 'Installing .NET 11 SDK'
 }
 
 install_wslc() {
@@ -254,11 +254,11 @@ assert_dotnet() {
   require_command dotnet || die 'The .NET SDK is still unavailable after installation. Restart the terminal and run setup again.'
   local resolvedVersion
   resolvedVersion="$(dotnet --version 2>/dev/null)" || die 'Unable to resolve the .NET SDK version.'
-  if [[ ! "$resolvedVersion" =~ ^10\. && "$INSTALL_MISSING" == 'true' ]]; then
+  if [[ ! "$resolvedVersion" =~ ^11\. && "$INSTALL_MISSING" == 'true' ]]; then
     install_dotnet_sdk
     resolvedVersion="$(dotnet --version 2>/dev/null)" || die 'Unable to resolve the .NET SDK version after installation.'
   fi
-  [[ "$resolvedVersion" =~ ^10\. ]] || die "Repository requires a .NET 10 SDK, but this directory resolves $resolvedVersion."
+  [[ "$resolvedVersion" =~ ^11\. ]] || die "Repository requires a .NET 11 SDK, but this directory resolves $resolvedVersion."
   write_field '.NET SDK' "$resolvedVersion" green
 }
 

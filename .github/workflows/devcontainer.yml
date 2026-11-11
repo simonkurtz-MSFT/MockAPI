@@ -51,8 +51,8 @@ jobs:
           docker cp . mockapi-devcontainer:/workspace
           docker exec --user root mockapi-devcontainer chown -R vscode:vscode /workspace
           docker exec --user vscode mockapi-devcontainer bash .devcontainer/setup.sh
-          docker exec --user vscode mockapi-devcontainer bash -lc 'node --version; pnpm --version; pwsh --version; dotnet --version'
-          docker exec --detach --user vscode mockapi-devcontainer bash -lc './start.sh --action run > /tmp/mockapi.log 2>&1'
+          docker exec --user vscode mockapi-devcontainer bash -lc 'export PATH="$HOME/.dotnet:$PATH"; node --version; pnpm --version; pwsh --version; dotnet --version'
+          docker exec --detach --user vscode mockapi-devcontainer bash -lc 'export PATH="$HOME/.dotnet:$PATH"; ./start.sh --action run > /tmp/mockapi.log 2>&1'
           curl --retry 60 --retry-all-errors --retry-delay 1 --retry-max-time 120 --max-time 5 --fail http://127.0.0.1:5080/health/ready
           curl --fail http://127.0.0.1:5080/__mockapi/ > /dev/null
       - name: Capture startup diagnostics

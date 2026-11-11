@@ -3,47 +3,38 @@
     {
       "ecosystem": "Docker",
       "name": "mcr.microsoft.com/dotnet/sdk",
-      "version": "10.0.403-alpine3.24-aot@sha256:8a339f2175a99aad64cd618450303b8361d565eebbdf8aad95cdf8e6b54ab9d3",
-      "reason": "Approved on 2026-10-27 to rebuild Native AOT with .NET 10.0.14 for the Brotli decoder CVE-2026-111497 fix before the eight-day cooldown.",
+      "version": "11.0.100-alpine3.24-aot@sha256:a6a89666d050f5d4806aa03edbc677291c7fb92191b5b2a8f3bccdec869ab87a",
+      "reason": "Approved by the user on 2026-11-11 to complete the .NET 11 upgrade before the eight-day image cooldown.",
       "approver": "simonkurtz-MSFT",
-      "evidence": "https://github.com/dotnet/runtime/security/advisories/GHSA-p3jp-9v83-76w9",
-      "expiresUtc": "2026-11-03T00:00:00Z"
+      "evidence": "https://dotnet.microsoft.com/download/dotnet/11.0",
+      "expiresUtc": "2026-11-18T00:00:00Z"
     },
     {
       "ecosystem": "Docker",
       "name": "mcr.microsoft.com/dotnet/runtime-deps",
-      "version": "10.0.14-alpine3.24@sha256:752897bc0b19f05fd5849897815180752103293ffc3b68bd404a4db1e5c3705c",
-      "reason": "Approved on 2026-10-27 to pair the Brotli-serviced SDK with the current runtime-deps image and fix musl CVE-2026-107891 before the eight-day cooldown.",
+      "version": "11.0.0-alpine3.24@sha256:5597d4a0c9ea3fb84fc210333013d761fc350d5925fc9042f62992675e15b58b",
+      "reason": "Approved by the user on 2026-11-11 to complete the .NET 11 upgrade before the eight-day image cooldown.",
       "approver": "simonkurtz-MSFT",
-      "evidence": "https://secdb.alpinelinux.org/v3.24/main.json",
-      "expiresUtc": "2026-11-03T00:00:00Z"
+      "evidence": "https://dotnet.microsoft.com/download/dotnet/11.0",
+      "expiresUtc": "2026-11-18T00:00:00Z"
     },
     {
-      "ecosystem": "Docker",
-      "name": "mcr.microsoft.com/playwright",
-      "version": "sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea",
-      "reason": "Approved on 2026-10-27 to refresh the CI image together with the age-eligible Playwright 1.64.1 package. This reduces known findings but does not remediate all upstream image vulnerabilities.",
+      "ecosystem": "NuGet",
+      "name": "Microsoft.AspNetCore.OpenApi",
+      "version": "11.0.0",
+      "reason": "Approved by the user on 2026-11-11 as a required .NET 11 framework package before the eight-day package cooldown.",
       "approver": "simonkurtz-MSFT",
-      "evidence": "https://github.com/microsoft/playwright/releases/tag/v1.64.1",
-      "expiresUtc": "2026-11-01T00:00:00Z"
+      "evidence": "https://www.nuget.org/packages/Microsoft.AspNetCore.OpenApi/11.0.0",
+      "expiresUtc": "2026-11-18T00:00:00Z"
     },
     {
-      "ecosystem": "Alpine",
-      "name": "curl",
-      "version": "8.23.0-r0",
-      "reason": "Approved on 2026-10-27 to patch the build-only SDK's curl findings, including high-severity CVE-2026-92392, before the eight-day cooldown. APK exceptions document manual publication-age verification; the automated validator does not inspect APK packages.",
+      "ecosystem": "NuGet",
+      "name": "Microsoft.AspNetCore.Mvc.Testing",
+      "version": "11.0.0",
+      "reason": "Approved by the user on 2026-11-11 as a required .NET 11 test package before the eight-day package cooldown.",
       "approver": "simonkurtz-MSFT",
-      "evidence": "https://secdb.alpinelinux.org/v3.24/main.json",
-      "expiresUtc": "2026-11-04T00:00:00Z"
-    },
-    {
-      "ecosystem": "Alpine",
-      "name": "libcurl",
-      "version": "8.23.0-r0",
-      "reason": "Approved on 2026-10-27 with the matching build-only curl security patch. APK exceptions document manual publication-age verification; the automated validator does not inspect APK packages.",
-      "approver": "simonkurtz-MSFT",
-      "evidence": "https://secdb.alpinelinux.org/v3.24/main.json",
-      "expiresUtc": "2026-11-04T00:00:00Z"
+      "evidence": "https://www.nuget.org/packages/Microsoft.AspNetCore.Mvc.Testing/11.0.0",
+      "expiresUtc": "2026-11-18T00:00:00Z"
     }
   ]
 }

@@ -4,19 +4,19 @@
 [![Image size](https://img.shields.io/docker/image-size/simonkurtzmsft/mockapi?logo=docker&sort=semver)](https://hub.docker.com/r/simonkurtzmsft/mockapi/tags)
 [![Platforms](https://img.shields.io/badge/platforms-linux%2Famd64%20%C2%B7%20linux%2Farm64-blue?logo=docker)](https://hub.docker.com/r/simonkurtzmsft/mockapi/tags)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet)](src/MockAPI/MockAPI.csproj)
+[![.NET 11](https://img.shields.io/badge/.NET-11-512BD4?logo=dotnet)](src/MockAPI/MockAPI.csproj)
 
 **Mock any HTTP response — any status code, any headers, any body — and change it while your app keeps running!**
 
 Need a clean `200`, a stubborn `429`, a broken `500`, or a dropped connection on demand? MockAPI serves the exact HTTP response you define — and lets you change it at runtime without touching consumer code or restarting.
 
-**MockAPI is a self-contained .NET 10 mock server.** Define responses in the browser dashboard, the management API, or JSON, then call them immediately. It ships as one small, multi-architecture container available on [Docker Hub](https://hub.docker.com/r/simonkurtzmsft/mockapi) as `simonkurtzmsft/mockapi`, so you can pull, run, or deploy it in seconds. No SDKs, no stub code, no redeploys.
+**MockAPI is a self-contained .NET 11 mock server.** Define responses in the browser dashboard, the management API, or JSON, then call them immediately. It ships as one small, multi-architecture container available on [Docker Hub](https://hub.docker.com/r/simonkurtzmsft/mockapi) as `simonkurtzmsft/mockapi`, so you can pull, run, or deploy it in seconds. No SDKs, no stub code, no redeploys.
 
 _**From a developer, for developers!**_
 
 ## Get started in two minutes
 
-**Run from source for local development.** Install the stable [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+**Run from source for local development.** Install the stable [.NET 11 SDK](https://dotnet.microsoft.com/download/dotnet/11.0)
 and use PowerShell 7 or Bash. Node.js is not needed just to run MockAPI.
 
 ```text
@@ -248,7 +248,7 @@ Run commands from the repository root. Developer-CLI examples provide collapsibl
 
 | Workflow                                                        | Best for                                                        | Requirements                                                | Application URL          |
 | --------------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------ |
-| [.NET directly](#22-run-directly-with-net)                      | Fast local edit, run, and debug loops                           | Current stable .NET 10 SDK                                  | `http://localhost:5080/` |
+| [.NET directly](#22-run-directly-with-net)                      | Fast local edit, run, and debug loops                           | Current stable .NET 11 SDK                                  | `http://localhost:5080/` |
 | [Container](#23-run-a-local-container)                          | Fastest isolated runtime; pull the published image or build it  | WSLC, Docker Engine or Desktop, or a compatible OCI runtime | `http://localhost:8080/` |
 | [Azure Container Apps](#24-deploy-to-azure-container-apps)      | A remotely accessible shared environment                        | Azure CLI and Azure Developer CLI 1.27.1 or newer           | Printed after deployment |
 | [Other container platforms](#25-deploy-the-container-elsewhere) | Kubernetes, hosted container services, or custom infrastructure | Linux `amd64` or `arm64` container runtime                  | Platform-defined         |

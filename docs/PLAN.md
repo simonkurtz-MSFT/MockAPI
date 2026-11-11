@@ -2,7 +2,7 @@
 
 ## 1. Goal
 
-Build a container-first .NET 10 application that creates configurable mock HTTP endpoints and lets an operator manage them at runtime or from a persisted JSON configuration file.
+Build a container-first .NET 11 application that creates configurable mock HTTP endpoints and lets an operator manage them at runtime or from a persisted JSON configuration file.
 
 Each mock endpoint must be able to define:
 
@@ -33,7 +33,7 @@ The implementation should source proven patterns from these reference repositori
   - Per-endpoint request state.
   - Source-generated `System.Text.Json` metadata.
 
-The new project should target .NET 10 and preserve the small, non-root, minimal-container approach while replacing hard-coded routes and counters with a general runtime endpoint registry.
+The new project should target .NET 11 and preserve the small, non-root, minimal-container approach while replacing hard-coded routes and counters with a general runtime endpoint registry.
 
 ## 3. Scope
 
@@ -48,7 +48,7 @@ The new project should target .NET 10 and preserve the small, non-root, minimal-
 - Request matching by HTTP method and exact normalized path only.
 - Optional per-endpoint rolling-window rate limiting with a configured 2xx response before the terminal `429` response.
 - Per-endpoint and aggregate in-memory statistics.
-- Native AOT `linux-musl-x64` and `linux-musl-arm64` publications in .NET 10 Alpine runtime-deps images, delivered through one multi-platform image index for `linux/amd64` and `linux/arm64`.
+- Native AOT `linux-musl-x64` and `linux-musl-arm64` publications in .NET 11 Alpine runtime-deps images, delivered through one multi-platform image index for `linux/amd64` and `linux/arm64`.
 - Health/readiness endpoints.
 - Automated unit, integration, schema, dashboard, and container tests.
 
@@ -464,12 +464,12 @@ The UI must be keyboard usable and responsive, with WCAG 2.2 AA as the design an
 
 ## 11. Container and Publication
 
-- Target `net10.0` and use the current stable .NET 10 SDK without a repository-local SDK pin.
+- Target `net11.0` with `global.json` selecting the stable .NET 11 SDK baseline and latest-feature roll-forward.
 - Compile Native AOT for `linux-musl-x64` and `linux-musl-arm64` on matching native Linux runners. Prioritize low idle memory over a small image-size increase; do not ship a managed runtime or native debug symbols.
 - Keep local development, tests, coverage, and diagnostic cross-publication on CoreCLR. The developer CLI `publish` action is a managed-code check, not a release artifact; `container-build` produces the native AOT image.
 - Publish one multi-platform OCI image index containing `linux/amd64` and `linux/arm64` images. Keep tags and application behavior identical across architectures.
-- Build in `mcr.microsoft.com/dotnet/sdk:10.0.403-alpine3.24-aot@sha256:8a339f2175a99aad64cd618450303b8361d565eebbdf8aad95cdf8e6b54ab9d3`; keep its native compiler and linker out of the final image. The approved 2026-10-27 security exception services Brotli CVE-2026-111497 in Native AOT output. Pin build-stage Alpine `curl` and `libcurl` to `8.23.0-r0` until the upstream SDK includes their security fixes.
-- Run in `mcr.microsoft.com/dotnet/runtime-deps:10.0.14-alpine3.24@sha256:752897bc0b19f05fd5849897815180752103293ffc3b68bd404a4db1e5c3705c`. The matching security exception permits early adoption and fixes musl CVE-2026-107891 while retaining the prior zlib security fix. Rebuild with the patched SDK rather than only replacing the runtime-deps base.
+- Build in `mcr.microsoft.com/dotnet/sdk:11.0.100-alpine3.24-aot@sha256:a6a89666d050f5d4806aa03edbc677291c7fb92191b5b2a8f3bccdec869ab87a`; keep its native compiler and linker out of the final image. Pin build-stage Alpine `curl` and `libcurl` to `8.23.0-r0` until the upstream SDK includes their security fixes. The image was adopted on 2026-11-11 under an expiring, user-approved dependency-age exception.
+- Run in `mcr.microsoft.com/dotnet/runtime-deps:11.0.0-alpine3.24@sha256:5597d4a0c9ea3fb84fc210333013d761fc350d5925fc9042f62992675e15b58b`. Its early adoption uses the matching expiring exception; validate both native AOT outputs and runtime images before release.
 - Run as the built-in non-root `app` user.
 - Listen on HTTP port `8080`; terminate TLS at the container host or ingress.
 - Disable the Kestrel `Server` response header.
@@ -701,7 +701,7 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
 
 | Phase                         | Deliverables                                                                                                                                                                                                                                                       | Exit criteria                                                                                                                                                                                                                                                           |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Foundation                 | Solution/project structure, .NET 10 pin, domain model, source-generated JSON, validation, initial schema and examples                                                                                                                                              | Configuration round-trips and all schema/domain validation tests pass                                                                                                                                                                                                   |
+| 1. Foundation                 | Solution/project structure, .NET 11 SDK and target, domain model, source-generated JSON, validation, initial schema and examples                                                                                                                                   | Configuration round-trips and all schema/domain validation tests pass                                                                                                                                                                                                   |
 | 2. Runtime engine             | Immutable registry, catch-all dispatcher, configured responses, concurrency-safe statistics                                                                                                                                                                        | Runtime-created routes work immediately and concurrent mutation tests pass                                                                                                                                                                                              |
 | 3. Persistence and management | File store, revisions, CRUD API, import/export/save, non-destructive built-in merge and conflict preview, health endpoints, problem details, management OpenAPI document, Swagger UI                                                                               | Invalid changes are atomic; built-ins merge idempotently without unrelated endpoint loss; saved configuration survives restart; management operations are accurately described by OpenAPI                                                                               |
 | 4. Dashboard                  | Endpoint management UI, built-in merge/conflict confirmation, payload/header editor, per-endpoint right-side test blade, filters, live statistics, and accessibility support targeting WCAG 2.2 AA                                                                 | End-to-end workflows and automated accessibility checks pass on mobile and desktop with no unreviewed moderate, serious, or critical violations                                                                                                                         |
@@ -725,7 +725,7 @@ The initial ARM64 experiment measured 26.83 MB for Alpine CoreCLR and 27.11 MB f
 - [x] Reserved system routes cannot be shadowed by mock endpoints.
 - [x] Startup loading, management writes, validation, and import consistently enforce the approved document, endpoint, method, path, body, and header limits.
 - [x] Recent-rate statistics retain exactly 60 one-minute buckets without unbounded growth.
-- [x] The application runs as non-root in a .NET 10 Alpine container on port 8080.
+- [x] The application runs as non-root in a .NET 11 Alpine container on port 8080.
 - [x] One multi-platform image index provides functionally equivalent `linux/amd64` and `linux/arm64` images.
 - [x] The application passes local native container checks with a `0.5` CPU and `256 MiB` limit; deployment examples start with a `0.25` CPU and `128 MiB` request.
 - [x] The root filesystem can be read-only with `/data` as the sole writable application mount.

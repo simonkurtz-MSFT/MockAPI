@@ -2,11 +2,11 @@
 
 # Compile on the target architecture. The AOT SDK includes the native compiler and linker,
 # which stay in this stage; CI uses native AMD64 and ARM64 runners, not cross-compilation.
-# Pinned image release date (UTC): 2026-10-24 (registry image creation metadata).
-FROM mcr.microsoft.com/dotnet/sdk:10.0.403-alpine3.24-aot@sha256:8a339f2175a99aad64cd618450303b8361d565eebbdf8aad95cdf8e6b54ab9d3 AS build
+# https://mcr.microsoft.com/en-us/artifact/mar/dotnet/sdk/tag/11.0.100-alpine3.24-aot
+# Pinned image release date (UTC): 2026-11-10 (registry image creation metadata).
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100-alpine3.24-aot@sha256:a6a89666d050f5d4806aa03edbc677291c7fb92191b5b2a8f3bccdec869ab87a AS build
 
-# The serviced SDK fixes Brotli but predates the curl security update.
-# Keep this exact build-only patch until an upstream SDK includes it.
+# Keep this exact build-only curl patch until an upstream SDK includes it.
 RUN apk add --upgrade --no-cache curl=8.23.0-r0 libcurl=8.23.0-r0
 
 # The developer CLI passes the host's enabled HTTPS NuGet feed for approved proxy support.
@@ -27,8 +27,9 @@ RUN dotnet publish src/MockAPI/MockAPI.csproj --configuration Release --no-resto
 # 2) Create the final runtime image with the published .NET MockAPI project
 
 # Native AOT removes the managed runtime and JIT; the executable still needs native OS libraries.
-# Pinned image release date (UTC): 2026-10-24 (registry image creation metadata).
-FROM mcr.microsoft.com/dotnet/runtime-deps:10.0.14-alpine3.24@sha256:752897bc0b19f05fd5849897815180752103293ffc3b68bd404a4db1e5c3705c AS final
+# https://mcr.microsoft.com/en-us/artifact/mar/dotnet/runtime-deps/tag/11.0.0-alpine3.24
+# Pinned image release date (UTC): 2026-11-10 (registry image creation metadata).
+FROM mcr.microsoft.com/dotnet/runtime-deps:11.0.0-alpine3.24@sha256:5597d4a0c9ea3fb84fc210333013d761fc350d5925fc9042f62992675e15b58b AS final
 EXPOSE 8080
 
 WORKDIR /app
